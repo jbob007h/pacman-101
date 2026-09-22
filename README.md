@@ -83,7 +83,7 @@ The match clock starts at 0:00 when you take the first step. Red share of each a
 | 6:30–7:00 | 11/12 |
 | 7:00+ | red only |
 
-A white jammer dies when it hits Pac and slows Pac to 42% speed. That slow lasts 1.2s at the start and grows by 0.25s every 30s of match time, through 7:00. A power pellet destroys every white jammer. A red jammer does not die on a pellet or on a hit. The hit slows Pac to 26% speed for 1.75× the white duration at that same moment, then the red cannot hit again for 1.7s while it keeps chasing.
+A white jammer dies when it hits Pac and slows Pac to 42% speed. That slow lasts 1.2s at the start and grows by 0.25s every 30s of match time, through 7:00. A power pellet destroys every white jammer. A red jammer kills Pac on contact once it has finished fading in. During a power pellet the reds freeze in place and do not die. Eating the fruit clears every red jammer off the board.
 
 ## Layout
 

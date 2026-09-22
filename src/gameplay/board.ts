@@ -137,7 +137,7 @@ export class Board {
       return;
     }
     this.time += step;
-    this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed());
+    this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed(), this.frightened > 0);
     if (this.clearPause > 0) {
       this.clearPause -= step;
       return;
@@ -154,7 +154,7 @@ export class Board {
     this.tryEatFruit();
     if (!this.pac.alive) return;
     this.moveGhosts(step, false);
-    this.inbound.touch(this.pac.x, this.pac.y, this.matchTime);
+    if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime)) this.kill();
     if (this.clearPause > 0) return;
     this.collide();
   }
@@ -291,6 +291,7 @@ export class Board {
     this.fruitSpawned = false;
     this.maze.resetDots();
     this.boardPellets = this.maze.remaining();
+    this.inbound.killReds();
     this.clearPause = 0.7;
   }
 

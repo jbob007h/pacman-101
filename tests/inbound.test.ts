@@ -19,14 +19,12 @@ describe('inbound jammers', () => {
     expect(splitJammerColors(420, 4, false)).toEqual({ red: 4, white: 0, usedFirstRed: false });
   });
 
-  it('grows the slow every 30s and makes red harsher than white', () => {
-    const early = slowProfile('white', 0);
-    const later = slowProfile('white', 60);
-    const red = slowProfile('red', 60);
+  it('grows the white slow every 30s and caps it at 7:00', () => {
+    const early = slowProfile(0);
+    const later = slowProfile(60);
     expect(later.seconds).toBeGreaterThan(early.seconds);
-    expect(red.seconds).toBeGreaterThan(later.seconds);
-    expect(red.factor).toBeLessThan(later.factor);
-    expect(slowProfile('white', 10_000).seconds).toBe(slowProfile('white', 420).seconds);
+    expect(early.factor).toBeCloseTo(0.42);
+    expect(slowProfile(10_000).seconds).toBe(slowProfile(420).seconds);
   });
 
   it('spawns outside Pac’s quadrant, caps at 16, and drops the overflow', () => {
@@ -62,7 +60,7 @@ describe('inbound jammers', () => {
     expect(game.board.inbound.count).toBe(JAMMER_CAP);
   });
 
-  it('ignores Pac during the spawn fade, then whites die on hit and reds stay immune', () => {
+  it('ignores Pac during the spawn fade, slows on a white hit, and dies on a red hit', () => {
     const field = new InboundField();
     const white = idle('white');
     white.x = 10;
@@ -70,28 +68,75 @@ describe('inbound jammers', () => {
     white.phase = 'spawn';
     white.anim = 0.4;
     field.jammers.push(white);
-    field.touch(10, 20, 0);
+    expect(field.touch(10, 20, 0)).toBe(false);
     expect(field.slow).toBe(0);
 
     white.phase = 'live';
-    field.touch(10, 20, 0);
+    expect(field.touch(10, 20, 0)).toBe(false);
     expect(white.phase).toBe('dying');
     expect(field.slow).toBeCloseTo(1.2);
     expect(field.slowFactor).toBeCloseTo(0.42);
 
     const reds = new InboundField();
+    const spawning = idle('red');
+    spawning.x = 4;
+    spawning.y = 4;
+    spawning.phase = 'spawn';
+    reds.jammers.push(spawning);
+    expect(reds.touch(4, 4, 60)).toBe(false);
+
+    spawning.phase = 'live';
+    expect(reds.touch(4, 4, 60)).toBe(true);
+    expect(spawning.phase).toBe('live');
+    expect(reds.slow).toBe(0);
+  });
+
+  it('freezes live reds during a power pellet and clears them when the fruit is eaten', () => {
+    const game = new Game(() => 0);
     const red = idle('red');
-    red.x = 4;
-    red.y = 4;
     red.phase = 'live';
-    reds.jammers.push(red);
-    reds.touch(4, 4, 60);
+    red.x = 6;
+    red.y = 5;
+    red.dir = { x: 1, y: 0 };
+    game.board.inbound.jammers.push(red);
+    game.board.frightened = 4;
+    game.board.pac.dir = { x: -1, y: 0 };
+    game.board.pac.x = 14;
+    game.board.pac.y = 23;
+    game.update(1 / 60);
     expect(red.phase).toBe('live');
-    expect(red.immune).toBeGreaterThan(1);
-    expect(reds.slow).toBeGreaterThan(slowProfile('white', 60).seconds);
-    expect(reds.slowFactor).toBeLessThan(0.42);
-    reds.touch(4, 4, 60);
-    expect(reds.slow).toBeCloseTo(slowProfile('red', 60).seconds);
+    expect(red.x).toBe(6);
+    expect(red.y).toBe(5);
+
+    game.board.fruit = { x: 14, y: 17 };
+    game.board.pac.x = 14;
+    game.board.pac.y = 17;
+    game.update(1 / 60);
+    expect(game.board.boardIndex).toBe(1);
+    expect(red.phase).toBe('dying');
+  });
+
+  it('kills Pac when a live red overlaps him and ignores a red that is still spawning', () => {
+    const spawning = new Game(() => 0);
+    const fading = idle('red');
+    fading.phase = 'spawn';
+    fading.x = spawning.board.pac.x;
+    fading.y = spawning.board.pac.y;
+    spawning.board.inbound.jammers.push(fading);
+    spawning.board.pac.dir = { x: -1, y: 0 };
+    spawning.update(1 / 60);
+    expect(spawning.board.pac.alive).toBe(true);
+
+    const game = new Game(() => 0);
+    const red = idle('red');
+    red.phase = 'live';
+    red.x = game.board.pac.x;
+    red.y = game.board.pac.y;
+    game.board.inbound.jammers.push(red);
+    game.board.pac.dir = { x: 0, y: -1 };
+    game.update(1 / 60);
+    expect(game.board.pac.alive).toBe(false);
+    expect(game.match.phase).toBe('lost');
   });
 
   it('kills white jammers on a power pellet and leaves reds', () => {
@@ -127,7 +172,6 @@ function idle(kind: 'white' | 'red'): InboundJammer {
     kind,
     phase: 'spawn',
     anim: 0,
-    immune: 0,
     centerKey: -1,
     x: 1,
     y: 1,

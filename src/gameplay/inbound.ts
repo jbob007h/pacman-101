@@ -5,7 +5,6 @@ import {
   JAMMER_SPAWN_SECONDS,
   MAZE_COLS,
   MAZE_ROWS,
-  RED_IMMUNE_SECONDS,
 } from '../config';
 import type { Rng } from '../shared/rng';
 import type { Dir } from '../shared/types';
@@ -21,7 +20,6 @@ export interface InboundJammer extends Mover {
   phase: JammerPhase;
   /** 0–1 progress of the spawn or death animation. */
   anim: number;
-  immune: number;
   centerKey: number;
 }
 
@@ -81,14 +79,12 @@ export function splitJammerColors(
 }
 
 /**
- * White slow starts near 1.2s at 42% speed and grows by 0.25s every 30s of
- * match time, capped at the 7:00 step. Red is slower to move through and lasts longer.
+ * White slow starts at 1.2s and 42% speed, then grows by 0.25s every 30s of
+ * match time, capped at the 7:00 step. Red jammers do not slow Pac.
  */
-export function slowProfile(kind: JammerKind, elapsed: number): { seconds: number; factor: number } {
+export function slowProfile(elapsed: number): { seconds: number; factor: number } {
   const steps = Math.min(14, Math.floor(Math.max(0, elapsed) / 30));
-  const whiteSeconds = 1.2 + steps * 0.25;
-  if (kind === 'white') return { seconds: whiteSeconds, factor: 0.42 };
-  return { seconds: whiteSeconds * 1.75, factor: 0.26 };
+  return { seconds: 1.2 + steps * 0.25, factor: 0.42 };
 }
 
 export function formatMatchTime(seconds: number): string {
@@ -135,7 +131,7 @@ export class InboundField {
     return tiles.length;
   }
 
-  update(dt: number, maze: Maze, pacX: number, pacY: number, chaseSpeed: number): void {
+  update(dt: number, maze: Maze, pacX: number, pacY: number, chaseSpeed: number, freezeReds: boolean): void {
     if (this.slow > 0) {
       this.slow = Math.max(0, this.slow - dt);
       if (this.slow <= 0) this.slowFactor = 1;
@@ -156,7 +152,10 @@ export class InboundField {
         if (jammer.anim < 1) next.push(jammer);
         continue;
       }
-      if (jammer.immune > 0) jammer.immune = Math.max(0, jammer.immune - dt);
+      if (jammer.kind === 'red' && freezeReds) {
+        next.push(jammer);
+        continue;
+      }
       const speed = chaseSpeed * (jammer.kind === 'red' ? 0.8 : 0.62);
       const traveled = advanceMover(
         jammer,
@@ -173,24 +172,36 @@ export class InboundField {
     this.jammers = next;
   }
 
-  touch(pacX: number, pacY: number, elapsed: number): void {
+  /** Returns true when a live red jammer touches Pac. Spawning jammers never collide. */
+  touch(pacX: number, pacY: number, elapsed: number): boolean {
+    let kill = false;
     for (const jammer of this.jammers) {
-      if (jammer.phase !== 'live' || jammer.immune > 0) continue;
+      if (jammer.phase !== 'live') continue;
       if (Math.hypot(jammer.x - pacX, jammer.y - pacY) > 0.48) continue;
-      this.applySlow(jammer.kind, elapsed);
-      if (jammer.kind === 'white') {
-        jammer.phase = 'dying';
-        jammer.anim = 0;
-      } else {
-        jammer.immune = RED_IMMUNE_SECONDS;
+      if (jammer.kind === 'red') {
+        kill = true;
+        continue;
       }
+      jammer.phase = 'dying';
+      jammer.anim = 0;
+      this.applySlow(elapsed);
     }
+    return kill;
   }
 
-  /** Power pellets wipe every white jammer. Reds stay. */
+  /** Power pellets wipe every white jammer. Reds stay and hold still while frightened. */
   killWhites(): void {
     for (const jammer of this.jammers) {
       if (jammer.kind !== 'white' || jammer.phase === 'dying') continue;
+      jammer.phase = 'dying';
+      jammer.anim = 0;
+    }
+  }
+
+  /** Eating the fruit clears every red jammer off the board. */
+  killReds(): void {
+    for (const jammer of this.jammers) {
+      if (jammer.kind !== 'red' || jammer.phase === 'dying') continue;
       jammer.phase = 'dying';
       jammer.anim = 0;
     }
@@ -203,8 +214,8 @@ export class InboundField {
     this.firstRedPending = true;
   }
 
-  private applySlow(kind: JammerKind, elapsed: number): void {
-    const profile = slowProfile(kind, elapsed);
+  private applySlow(elapsed: number): void {
+    const profile = slowProfile(elapsed);
     this.slow = Math.max(this.slow, profile.seconds);
     this.slowFactor = this.slowFactor === 1 ? profile.factor : Math.min(this.slowFactor, profile.factor);
   }
@@ -215,7 +226,6 @@ function createJammer(kind: JammerKind, x: number, y: number, pacX: number, pacY
     kind,
     phase: 'spawn',
     anim: 0,
-    immune: 0,
     centerKey: -1,
     x,
     y,

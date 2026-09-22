@@ -47,7 +47,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   if (input.fruit) drawFruit(ctx, input.fruit, board.x, board.y);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   drawPac(ctx, input, board.x, board.y);
-  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y);
+  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   drawEatScore(ctx, input, board.x, board.y);
   ctx.restore();
 
@@ -130,6 +130,7 @@ function drawJammer(
   maze: Maze,
   ox: number,
   oy: number,
+  frightened: boolean,
 ): void {
   let scale = 1;
   let alpha = 1;
@@ -139,12 +140,11 @@ function drawJammer(
   } else if (jammer.phase === 'dying') {
     scale = 1 - 0.75 * jammer.anim;
     alpha = 1 - jammer.anim;
-  } else if (jammer.immune > 0) {
-    alpha = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(jammer.immune * 18));
   }
-  const color = jammer.kind === 'red' ? '#ff2a36' : '#ffffff';
-  const ring = jammer.kind === 'red' ? '#ffd2d6' : '#1a2748';
-  const glow = jammer.kind === 'red' ? 'rgba(255, 40, 54, 0.45)' : 'rgba(255, 255, 255, 0.55)';
+  const frozen = jammer.kind === 'red' && frightened && jammer.phase === 'live';
+  const color = frozen ? '#8fd0ff' : jammer.kind === 'red' ? '#ff2a36' : '#ffffff';
+  const ring = frozen ? '#e8f6ff' : jammer.kind === 'red' ? '#ffd2d6' : '#1a2748';
+  const glow = frozen ? 'rgba(140, 210, 255, 0.45)' : jammer.kind === 'red' ? 'rgba(255, 40, 54, 0.45)' : 'rgba(255, 255, 255, 0.55)';
   for (const point of spritePoints(jammer.x, jammer.y, maze)) {
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;

@@ -98,8 +98,6 @@ export const JAMMER_CAP = 16;
 /** Seconds a jammer spends scaling in. It cannot touch Pac during this window. */
 export const JAMMER_SPAWN_SECONDS = 0.7;
 export const JAMMER_DEATH_SECONDS = 0.38;
-/** After a red jammer hits, it keeps chasing but cannot hit again until this elapses. */
-export const RED_IMMUNE_SECONDS = 1.7;
 
 /**
  * How many inbound jammers one attack tries to spawn, before the board cap.
