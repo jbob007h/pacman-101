@@ -205,6 +205,94 @@ button.ghost:hover {
   color: #d5def2;
 }
 
+.name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 16px;
+  color: #8ea0c8;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  text-align: left;
+}
+
+.name-field input {
+  font: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #f4f1e6;
+  background: #0c101a;
+  border: 1px solid #6e84b4;
+  border-radius: 10px;
+  padding: 8px 10px;
+  user-select: text;
+}
+
+.name-field input:focus {
+  outline: 2px solid #ffe14a;
+  border-color: #ffe14a;
+}
+
+.ranking-card {
+  width: min(460px, calc(100% - 24px));
+  text-align: left;
+}
+
+.ranking-card h2,
+.ranking-card .menu-actions {
+  text-align: center;
+}
+
+#ranking-list {
+  max-height: min(46vh, 320px);
+  overflow-y: auto;
+  margin: 0 0 14px;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid #243458;
+  border-radius: 10px;
+  background: #0c101a;
+}
+
+.rank-row {
+  display: grid;
+  grid-template-columns: 3.2ch 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 8px;
+  color: #d5def2;
+  font-size: 14px;
+}
+
+.rank-row .place {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  color: #8ea0c8;
+}
+
+.rank-row.active .place,
+.rank-row.active .tag {
+  color: #5c6e94;
+}
+
+.rank-row.you {
+  background: rgba(255, 225, 74, 0.18);
+  color: #ffe14a;
+}
+
+.rank-row.you .place,
+.rank-row.you .tag {
+  color: #ffe14a;
+}
+
+.rank-row .tag {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8ea0c8;
+}
+
 #help {
   margin: 10px 0 0;
   color: #8ea0c8;

@@ -11,6 +11,8 @@ import { EventBus } from './shared/events';
 import type { JamReason } from './shared/events';
 import type { Rng } from './shared/rng';
 import { Match, type MatchPhase } from './systems/match';
+import { DEFAULT_PLAYER_NAME } from './systems/names';
+import { Ranking, type StandingSnapshot } from './systems/ranking';
 import { SimWorld } from './systems/sims';
 
 export interface HudState {
@@ -24,6 +26,8 @@ export interface HudState {
   /** Big start callout, or null once the countdown is over. */
   countdown: string | null;
   overlay: { title: string; body: string } | null;
+  /** Set once the death pause has played. Null during play and on a win. */
+  standings: StandingSnapshot | null;
 }
 
 /**
@@ -34,6 +38,9 @@ export class Game {
   readonly board: Board;
   readonly sims: SimWorld;
   readonly match: Match;
+  readonly ranking: Ranking;
+  /** Human name used on the HUD and in the standings. */
+  playerName = DEFAULT_PLAYER_NAME;
   readonly sfx = new Sfx();
   private readonly fx = new BoltField();
   private banner = '';
@@ -54,6 +61,7 @@ export class Game {
     this.board = new Board(this.bus, rng);
     this.sims = new SimWorld(this.bus, rng);
     this.match = new Match(this.bus, this.sims);
+    this.ranking = new Ranking(this.bus, this.playerName);
     this.bus.on('jammersSent', (event) => {
       if (event.reason === 'sim') return;
       const board = boardRect();
@@ -65,11 +73,11 @@ export class Game {
       this.setBanner(`${reasonLabel(event.reason)} ${event.strength} → ${formatTargets(event.targets)}`);
     });
     this.bus.on('simEliminated', (event) => {
-      this.setBanner(`Eliminated #${event.simId}`);
+      this.setBanner(`Eliminated ${this.ranking.nameForSim(event.simId)}`);
     });
     this.bus.on('incomingJammer', (event) => {
       this.fx.queueIncoming(panelCenter(event.fromSimId), ghostHouseCenter(), event.strength);
-      this.setBanner(`Jammer from #${event.fromSimId}`);
+      this.setBanner(`Jammer from ${this.ranking.nameForSim(event.fromSimId)}`);
     });
     this.bus.on('dotEaten', () => this.sfx.dot());
     this.bus.on('powerPelletEaten', () => this.sfx.pellet());
@@ -104,6 +112,11 @@ export class Game {
     this.armCountdown();
   }
 
+  setPlayerName(name: string): void {
+    this.playerName = name;
+    this.ranking.setPlayerName(name);
+  }
+
   toggleMute(): boolean {
     this.sfx.unlock();
     return this.sfx.toggle();
@@ -128,7 +141,7 @@ export class Game {
     if (started) this.playStarted = true;
     if (this.playStarted && this.match.phase === 'playing') this.matchTime += step;
     this.board.matchTime = this.matchTime;
-    if (this.match.phase === 'playing' && started) this.sims.update(step);
+    if (this.match.phase === 'lost' || (this.match.phase === 'playing' && started)) this.sims.update(step);
     this.tickFx(step);
     this.sfx.tick(step);
     if (this.inMatch) {
@@ -155,6 +168,7 @@ export class Game {
     this.beatFrame = 0;
     this.beatSound = -1;
     this.sfx.resetWatch();
+    this.ranking.reset(this.playerName);
   }
 
   hud(): HudState {
@@ -169,6 +183,7 @@ export class Game {
       status: this.statusLine(),
       countdown: this.countdownLabel(),
       overlay: this.overlay(),
+      standings: this.standingsOverlay(),
     };
   }
 
@@ -272,13 +287,13 @@ export class Game {
         body: `Last player standing. Score ${this.board.score}.`,
       };
     }
-    if (this.match.phase === 'lost' && this.board.deathTime > 0.85) {
-      return {
-        title: 'Eliminated',
-        body: `${this.sims.aliveCount()} opponents remain. Score ${this.board.score}.`,
-      };
-    }
     return null;
+  }
+
+  /** Ranking replaces the old death card once the collapse animation has played. */
+  private standingsOverlay(): StandingSnapshot | null {
+    if (this.match.phase !== 'lost' || this.board.deathTime <= 0.85) return null;
+    return this.ranking.snapshot();
   }
 
   private setBanner(text: string): void {

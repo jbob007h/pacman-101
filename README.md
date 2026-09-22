@@ -28,10 +28,10 @@ Other scripts:
 
 ## Controls
 
-- The game opens on a title screen. Start match, Enter, or Space begins a match. Arrow keys do nothing until then.
+- The game opens on a title screen. Type a name (it is remembered in this browser; a blank name becomes Pac), then Start match, Enter, or Space begins a match. Arrow keys do nothing until then.
 - The match then counts Ready…, 3…, 2…, 1…, Hit it! Each beat is 60 simulation frames, one second at the locked 60Hz step. Pac stays put, and arrows are ignored, until Hit it! On that beat he moves left (the way he is facing) on his own. Arrows and WASD work after that. Reversing is instant; other turns happen at intersections. Each beat plays a short generated blip, and Hit it! plays a brighter go cue.
 - Eat the large dots to frighten ghosts, then run into them to send jammers. Dot eats alternate a higher and a lower wakawaka tone.
-- `R` or Restart starts a new match. On the title screen, Restart starts the match. The restart prompt also shows when you die or win.
+- `R` or Restart starts a new match. On the title screen, Restart starts the match. After you are eliminated, a standings list shows all 101 players. People still alive have a blank place and stay marked in. Each later elimination locks the next place from the bottom and the blank closes. Menu returns to the title. Restart starts another match.
 - Sound is generated in the browser (no sound files). `M`, or the Sound button on the title screen and in the header, mutes it. The choice is remembered in this browser. The button reads Muted while sound is off.
 - Eating a frightened ghost freezes the maze for half a second, then play resumes.
 - Eating a normal dot stops Pac for 1 simulation frame. A power pellet stops him for 3. Ghosts and jammers keep moving. The maze steps at a fixed 60Hz; the canvas can still draw on the display refresh, and a stalled tab catches up at most 5 frames.

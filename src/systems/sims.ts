@@ -10,9 +10,11 @@ import {
 import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
 import { jammersFromEvent, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
+import { cpuName } from './names';
 
 export interface Sim {
   id: number;
+  name: string;
   alive: boolean;
   /** 0–100. At {@link KILL_PRESSURE} the sim is eliminated. */
   pressure: number;
@@ -138,6 +140,7 @@ export class SimWorld {
 function createSims(rng: Rng): Sim[] {
   return Array.from({ length: SIM_COUNT }, (_, index) => ({
     id: index + 1,
+    name: cpuName(index + 1),
     alive: true,
     pressure: 0,
     heat: 0,
