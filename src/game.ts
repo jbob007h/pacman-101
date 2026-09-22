@@ -141,6 +141,7 @@ export class Game {
   }
 
   private statusLine(): string {
+    if (!this.inMatch) return 'Start match to play';
     if (this.bannerT > 0) return this.banner;
     if (this.match.phase === 'playing' && this.board.pac.dir.x === 0 && this.board.pac.dir.y === 0) {
       return 'Press an arrow key or WASD to start';
