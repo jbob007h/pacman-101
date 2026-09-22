@@ -234,6 +234,11 @@ button.ghost:hover {
 
   #hud-actions {
     grid-area: restart;
+    flex-wrap: wrap;
     justify-content: flex-end;
+  }
+
+  #hud-actions button {
+    padding: 6px 8px;
   }
 }
