@@ -269,12 +269,13 @@ export class Board {
     this.fruit = { x: FRUIT_TILE.x, y: FRUIT_TILE.y };
   }
 
-  /** Full clear refills the maze and permanently speeds Pac. It does not advance the board. */
+  /**
+   * Full clear permanently speeds Pac and sends a jammer. It does not advance
+   * the board or reload dots. The fruit, if it is already out, stays until eaten.
+   */
   private onPelletsCleared(): void {
     this.bus.emit({ type: 'boardCleared' });
     this.clearBoost += 1;
-    this.maze.resetDots();
-    this.boardPellets = this.maze.remaining();
     this.clearPause = 0.7;
   }
 

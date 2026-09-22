@@ -41,11 +41,11 @@ Walls next to a corridor are drawn as half a tile on the blocked side so the lan
 
 ## Board speed
 
-Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board: the maze refills, a wide jammer still goes out, and Pac keeps a small permanent movement bonus (0.35 tiles/sec per clear, stacking for the rest of the match). That bonus is not part of the on-screen Speed number.
+Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, a wide jammer still goes out, and Pac keeps a small permanent movement bonus (0.35 tiles/sec per clear, stacking for the rest of the match). That bonus is not part of the on-screen Speed number. Dots come back only when the fruit is eaten.
 
 The Speed readout starts at 0. It goes up by 1 only when fruit advances you off an even board (2, 4, 6, …). Leaving board 1, 3, or 5 does not change it.
 
-Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). After the house-ring strip, the first fill has 251 of those (248 dots and 4 power pellets, minus the spawn tile), so the fruit appears after 126 pellets. Later fills restore the spawn dot, so that set is 252 and the half is 126 as well. It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. A second clear before you take the fruit stacks the movement bonus and does not spawn another fruit.
+Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). After the house-ring strip, the first fill has 251 of those (248 dots and 4 power pellets, minus the spawn tile), so the fruit appears after 126 pellets. Later fills restore the spawn dot, so that set is 252 and the half is 126 as well. It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. Clearing the board does not remove a fruit that is already waiting, and it does not start another fruit cycle. The next fruit waits until that fruit is eaten and the next fill begins.
 
 The side tunnels (the wrap row outside the ghost house) have no pellets. The rectangle of corridors wrapped around the ghost house — columns 9–18, rows 11–17 — has no dots or power pellets either. Ghosts in chase, scatter, or frightened mode move at 55% speed while they are in those tunnels. Pac does not slow down there, and eaten ghost eyes stay fast.
 
@@ -125,5 +125,5 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 - Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life, no Elroy speed curve
 - Ghost targeting is a simplified chase / scatter / frightened model
-- Clearing every pellet refills the maze and fires a wide jammer; eating the fruit is what advances the board. Neither ends the match
+- Clearing every pellet leaves the maze empty and fires a wide jammer; eating the fruit reloads the dots and advances the board. Neither ends the match
 - Drawn sprites and thin walls; not pixel art

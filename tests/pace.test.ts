@@ -54,8 +54,12 @@ describe('board pace', () => {
     expect(Math.hypot(blinky.x - beforeX, blinky.y - beforeY)).toBeGreaterThan(0.01);
   });
 
-  it('refills on a full clear, speeds Pac a little, and does not advance the board', () => {
+  it('leaves the maze empty on a full clear and reloads dots only when the fruit is eaten', () => {
     const game = new Game(() => 0);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
     const maze = game.board.maze;
     const target = { x: 13, y: 23 };
     for (let y = 0; y < maze.rows; y++) {
@@ -76,8 +80,20 @@ describe('board pace', () => {
     expect(game.board.displayedSpeed).toBe(0);
     expect(game.hud().board).toBe(1);
     expect(game.hud().speed).toBe(0);
+    expect(maze.remaining()).toBe(0);
+    expect(game.board.fruit).toEqual(FRUIT_TILE);
+
+    while (game.board.clearPause > 0) game.update(0.05);
+    expect(maze.remaining()).toBe(0);
+    expect(game.board.fruit).toEqual(FRUIT_TILE);
+
+    game.board.pac.x = FRUIT_TILE.x;
+    game.board.pac.y = FRUIT_TILE.y;
+    game.update(1 / 60);
+    expect(game.board.boardIndex).toBe(1);
     expect(maze.remaining()).toBeGreaterThan(1);
-    expect(game.board.fruit).not.toBeNull();
+    expect(game.board.clearBoost).toBe(1);
+    expect(game.board.fruit).toBeNull();
   });
 
   it('spawns one fruit under the ghost house at half the pellets, and fruit advances the board', () => {
