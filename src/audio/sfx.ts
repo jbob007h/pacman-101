@@ -164,8 +164,10 @@ export class Sfx {
 
   boardClear(): void {
     this.play('clear', () => {
-      this.tone(294, 0.1, 'square', 0.045);
-      this.tone(370, 0.14, 'square', 0.045, 0.09);
+      this.tone(392, 0.07, 'square', 0.045);
+      this.tone(523, 0.08, 'square', 0.05, 0.06);
+      this.tone(659, 0.09, 'square', 0.05, 0.12);
+      this.tone(880, 0.16, 'triangle', 0.045, 0.2);
     });
   }
 

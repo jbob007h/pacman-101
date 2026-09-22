@@ -1,6 +1,7 @@
 import {
   CLEAR_SPEED_BONUS,
   COLLIDE_DISTANCE,
+  SPEED_POPUP_SECONDS,
   DOT_SCORE,
   elroyLevel,
   DOT_STOP_FRAMES,
@@ -72,6 +73,11 @@ export class Board {
   displayedSpeed = 0;
   /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
   clearBoost = 0;
+  /**
+   * Seconds left on the "Speed Up!" callout. Set when the last pellet is eaten
+   * and ticked even while the clear pause holds Pac still.
+   */
+  speedPopup = 0;
   /** Fruit sitting under the ghost house, or null when none is out. */
   fruit: { x: number; y: number } | null = null;
   dotsEaten = 0;
@@ -140,6 +146,7 @@ export class Board {
       this.deathTime += step;
       return;
     }
+    if (this.speedPopup > 0) this.speedPopup = Math.max(0, this.speedPopup - step);
     if (this.eatPause > 0) {
       this.eatPause = Math.max(0, this.eatPause - step);
       this.spendBite(step);
@@ -188,6 +195,7 @@ export class Board {
     this.boardIndex = 0;
     this.displayedSpeed = 0;
     this.clearBoost = 0;
+    this.speedPopup = 0;
     this.fruit = null;
     this.fruitSpawned = false;
     this.dotsEaten = 0;
@@ -290,12 +298,14 @@ export class Board {
   /**
    * Full clear adds 1 to the Speed readout, permanently speeds Pac, and sends a jammer.
    * It does not advance the board or reload dots. The fruit, if it is already out, stays until eaten.
+   * Speed is committed before the event so a listener cannot observe the pre-clear meter.
    */
   private onPelletsCleared(): void {
-    this.bus.emit({ type: 'boardCleared' });
     this.clearBoost += 1;
     this.displayedSpeed += 1;
+    this.speedPopup = SPEED_POPUP_SECONDS;
     this.clearPause = 0.7;
+    this.bus.emit({ type: 'boardCleared' });
   }
 
   private tryEatFruit(): void {

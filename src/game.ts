@@ -186,6 +186,7 @@ export class Game {
       time: this.elapsed,
       eatPause: this.board.eatPause,
       eatPoints: this.board.lastEatPoints,
+      speedPopup: this.board.speedPopup,
       fruit: this.board.fruit,
       jammers: this.board.inbound.jammers,
       slow: this.board.inbound.slow,

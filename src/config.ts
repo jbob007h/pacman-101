@@ -61,9 +61,14 @@ export const FRUIT_SCORE = 100;
 
 /**
  * Tiles per second added to Pac for each full pellet clear this match.
- * The on-screen Speed number does not include this bonus.
+ * The Speed readout also goes up by 1 on that same clear. 1.25 is on the
+ * order of a board-to-board pace step, so the empty maze actually feels
+ * faster. The old 0.35 step was about 5% and read as no change.
+ * Even-board fruit still adds a readout point without adding this bonus.
  */
-export const CLEAR_SPEED_BONUS = 0.35;
+export const CLEAR_SPEED_BONUS = 1.25;
+/** How long the "Speed Up!" callout stays on Pac after a full clear. */
+export const SPEED_POPUP_SECONDS = 1.35;
 
 /** Chase, scatter, and frightened ghosts use this fraction of their speed in the side tunnels. */
 export const TUNNEL_GHOST_MULT = 0.55;

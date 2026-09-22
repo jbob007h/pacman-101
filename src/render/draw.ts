@@ -1,4 +1,4 @@
-import { TILE } from '../config';
+import { SPEED_POPUP_SECONDS, TILE } from '../config';
 import type { Ghost } from '../gameplay/ghosts';
 import { frightenedFlash } from '../gameplay/ghosts';
 import type { InboundJammer } from '../gameplay/inbound';
@@ -40,6 +40,8 @@ export interface DrawInput {
   time: number;
   eatPause: number;
   eatPoints: number;
+  /** Seconds remaining on the full-clear "Speed Up!" callout. 0 hides it. */
+  speedPopup: number;
   fruit: { x: number; y: number } | null;
   jammers: readonly InboundJammer[];
   slow: number;
@@ -129,6 +131,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   drawPac(ctx, input, board.x, board.y);
   for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   drawEatScore(ctx, input, board.x, board.y);
+  drawSpeedPopup(ctx, input, board.x, board.y);
   ctx.restore();
 
   ctx.strokeStyle = input.slow > 0 ? 'rgba(140, 190, 255, 0.9)' : '#243058';
@@ -286,6 +289,64 @@ function drawEatScore(ctx: CanvasRenderingContext2D, input: DrawInput, ox: numbe
   ctx.fillText(String(input.eatPoints), sx, sy - 14 * SPRITE_SCALE);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
+}
+
+export const SPEED_POPUP_TEXT = 'Speed Up!';
+
+export interface SpeedPopupPose {
+  /** Pixels added above Pac. Negative is up. */
+  dy: number;
+  scaleX: number;
+  scaleY: number;
+  alpha: number;
+}
+
+/**
+ * Arcade hop for the clear callout. A few decaying bounces, a pop-in scale,
+ * then a fade. `remaining` is seconds left of {@link SPEED_POPUP_SECONDS}.
+ */
+export function speedPopupPose(remaining: number, duration = SPEED_POPUP_SECONDS): SpeedPopupPose {
+  if (remaining <= 0 || duration <= 0) return { dy: 0, scaleX: 1, scaleY: 1, alpha: 0 };
+  const age = Math.min(1, Math.max(0, 1 - remaining / duration));
+  const hop = Math.abs(Math.sin(age * Math.PI * 3));
+  const decay = 1 - age;
+  const dy = -16 - hop * decay * 30;
+  const intro = Math.min(1, age / 0.14);
+  const pop = Math.sin((intro * Math.PI) / 2);
+  const scale = 0.45 + 0.8 * pop;
+  const airborne = hop * decay;
+  const landing = (1 - hop) * decay * (age > 0.08 ? 1 : 0);
+  const alpha = age < 0.72 ? 1 : Math.max(0, 1 - (age - 0.72) / 0.28);
+  return {
+    dy,
+    scaleX: scale * (1 + landing * 0.2 - airborne * 0.1),
+    scaleY: scale * (1 - landing * 0.24 + airborne * 0.28),
+    alpha,
+  };
+}
+
+function drawSpeedPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy: number): void {
+  if (input.speedPopup <= 0) return;
+  const pose = speedPopupPose(input.speedPopup);
+  if (pose.alpha <= 0.02) return;
+  const pac = input.pac;
+  const sx = ox + pac.x * TILE + TILE / 2;
+  const sy = oy + pac.y * TILE + TILE / 2;
+  ctx.save();
+  ctx.translate(sx, sy - 32 + pose.dy);
+  ctx.scale(pose.scaleX, pose.scaleY);
+  ctx.globalAlpha = pose.alpha;
+  ctx.font = 'bold 26px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.miterLimit = 2;
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#1a0c00';
+  ctx.strokeText(SPEED_POPUP_TEXT, 0, 0);
+  ctx.fillStyle = '#ffe14a';
+  ctx.fillText(SPEED_POPUP_TEXT, 0, 0);
+  ctx.restore();
 }
 
 function drawGhost(ctx: CanvasRenderingContext2D, ghost: Ghost, input: DrawInput, ox: number, oy: number): void {

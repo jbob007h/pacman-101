@@ -42,9 +42,9 @@ Walls next to a corridor are drawn as half a tile on the blocked side so the lan
 
 ## Board speed
 
-Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, a wide jammer still goes out, and Pac keeps a small permanent movement bonus (0.35 tiles/sec per clear, stacking for the rest of the match). Dots come back only when the fruit is eaten.
+Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, a wide jammer still goes out, and Pac keeps a permanent movement bonus (1.25 tiles/sec per clear, stacking for the rest of the match). Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
 
-The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 0.35 tiles/sec bonus is separate from that number.
+The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets, including a clear that happens after the fruit has already been eaten and the dots refilled. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 1.25 tiles/sec bonus is the movement behind each clear's +1. The even-board fruit point does not add that bonus; the board pace table is the fruit's speed change.
 
 Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). After the house-ring strip, the first fill has 251 of those (248 dots and 4 power pellets, minus the spawn tile), so the fruit appears after 126 pellets. Later fills restore the spawn dot, so that set is 252 and the half is 126 as well. It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. Clearing the board does not remove a fruit that is already waiting, and it does not start another fruit cycle. The next fruit waits until that fruit is eaten and the next fill begins.
 
@@ -61,7 +61,7 @@ Tiles per second, before the clear bonus:
 | 5 | 9.35 | 8.05 | 3.4 |
 | 6+ | 10.0 | 8.9 | 3.75 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 0.35 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.25 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout.
 
 ## Cruise Elroy
 
