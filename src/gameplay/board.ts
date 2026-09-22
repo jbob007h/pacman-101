@@ -438,9 +438,16 @@ export class Board {
       this.eatGhost(meal);
       return;
     }
-    if (this.frightened <= 0) return;
+    if (!this.leaderFrightened()) return;
     const follower = this.train.closestFollower(this.pac.x, this.pac.y);
     if (follower) this.eatFollower(follower.id);
+  }
+
+  /** The train is frightened only while its main leader is. A house ghost that merely looks blue is not. */
+  private leaderFrightened(): boolean {
+    const id = this.train.leaderId;
+    if (!id) return false;
+    return this.ghosts.some((ghost) => ghost.id === id && ghost.mode === 'frightened');
   }
 
   private eatGhost(ghost: Ghost): void {

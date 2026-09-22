@@ -206,6 +206,7 @@ export class Game {
       speedPopup: this.board.speedPopup,
       sleepers: this.board.train.asleep(),
       train: this.board.train.followers,
+      trainLeaderId: this.board.train.leaderId,
       fruit: this.board.fruit,
       jammers: this.board.inbound.jammers,
       slow: this.board.inbound.slow,

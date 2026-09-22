@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
+import { ghostDrawMode } from '../src/render/draw';
 import type { Dir } from '../src/shared/types';
 import { DIR_DOWN, DIR_LEFT, DIR_UP } from '../src/shared/types';
 
@@ -102,6 +103,57 @@ describe('main board', () => {
     expect(game.board.frightened).toBeGreaterThan(8);
     expect(blinky.skipFright).toBe(false);
     expect(blinky.mode).toBe('frightened');
+  });
+
+  it('does not eat a house ghost while a pellet only changes how it is drawn', () => {
+    const game = new Game(() => 0.5);
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'house';
+    blinky.skipFright = false;
+    blinky.x = 5;
+    blinky.y = 5;
+    game.board.frightened = 9;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.update(0);
+    expect(game.board.pac.alive).toBe(true);
+    expect(blinky.mode).toBe('house');
+    expect(game.board.score).toBe(0);
+    expect(ghostDrawMode(blinky.mode, blinky.skipFright, game.board.frightened)).toBe('frightened');
+    expect(ghostDrawMode('house', true, 9)).toBe('house');
+    expect(ghostDrawMode('eaten', false, 9)).toBe('eaten');
+  });
+
+  it('clears skipFright in the house on a new pellet without making that ghost edible', () => {
+    const game = new Game(() => 0.5);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+      ghost.skipFright = true;
+    }
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.x = 14;
+    blinky.y = 14;
+    game.board.pac.x = 1;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: 1, y: 0 };
+    game.update(1 / 60);
+    expect(blinky.mode).toBe('house');
+    expect(blinky.skipFright).toBe(false);
+    expect(game.board.frightened).toBeGreaterThan(8);
+    expect(ghostDrawMode(blinky.mode, blinky.skipFright, game.board.frightened)).toBe('frightened');
+
+    const score = game.board.score;
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.board.pac.x = blinky.x;
+    game.board.pac.y = blinky.y;
+    game.update(0);
+    expect(blinky.mode).toBe('house');
+    expect(game.board.pac.alive).toBe(true);
+    expect(game.board.score).toBe(score);
   });
 });
 

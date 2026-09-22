@@ -1,8 +1,8 @@
 import { pelletFill, SPEED_POPUP_SECONDS, TILE } from '../config';
 import type { Ghost, GhostMode } from '../gameplay/ghosts';
 import { frightenedFlash } from '../gameplay/ghosts';
-import { TRAIN_ALPHA, trainMemberColor, type TrainFollower } from '../gameplay/train';
-import type { Dir } from '../shared/types';
+import { TRAIN_CALM_SCALE, trainMemberColor, type TrainFollower } from '../gameplay/train';
+import type { Dir, GhostId } from '../shared/types';
 import type { InboundJammer } from '../gameplay/inbound';
 import type { Maze } from '../gameplay/maze';
 import { Tile } from '../gameplay/maze';
@@ -48,6 +48,7 @@ export interface DrawInput {
   sleepers: readonly { x: number; y: number }[];
   /** Awakened followers. The leader is one of {@link ghosts}. */
   train: readonly TrainFollower[];
+  trainLeaderId: GhostId | null;
   fruit: { x: number; y: number } | null;
   jammers: readonly InboundJammer[];
   slow: number;
@@ -146,18 +147,19 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
     });
   }
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
-  const edible = input.frightened > 0;
+  const leader = input.ghosts.find((ghost) => ghost.id === input.trainLeaderId);
+  const trainFright = leader?.mode === 'frightened';
+  const look = trainFollowerLook(trainFright);
   input.train.forEach((follower, index) => {
-    const arrived = follower.joined;
     drawGhostSprite(ctx, input, board.x, board.y, {
       x: follower.x,
       y: follower.y,
       dir: follower.dir,
       color: trainMemberColor(index, input.train.length),
-      mode: edible && arrived ? 'frightened' : 'chase',
+      mode: look.mode,
       homeX: follower.id,
-      scale: 1,
-      alpha: edible && arrived ? 1 : TRAIN_ALPHA,
+      scale: look.scale,
+      alpha: 1,
     });
   });
   drawPac(ctx, input, board.x, board.y);
@@ -393,13 +395,31 @@ interface GhostSprite {
   alpha: number;
 }
 
+/**
+ * House, the walk in, and the walk out can look frightened while a pellet is
+ * running. `skipFright` keeps the normal body until that ghost leaves, so an
+ * eaten ghost stays lethal-colored for the pellet that ate them. Eyes stay eyes.
+ * The real mode is unchanged, so Pac still cannot eat a ghost in the house.
+ */
+export function ghostDrawMode(mode: GhostMode, skipFright: boolean, frightenedLeft: number): GhostMode {
+  if (frightenedLeft <= 0 || skipFright) return mode;
+  if (mode === 'house' || mode === 'entering' || mode === 'leaving') return 'frightened';
+  return mode;
+}
+
+/** Calm followers are a quarter size. A frightened leader makes the whole train full-size blue. */
+export function trainFollowerLook(leaderFrightened: boolean): { mode: 'frightened' | 'chase'; scale: number } {
+  if (leaderFrightened) return { mode: 'frightened', scale: 1 };
+  return { mode: 'chase', scale: TRAIN_CALM_SCALE };
+}
+
 function drawGhost(ctx: CanvasRenderingContext2D, ghost: Ghost, input: DrawInput, ox: number, oy: number): void {
   drawGhostSprite(ctx, input, ox, oy, {
     x: ghost.x,
     y: ghost.y,
     dir: ghost.dir,
     color: ghost.color,
-    mode: ghost.mode,
+    mode: ghostDrawMode(ghost.mode, ghost.skipFright, input.frightened),
     homeX: ghost.homeX,
     scale: 1,
     alpha: 1,

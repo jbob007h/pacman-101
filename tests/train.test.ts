@@ -174,6 +174,12 @@ describe('sleeping ghosts and the train', () => {
     game.board.pac.x = arrived.x;
     game.board.pac.y = arrived.y;
     game.update(0);
+    expect(events).toEqual(['wake']);
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.pac.alive).toBe(true);
+
+    blinky.mode = 'frightened';
+    game.update(0);
     expect(events).toEqual(['wake', 'train']);
     expect(game.board.train.followers).toHaveLength(0);
   });
@@ -187,6 +193,11 @@ describe('sleeping ghosts and the train', () => {
     game.board.pac.dir = { ...DIR_NONE };
     game.board.frightened = 9;
     game.board.train.leaderId = 'blinky';
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'frightened';
+    blinky.x = 20;
+    blinky.y = 5;
     const pending = follower(1, 5, 5);
     pending.joined = false;
     game.board.train.followers = [pending];
@@ -274,8 +285,17 @@ describe('sleeping ghosts and the train', () => {
     expect(events).toEqual([]);
 
     game.board.frightened = 4;
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.x = 20;
+    blinky.y = 5;
     game.board.train.followers[0]!.x = 5;
     game.board.train.followers[0]!.y = 5;
+    game.update(0);
+    expect(events).toEqual([]);
+    expect(game.board.pac.alive).toBe(true);
+
+    blinky.mode = 'frightened';
     game.update(0);
     expect(events).toEqual(['train']);
     expect(game.board.train.followers.map((item) => item.id)).toEqual([2, 3]);
@@ -648,12 +668,53 @@ describe('sleeping ghosts and the train', () => {
     expect(Math.hypot(arrived.x - blinky.x, arrived.y - blinky.y)).toBeLessThanOrEqual(TRAIN_JOINED + 0.05);
 
     blinky.mode = 'house';
+    blinky.skipFright = false;
     blinky.x = 14;
     blinky.y = 14;
     game.board.pac.x = arrived.x;
     game.board.pac.y = arrived.y;
     game.update(0);
+    expect(events).toEqual([]);
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.pac.alive).toBe(true);
+
+    blinky.mode = 'frightened';
+    game.update(0);
     expect(events).toEqual(['train']);
+  });
+
+  it('keeps joined followers inedible unless the leader mode is frightened', () => {
+    const game = new Game(() => 0.5);
+    const events: string[] = [];
+    game.bus.on('trainGhostEaten', () => events.push('train'));
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'chase';
+    blinky.skipFright = true;
+    blinky.x = 20;
+    blinky.y = 5;
+    game.board.frightened = 4;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.board.train.leaderId = 'blinky';
+    game.board.train.followers = [follower(1, 5, 5)];
+    game.update(0);
+    expect(events).toEqual([]);
+    expect(game.board.pac.alive).toBe(true);
+    expect(game.board.train.followers).toHaveLength(1);
+
+    blinky.mode = 'house';
+    blinky.skipFright = false;
+    game.update(0);
+    expect(events).toEqual([]);
+    expect(game.board.train.followers).toHaveLength(1);
+
+    blinky.mode = 'frightened';
+    game.update(0);
+    expect(events).toEqual(['train']);
+    expect(game.board.train.followers).toHaveLength(0);
+    expect(game.board.pac.alive).toBe(true);
   });
 });
 

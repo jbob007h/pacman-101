@@ -30,8 +30,8 @@ export const TRAIN_JOINED = 0.08;
  * The wake flight does not use this: it always interpolates in a straight line.
  */
 export const TRAIN_SNAP = 1.75;
-/** Drawn opacity of a follower that is not frightened. */
-export const TRAIN_ALPHA = 0.7;
+/** Follower size while the leader is not frightened, relative to a normal ghost. */
+export const TRAIN_CALM_SCALE = 0.25;
 
 /**
  * Vertical corridor that crosses each side tunnel (column 6 on the left, 21 on the right).
