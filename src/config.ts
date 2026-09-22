@@ -196,7 +196,7 @@ export const JAMMER_CAP = 16;
  * Longer than the old 0.7s fade so there is time to react.
  */
 export const JAMMER_SPAWN_SECONDS = 1.6;
-/** Elroy 2 tiles/sec as a multiple of Pac's current unslowed pace. Elroy 1 matches that pace. */
+/** Elroy 2 tiles/sec as a multiple of the board Pac pace, before clear bonuses. Elroy 1 matches that pace. */
 export const ELROY2_MULT = 1.1;
 export const JAMMER_DEATH_SECONDS = 0.38;
 /**
