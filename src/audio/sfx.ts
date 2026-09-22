@@ -138,6 +138,22 @@ export class Sfx {
     });
   }
 
+  wake(): void {
+    this.play('wake', () => {
+      this.tone(494, 0.05, 'triangle', 0.04);
+      this.tone(740, 0.09, 'triangle', 0.045, 0.05);
+    });
+  }
+
+  /** A train follower, shorter than a main-ghost eat. */
+  trainEat(combo: number): void {
+    const base = 360 + Math.min(8, Math.max(1, combo)) * 48;
+    this.play('train-eat', () => {
+      this.tone(base, 0.05, 'square', 0.04);
+      this.tone(base * 1.4, 0.08, 'square', 0.035, 0.045);
+    });
+  }
+
   ghost(combo: number): void {
     const base = 500 + Math.min(8, Math.max(1, combo)) * 55;
     this.play('ghost', () => {

@@ -77,6 +77,26 @@ Pellets remaining (dots plus power pellets):
 | 4 | 50 | 20 |
 | 5+ | 60 | 20 |
 
+## Sleeping ghosts and the train
+
+Sixteen white ghosts sleep on the vertical corridors that cross the side tunnels: column 6 on the left and column 21 on the right. Each side has eight, on rows 10, 11, 12, 13, 15, 16, 17, and 18 (four above the tunnel row and four below). They sit on the tile center and are drawn smaller than the four main ghosts. The tunnel row itself is left clear.
+
+Pac wakes a sleeper by touching it. Woken ghosts join **one** train behind the main ghost who was closest to that sleeper. If a train is already out, the new ghost goes to the end of it. The train holds at most 32 followers (33 with the leader). A touch at that cap does nothing.
+
+Followers match a normal ghost's size, stay semi-transparent, and take a cyan-to-magenta gradient by their place in line. They sit 1 tile behind the ghost ahead, or 0.5 tiles when that ghost is in a side tunnel. They do not kill Pac. While a power pellet is running they turn into normal frightened blue ghosts and stay in line, so Pac can eat them.
+
+The leader is always one of the four main ghosts. Eating that leader uses the usual eat (points, pause, eyes, and a jammer). While the leader is eyes (`eaten`), walking back into the house (`entering`), or waiting in the house (`house`), the next follower becomes a temporary head and the train follows that head. When the main ghost is leaving the house or roaming again (`chase`, `scatter`, `frightened`, `leaving`), they lead once more. Eating a follower in the middle removes them; the ghosts behind slide forward into the closed gap (about 18 tiles/sec, and a hop longer than 1.75 tiles snaps into place instead of cutting through walls).
+
+Eating ghosts in a row shortens the freeze:
+
+```
+pause(n) = max(0.08s, 0.5s × 0.55^(n-1))
+```
+
+`n` is the eat number in the current chain. After 2 seconds of active time with no ghost eat, `n` goes back to 1. Time spent inside the eat pause does not count toward those 2 seconds.
+
+A power pellet lasts 9 seconds on every board. A ring on the top wall starts full and drains to empty over that time; it has no digits. Eating any ghost while less than 1.5 seconds remain adds 1.5 seconds, and the ring refills to match the new remaining time.
+
 ## Inbound jammers
 
 Opponents sometimes throw jammers onto your maze instead of at each other. Attack strength decides how many sprites that throw tries to spawn (`ceil(strength / 8)`, at most 8). The maze never holds more than 16, counting ones that are still fading in or dying. Anything past 16 is dropped.
@@ -120,7 +140,9 @@ Gameplay emits facts and does not know about the side boards:
 
 - `dotEaten`
 - `powerPelletEaten`
-- `ghostEaten` (`strength` is the frightened combo, starting at 1)
+- `ghostEaten` (`strength` is the frightened combo, starting at 1). Train followers do not emit this
+- `trainGhostEaten` (a follower in the ghost train; no jammer)
+- `sleeperWoken`
 - `boardCleared`
 - `playerDied`
 

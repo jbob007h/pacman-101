@@ -74,6 +74,8 @@ export class Game {
     this.bus.on('dotEaten', () => this.sfx.dot());
     this.bus.on('powerPelletEaten', () => this.sfx.pellet());
     this.bus.on('ghostEaten', (event) => this.sfx.ghost(event.combo));
+    this.bus.on('sleeperWoken', () => this.sfx.wake());
+    this.bus.on('trainGhostEaten', (event) => this.sfx.trainEat(event.combo));
     this.bus.on('boardCleared', () => this.sfx.boardClear());
     this.bus.on('playerDied', () => this.sfx.death());
     this.bus.on('matchWon', () => this.sfx.win());
@@ -187,6 +189,8 @@ export class Game {
       eatPause: this.board.eatPause,
       eatPoints: this.board.lastEatPoints,
       speedPopup: this.board.speedPopup,
+      sleepers: this.board.train.asleep(),
+      train: this.board.train.followers,
       fruit: this.board.fruit,
       jammers: this.board.inbound.jammers,
       slow: this.board.inbound.slow,

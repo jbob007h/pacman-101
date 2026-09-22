@@ -29,8 +29,40 @@ export const GHOST_EATEN_SPEED = 12;
 export const GHOST_HOUSE_SPEED = 3.2;
 export const GHOST_DOOR_SPEED = 5.2;
 export const FRIGHT_SECONDS = 9;
-/** Classic-style freeze after eating a frightened ghost, in seconds. */
+/** Classic-style freeze after eating a frightened ghost, in seconds. The first eat in a chain. */
 export const EAT_GHOST_PAUSE = 0.5;
+/**
+ * Each ghost eat in a chain multiplies the pause by this. Chain index n (1-based) pauses for
+ * `max(EAT_PAUSE_FLOOR, EAT_GHOST_PAUSE * EAT_PAUSE_DECAY ^ (n - 1))`.
+ */
+export const EAT_PAUSE_DECAY = 0.55;
+/** Shortest post-eat freeze, so a long train still registers each bite. */
+export const EAT_PAUSE_FLOOR = 0.08;
+/**
+ * Active seconds without eating a ghost before the pause chain resets.
+ * Time spent inside the eat pause itself does not count.
+ */
+export const EAT_CHAIN_RESET = 2;
+/** Eating a ghost with strictly less than this much pellet time left adds {@link PELLET_EXTEND_SECONDS}. */
+export const PELLET_EXTEND_THRESHOLD = 1.5;
+export const PELLET_EXTEND_SECONDS = 1.5;
+
+/** Pause after the n-th ghost eat in the current chain. n starts at 1. */
+export function eatPauseForChain(chain: number): number {
+  const n = Math.max(1, chain);
+  const scaled = EAT_GHOST_PAUSE * EAT_PAUSE_DECAY ** (n - 1);
+  return Math.max(EAT_PAUSE_FLOOR, scaled);
+}
+
+/**
+ * 1 when a pellet was just eaten, 0 when frightened time is gone.
+ * The denominator is that pellet's duration, so the ring drains at 1/duration per second.
+ * Extra time from an extension refills the ring in proportion and clamps at full.
+ */
+export function pelletFill(remaining: number, duration = FRIGHT_SECONDS): number {
+  if (remaining <= 0 || duration <= 0) return 0;
+  return Math.min(1, remaining / duration);
+}
 
 /** Logic rate. Drawing may follow the display; simulation steps are this long. */
 export const SIM_FPS = 60;

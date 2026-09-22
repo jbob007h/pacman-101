@@ -5,11 +5,14 @@ import {
   DOT_SCORE,
   elroyLevel,
   DOT_STOP_FRAMES,
-  EAT_GHOST_PAUSE,
+  EAT_CHAIN_RESET,
+  eatPauseForChain,
   FRIGHT_SECONDS,
+  GHOST_SCORE_BASE,
+  PELLET_EXTEND_SECONDS,
+  PELLET_EXTEND_THRESHOLD,
   FRUIT_SCORE,
   FRUIT_TILE,
-  GHOST_SCORE_BASE,
   PAC_START,
   PELLET_SCORE,
   POWER_STOP_FRAMES,
@@ -23,6 +26,7 @@ import { DIR_NONE } from '../shared/types';
 import { createGhosts, updateGhost, type Ghost, type GhostMode } from './ghosts';
 import { InboundField } from './inbound';
 import { Maze } from './maze';
+import { GhostTrain } from './train';
 import { advanceMover, applyQueuedTurn, type Mover } from './movement';
 
 export interface Pac extends Mover {
@@ -78,6 +82,12 @@ export class Board {
    * and ticked even while the clear pause holds Pac still.
    */
   speedPopup = 0;
+  /** Awakened sleepers lined up behind one main ghost. */
+  readonly train = new GhostTrain();
+  /** Ghost eats since the last 2s gap. Drives the shrinking eat pause. */
+  private eatChain = 0;
+  /** Active seconds since the last ghost eat. The eat pause itself does not add to this. */
+  private sinceGhostEat = 0;
   /** Fruit sitting under the ghost house, or null when none is out. */
   fruit: { x: number; y: number } | null = null;
   dotsEaten = 0;
@@ -153,6 +163,7 @@ export class Board {
       return;
     }
     this.time += step;
+    this.sinceGhostEat += step;
     const pacX0 = this.pac.x;
     const pacY0 = this.pac.y;
     this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed(), this.redsFrozen());
@@ -165,6 +176,7 @@ export class Board {
     const started = this.pac.dir.x !== 0 || this.pac.dir.y !== 0;
     if (!started) {
       this.moveGhosts(step, true);
+      this.stepTrain(step);
       if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, pacX0, pacY0)) this.kill();
       this.collide();
       return;
@@ -175,6 +187,7 @@ export class Board {
     if (this.redsFrozen()) this.inbound.holdReds();
     if (!this.pac.alive) return;
     this.moveGhosts(step, false);
+    this.stepTrain(step);
     if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, pacX0, pacY0)) this.kill();
     if (this.clearPause > 0) return;
     this.collide();
@@ -196,6 +209,9 @@ export class Board {
     this.displayedSpeed = 0;
     this.clearBoost = 0;
     this.speedPopup = 0;
+    this.eatChain = 0;
+    this.sinceGhostEat = 0;
+    this.train.reset();
     this.fruit = null;
     this.fruitSpawned = false;
     this.dotsEaten = 0;
@@ -376,14 +392,45 @@ export class Board {
     }
   }
 
+  private stepTrain(step: number): void {
+    const woke = this.train.touch(this.pac.x, this.pac.y, this.ghosts);
+    for (let i = 0; i < woke; i++) this.bus.emit({ type: 'sleeperWoken' });
+    this.train.update(
+      step,
+      this.ghosts,
+      this.maze,
+      this.frightened > 0,
+      this.speeds(),
+      this.pac.x,
+      this.pac.y,
+      this.rng,
+    );
+  }
+
+  /**
+   * One frightened ghost per frame so a packed train pays the shrinking pause
+   * on each bite. A live hunter still kills, even if a blue ghost is also touching.
+   */
   private collide(): void {
     let deadly = false;
+    let meal: Ghost | null = null;
     for (const ghost of this.ghosts) {
       if (!overlaps(this.pac, ghost)) continue;
-      if (ghost.mode === 'frightened') this.eatGhost(ghost);
-      else if (isHuntable(ghost.mode)) deadly = true;
+      if (ghost.mode === 'frightened') {
+        if (!meal) meal = ghost;
+      } else if (isHuntable(ghost.mode)) deadly = true;
     }
-    if (deadly) this.kill();
+    if (deadly) {
+      this.kill();
+      return;
+    }
+    if (meal) {
+      this.eatGhost(meal);
+      return;
+    }
+    if (this.frightened <= 0) return;
+    const follower = this.train.closestFollower(this.pac.x, this.pac.y);
+    if (follower) this.eatFollower(follower.id);
   }
 
   private eatGhost(ghost: Ghost): void {
@@ -395,8 +442,29 @@ export class Board {
     ghost.reversePending = true;
     ghost.centerKey = -1;
     this.lastEatPoints = points;
-    this.eatPause = EAT_GHOST_PAUSE;
+    this.beginEatPause();
     this.bus.emit({ type: 'ghostEaten', ghostId: ghost.id, strength, combo: this.combo });
+  }
+
+  /** Train followers score and pause like a frightened ghost, and they do not throw a jammer. */
+  private eatFollower(id: number): void {
+    this.combo += 1;
+    const points = Math.min(1600, GHOST_SCORE_BASE * 2 ** (this.combo - 1));
+    this.score += points;
+    this.lastEatPoints = points;
+    this.train.removeFollower(id);
+    this.beginEatPause();
+    this.bus.emit({ type: 'trainGhostEaten', combo: this.combo });
+  }
+
+  private beginEatPause(): void {
+    if (this.sinceGhostEat >= EAT_CHAIN_RESET) this.eatChain = 0;
+    this.eatChain += 1;
+    this.sinceGhostEat = 0;
+    this.eatPause = eatPauseForChain(this.eatChain);
+    if (this.frightened > 0 && this.frightened < PELLET_EXTEND_THRESHOLD) {
+      this.frightened += PELLET_EXTEND_SECONDS;
+    }
   }
 
   private kill(): void {

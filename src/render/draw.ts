@@ -1,6 +1,8 @@
-import { SPEED_POPUP_SECONDS, TILE } from '../config';
-import type { Ghost } from '../gameplay/ghosts';
+import { pelletFill, SPEED_POPUP_SECONDS, TILE } from '../config';
+import type { Ghost, GhostMode } from '../gameplay/ghosts';
 import { frightenedFlash } from '../gameplay/ghosts';
+import { TRAIN_ALPHA, trainMemberColor, type TrainFollower } from '../gameplay/train';
+import type { Dir } from '../shared/types';
 import type { InboundJammer } from '../gameplay/inbound';
 import type { Maze } from '../gameplay/maze';
 import { Tile } from '../gameplay/maze';
@@ -42,6 +44,10 @@ export interface DrawInput {
   eatPoints: number;
   /** Seconds remaining on the full-clear "Speed Up!" callout. 0 hides it. */
   speedPopup: number;
+  /** Tile-center sleepers that have not woken. */
+  sleepers: readonly { x: number; y: number }[];
+  /** Awakened followers. The leader is one of {@link ghosts}. */
+  train: readonly TrainFollower[];
   fruit: { x: number; y: number } | null;
   jammers: readonly InboundJammer[];
   slow: number;
@@ -127,8 +133,34 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   ctx.fillRect(board.x, board.y, board.w, board.h);
   drawMaze(ctx, input.maze, board.x, board.y, input.time, input.mazeFlash);
   if (input.fruit) drawFruit(ctx, input.fruit, board.x, board.y);
+  for (const sleeper of input.sleepers) {
+    drawGhostSprite(ctx, input, board.x, board.y, {
+      x: sleeper.x,
+      y: sleeper.y,
+      dir: { x: 0, y: 1 },
+      color: '#f7f8ff',
+      mode: 'chase',
+      homeX: sleeper.x + sleeper.y,
+      scale: 0.62,
+      alpha: 1,
+    });
+  }
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
+  const edible = input.frightened > 0;
+  input.train.forEach((follower, index) => {
+    drawGhostSprite(ctx, input, board.x, board.y, {
+      x: follower.x,
+      y: follower.y,
+      dir: follower.dir,
+      color: trainMemberColor(index, input.train.length),
+      mode: edible ? 'frightened' : 'chase',
+      homeX: follower.id,
+      scale: 1,
+      alpha: edible ? 1 : TRAIN_ALPHA,
+    });
+  });
   drawPac(ctx, input, board.x, board.y);
+  drawPelletClock(ctx, input.frightened, board.x, board.y);
   for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   drawEatScore(ctx, input, board.x, board.y);
   drawSpeedPopup(ctx, input, board.x, board.y);
@@ -349,17 +381,49 @@ function drawSpeedPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: num
   ctx.restore();
 }
 
+interface GhostSprite {
+  x: number;
+  y: number;
+  dir: Dir;
+  color: string;
+  mode: GhostMode;
+  homeX: number;
+  scale: number;
+  alpha: number;
+}
+
 function drawGhost(ctx: CanvasRenderingContext2D, ghost: Ghost, input: DrawInput, ox: number, oy: number): void {
-  const flash = ghost.mode === 'frightened' && frightenedFlash(input.frightened, input.time);
-  const body = ghost.mode === 'frightened' ? (flash ? '#f4f6ff' : '#2228e6') : ghost.color;
-  const eyesOnly = ghost.mode === 'eaten';
-  const s = SPRITE_SCALE;
-  for (const point of spritePoints(ghost.x, ghost.y, input.maze)) {
+  drawGhostSprite(ctx, input, ox, oy, {
+    x: ghost.x,
+    y: ghost.y,
+    dir: ghost.dir,
+    color: ghost.color,
+    mode: ghost.mode,
+    homeX: ghost.homeX,
+    scale: 1,
+    alpha: 1,
+  });
+}
+
+function drawGhostSprite(
+  ctx: CanvasRenderingContext2D,
+  input: DrawInput,
+  ox: number,
+  oy: number,
+  sprite: GhostSprite,
+): void {
+  const flash = sprite.mode === 'frightened' && frightenedFlash(input.frightened, input.time);
+  const body = sprite.mode === 'frightened' ? (flash ? '#f4f6ff' : '#2228e6') : sprite.color;
+  const eyesOnly = sprite.mode === 'eaten';
+  const s = SPRITE_SCALE * sprite.scale;
+  ctx.save();
+  ctx.globalAlpha = sprite.alpha;
+  for (const point of spritePoints(sprite.x, sprite.y, input.maze)) {
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;
     if (!eyesOnly) {
       const r = 7 * s;
-      const wobble = Math.sin(input.time * 14 + ghost.homeX) > 0;
+      const wobble = Math.sin(input.time * 14 + sprite.homeX) > 0;
       ctx.fillStyle = body;
       ctx.beginPath();
       ctx.arc(sx, sy - 1 * s, r, Math.PI, 0);
@@ -371,25 +435,53 @@ function drawGhost(ctx: CanvasRenderingContext2D, ghost: Ghost, input: DrawInput
       ctx.closePath();
       ctx.fill();
     }
-    drawEyes(ctx, sx, sy, ghost, eyesOnly, flash);
+    drawEyes(ctx, sx, sy, sprite.dir, sprite.mode, eyesOnly, flash, s);
   }
+  ctx.restore();
+}
+
+/** Pie on the top wall. Full when a pellet is eaten, empty when the timer ends. No digits. */
+function drawPelletClock(ctx: CanvasRenderingContext2D, frightened: number, ox: number, oy: number): void {
+  const fill = pelletFill(frightened);
+  if (fill <= 0) return;
+  const cx = ox + 14 * TILE;
+  const cy = oy + 8;
+  const radius = 7;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(6, 8, 16, 0.72)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, radius - 1.5, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
+  ctx.closePath();
+  ctx.fillStyle = '#ffe14a';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = '#fff6c2';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawEyes(
   ctx: CanvasRenderingContext2D,
   sx: number,
   sy: number,
-  ghost: Ghost,
+  dir: Dir,
+  mode: GhostMode,
   eyesOnly: boolean,
   flash: boolean,
+  s: number,
 ): void {
-  const s = SPRITE_SCALE;
-  const dx = ghost.dir.x * 1.6 * s;
-  const dy = ghost.dir.y * 1.6 * s;
+  const dx = dir.x * 1.6 * s;
+  const dy = dir.y * 1.6 * s;
   for (const side of [-2.3 * s, 2.3 * s]) {
     const ex = sx + side;
     const ey = sy - 1.5 * s;
-    if (ghost.mode === 'frightened' && !eyesOnly) {
+    if (mode === 'frightened' && !eyesOnly) {
       ctx.fillStyle = flash ? '#222244' : '#f4f6ff';
       ctx.fillRect(ex - 2 * s, ey - 1 * s, 3 * s, 3 * s);
       continue;

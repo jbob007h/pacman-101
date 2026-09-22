@@ -16,7 +16,9 @@ export type GameplayEvent =
   | { type: 'powerPelletEaten' }
   | { type: 'ghostEaten'; ghostId: GhostId; strength: number; combo: number }
   | { type: 'boardCleared' }
-  | { type: 'playerDied' };
+  | { type: 'playerDied' }
+  | { type: 'sleeperWoken' }
+  | { type: 'trainGhostEaten'; combo: number };
 
 export type SystemsEvent =
   | { type: 'playerEliminated' }
