@@ -6,7 +6,9 @@ Local battle maze inspired by Pac-Man 99. You play the center board. One hundred
 
 https://jbob007h.github.io/pacman-101/
 
-The static site is published from the `gh-pages` branch. A GitHub Actions workflow (`.github/workflows/pages.yml`) can also deploy `dist` once Pages is set to GitHub Actions.
+The static site is on the `gh-pages` branch. `.github/workflows/pages.yml` builds `dist` and can deploy it with GitHub Actions.
+
+If that URL 404s, open the repo **Settings → Pages → Build and deployment**, choose **Deploy from a branch**, set the branch to `gh-pages` and the folder to `/ (root)`, then Save. To use the workflow instead, set the source to **GitHub Actions**.
 
 ## Run locally
 
