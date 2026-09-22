@@ -450,7 +450,7 @@ export class Board {
     const strength = this.combo;
     const points = Math.min(1600, GHOST_SCORE_BASE * 2 ** (strength - 1));
     this.score += points;
-    const handed = this.train.handoffLeader(ghost);
+    const handed = this.train.handoffLeader(ghost, this.maze);
     if (!handed) {
       ghost.mode = 'eaten';
       ghost.reversePending = true;

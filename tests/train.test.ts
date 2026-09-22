@@ -275,6 +275,55 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.train.followers.map((item) => item.id)).toEqual([5]);
     expect(game.board.train.headKind(game.board.ghosts)).toBe('main');
     expect(game.board.ghosts.filter((ghost) => ghost.id === 'blinky')).toHaveLength(1);
+    expect(game.board.train.followers[0]?.x).toBe(9);
+    expect(game.board.train.followers[0]?.y).toBe(5);
+  });
+
+  it('leaves the rest of the train on its tiles when the leader is eaten', () => {
+    const game = new Game(() => 0);
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'frightened';
+    blinky.x = 4;
+    blinky.y = 5;
+    blinky.dir = { x: 1, y: 0 };
+    game.board.train.leaderId = 'blinky';
+    game.board.train.followers = [follower(1, 4, 5), follower(2, 4, 5), follower(3, 4, 5)];
+    const maze = game.board.maze;
+    const speeds = game.board.speeds();
+    for (let step = 0; step < 50; step++) {
+      blinky.x += 0.12;
+      game.board.train.update(1 / 60, game.board.ghosts, maze, true, speeds, 1, 23, () => 0);
+    }
+    const spread = game.board.train.followers.map((item) => item.x);
+    expect(spread[0]! - spread[2]!).toBeGreaterThan(1.2);
+    const promoted = game.board.train.followers[0];
+    if (!promoted) throw new Error('missing promoted ghost');
+    const frozen = game.board.train.followers.slice(1).map((item) => ({ x: item.x, y: item.y }));
+    game.board.train.handoffLeader(blinky, maze);
+    expect(blinky.x).toBeCloseTo(promoted.x);
+    expect(blinky.y).toBeCloseTo(promoted.y);
+    expect(game.board.train.followers.map((item) => item.x)).toEqual(frozen.map((item) => item.x));
+    expect(game.board.train.followers.map((item) => item.y)).toEqual(frozen.map((item) => item.y));
+
+    game.board.train.update(1 / 60, game.board.ghosts, maze, true, speeds, 1, 23, () => 0);
+    for (let i = 0; i < frozen.length; i++) {
+      const follower = game.board.train.followers[i];
+      const spot = frozen[i];
+      if (!follower || !spot) throw new Error('missing follower');
+      expect(follower.x).toBeCloseTo(spot.x, 5);
+      expect(follower.y).toBeCloseTo(spot.y, 5);
+    }
+
+    blinky.x += 0.35;
+    game.board.train.update(1 / 60, game.board.ghosts, maze, true, speeds, 1, 23, () => 0);
+    for (let i = 0; i < frozen.length; i++) {
+      const follower = game.board.train.followers[i];
+      const spot = frozen[i];
+      if (!follower || !spot) throw new Error('missing follower');
+      expect(Math.hypot(follower.x - spot.x, follower.y - spot.y)).toBeLessThan(0.5);
+      expect(Math.hypot(follower.x - blinky.x, follower.y - blinky.y)).toBeGreaterThan(0.5);
+    }
   });
 
   it('sends the leader home as eyes only when the train has no next ghost', () => {

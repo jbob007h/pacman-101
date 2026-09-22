@@ -85,6 +85,11 @@ export class GhostTrain {
   leaderId: GhostId | null = null;
   private path: PathPoint[] = [];
   private pathSource = '';
+  /**
+   * After a leader handoff, followers stay on the tiles they already occupy
+   * until this body actually moves. That blocks the eat from reforming the line.
+   */
+  private holdUntilMove: PathPoint | null = null;
 
   constructor() {
     this.sleepers = sleeperTiles().map((tile, id) => ({ id, x: tile.x, y: tile.y, awake: false }));
@@ -96,6 +101,7 @@ export class GhostTrain {
     this.leaderId = null;
     this.path = [];
     this.pathSource = '';
+    this.holdUntilMove = null;
   }
 
   asleep(): { x: number; y: number }[] {
@@ -132,6 +138,7 @@ export class GhostTrain {
         this.leaderId = closestMain(sleeper.x, sleeper.y, ghosts).id;
         this.path = [];
         this.pathSource = '';
+        this.holdUntilMove = null;
       }
       sleeper.awake = true;
       this.followers.push({
@@ -154,12 +161,14 @@ export class GhostTrain {
   /**
    * Pac ate the train leader. That main ghost does not become eyes.
    * The next follower's body becomes that ghost: same id, color, scatter corner,
-   * and home, now standing where the follower was, still frightened. The rest of
-   * the train stays behind that same leader and closes the gap on the next step.
+   * and home, standing where that follower already was, still frightened.
+   * Everyone else keeps the tile they occupied. Indices shift (old 3rd is now
+   * 2nd) and the breadcrumb is cut so it ends on the promoted body — it is not
+   * cleared, so the next step cannot stack the line onto the leader.
    * Returns false when `leader` is not the train leader or the train has no
    * follower. The caller then sends that ghost home as eyes, the usual respawn.
    */
-  handoffLeader(leader: Ghost): boolean {
+  handoffLeader(leader: Ghost, maze: Maze): boolean {
     if (this.leaderId !== leader.id) return false;
     const next = this.followers[0];
     if (!next) return false;
@@ -172,11 +181,16 @@ export class GhostTrain {
     leader.centerKey = -1;
     leader.stuck = 0;
     this.followers.shift();
-    this.path = [];
-    this.pathSource = '';
     if (this.followers.length === 0) {
       this.leaderId = null;
+      this.path = [];
+      this.pathSource = '';
+      this.holdUntilMove = null;
+      return true;
     }
+    this.pathSource = `main:${leader.id}`;
+    this.cutPathTo(leader.x, leader.y, maze);
+    this.holdUntilMove = { x: leader.x, y: leader.y };
     return true;
   }
 
@@ -187,6 +201,7 @@ export class GhostTrain {
       this.leaderId = null;
       this.path = [];
       this.pathSource = '';
+      this.holdUntilMove = null;
     }
   }
 
@@ -219,6 +234,7 @@ export class GhostTrain {
       this.leaderId = null;
       this.path = [];
       this.pathSource = '';
+      this.holdUntilMove = null;
       return;
     }
     const leader = ghosts.find((ghost) => ghost.id === this.leaderId);
@@ -227,6 +243,7 @@ export class GhostTrain {
       this.leaderId = null;
       this.path = [];
       this.pathSource = '';
+      this.holdUntilMove = null;
       return;
     }
     if (!leaderYields(leader.mode)) {
@@ -262,7 +279,52 @@ export class GhostTrain {
     trimPath(this.path, 48, maze.cols, maze.tunnelRow);
   }
 
+  /**
+   * End the trail on the promoted body and drop the eaten leader's lead.
+   * A missing trail is seeded with the tiles people already stand on, so a
+   * later follow step does not invent a stack on the leader.
+   */
+  private cutPathTo(x: number, y: number, maze: Maze): void {
+    if (this.path.length === 0) {
+      const seeded: PathPoint[] = [];
+      for (let i = this.followers.length - 1; i >= 0; i--) {
+        const follower = this.followers[i];
+        if (follower) seeded.push({ x: follower.x, y: follower.y });
+      }
+      seeded.push({ x, y });
+      this.path = seeded;
+      return;
+    }
+    let best = this.path.length - 1;
+    let bestD = Infinity;
+    for (let i = 0; i < this.path.length; i++) {
+      const point = this.path[i];
+      if (!point) continue;
+      const dx = unwrapDelta(point.x, x, point.y, y, maze.cols, maze.tunnelRow);
+      const dist = Math.hypot(dx, y - point.y);
+      if (dist < bestD) {
+        bestD = dist;
+        best = i;
+      }
+    }
+    this.path.length = best + 1;
+    const last = this.path[this.path.length - 1];
+    if (last) {
+      last.x = x;
+      last.y = y;
+    }
+  }
+
   private pullFollowers(dt: number, maze: Maze, fromIndex: number): void {
+    if (this.holdUntilMove) {
+      const head = this.path[this.path.length - 1];
+      const held = this.holdUntilMove;
+      const moved = head
+        ? Math.hypot(unwrapDelta(held.x, head.x, held.y, head.y, maze.cols, maze.tunnelRow), head.y - held.y)
+        : 0;
+      if (moved < 0.2) return;
+      this.holdUntilMove = null;
+    }
     const count = this.followers.length - fromIndex;
     if (count <= 0) return;
     const slots = slotsBehind(
