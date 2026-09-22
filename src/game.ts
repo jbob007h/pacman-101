@@ -1,3 +1,4 @@
+import { Sfx } from './audio/sfx';
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import { drawFrame, type DrawInput } from './render/draw';
@@ -29,6 +30,7 @@ export class Game {
   readonly board: Board;
   readonly sims: SimWorld;
   readonly match: Match;
+  readonly sfx = new Sfx();
   private readonly fx = new BoltField();
   private banner = '';
   private bannerT = 0;
@@ -60,6 +62,12 @@ export class Game {
       const spawned = this.board.spawnInbound(event.strength);
       this.setBanner(spawned > 0 ? `Jammer from #${event.fromSimId}` : 'Jammers are full');
     });
+    this.bus.on('dotEaten', () => this.sfx.dot());
+    this.bus.on('powerPelletEaten', () => this.sfx.pellet());
+    this.bus.on('ghostEaten', (event) => this.sfx.ghost(event.combo));
+    this.bus.on('boardCleared', () => this.sfx.boardClear());
+    this.bus.on('playerDied', () => this.sfx.death());
+    this.bus.on('matchWon', () => this.sfx.win());
   }
 
   setDirection(dir: Dir | null): void {
@@ -76,6 +84,13 @@ export class Game {
   startMatch(): void {
     this.restart();
     this.inMatch = true;
+    this.sfx.unlock();
+    this.sfx.start();
+  }
+
+  toggleMute(): boolean {
+    this.sfx.unlock();
+    return this.sfx.toggle();
   }
 
   update(dt: number): void {
@@ -93,6 +108,15 @@ export class Game {
     this.board.matchTime = this.matchTime;
     if (this.match.phase === 'playing' && started) this.sims.update(step);
     this.fx.update(step);
+    this.sfx.tick(step);
+    if (this.inMatch) {
+      this.sfx.sync({
+        jammers: this.board.inbound.jammers,
+        slow: this.board.inbound.slow,
+        fruit: this.board.fruit != null,
+        boardIndex: this.board.boardIndex,
+      });
+    }
   }
 
   restart(): void {
@@ -105,6 +129,7 @@ export class Game {
     this.elapsed = 0;
     this.matchTime = 0;
     this.playStarted = false;
+    this.sfx.resetWatch();
   }
 
   hud(): HudState {

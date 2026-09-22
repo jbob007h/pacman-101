@@ -101,6 +101,24 @@ button:hover {
   background: #fff1a0;
 }
 
+button.ghost {
+  color: #ffe14a;
+  background: transparent;
+  border: 1px solid #6e84b4;
+}
+
+button.ghost:hover {
+  background: rgba(255, 225, 74, 0.12);
+}
+
+.menu-actions,
+#hud-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+}
+
 #stage {
   position: relative;
 }
@@ -214,7 +232,8 @@ button:hover {
     grid-area: status;
   }
 
-  #restart {
+  #hud-actions {
     grid-area: restart;
+    justify-content: flex-end;
   }
 }

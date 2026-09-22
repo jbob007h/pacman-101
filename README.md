@@ -32,6 +32,7 @@ Other scripts:
 - Arrow keys or WASD to move. The maze waits until the first key. Reversing is instant; other turns happen at intersections.
 - Eat the large dots to frighten ghosts, then run into them to send jammers.
 - `R` or Restart starts a new match. On the title screen, Restart starts the match. The restart prompt also shows when you die or win.
+- Sound is generated in the browser (no sound files). `M`, or the Sound button on the title screen and in the header, mutes it. The choice is remembered in this browser. The button reads Muted while sound is off.
 - Eating a frightened ghost freezes the maze for half a second, then play resumes.
 
 Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, and an X means they are out. The Alive counter starts at 101 and includes you.

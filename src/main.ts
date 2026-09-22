@@ -16,8 +16,9 @@ const overlayBody = document.querySelector<HTMLElement>('#overlay-body');
 const titleEl = document.querySelector<HTMLElement>('#title');
 const startButton = document.querySelector<HTMLButtonElement>('#start');
 const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #overlay-restart');
+const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody || !titleEl || !startButton) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody || !titleEl || !startButton || muteButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -55,6 +56,14 @@ function syncHud(): void {
   }
 }
 
+function syncMute(): void {
+  const muted = game.sfx.muted;
+  for (const button of muteButtons) {
+    button.textContent = muted ? 'Muted' : 'Sound on';
+    button.setAttribute('aria-pressed', muted ? 'true' : 'false');
+  }
+}
+
 function begin(): void {
   direction = null;
   game.startMatch();
@@ -71,6 +80,12 @@ function restart(): void {
 }
 
 function onKeyDown(event: KeyboardEvent): void {
+  if (event.key === 'm' || event.key === 'M') {
+    event.preventDefault();
+    game.toggleMute();
+    syncMute();
+    return;
+  }
   if (!game.inMatch) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
@@ -93,9 +108,16 @@ function onKeyDown(event: KeyboardEvent): void {
 window.addEventListener('keydown', onKeyDown);
 startButton.addEventListener('click', begin);
 for (const button of restartButtons) button.addEventListener('click', restart);
+for (const button of muteButtons) {
+  button.addEventListener('click', () => {
+    game.toggleMute();
+    syncMute();
+  });
+}
 window.addEventListener('resize', resize);
 resize();
 syncHud();
+syncMute();
 
 let last = performance.now();
 function frame(now: number): void {
