@@ -19,6 +19,8 @@ import {
   slotsBehind,
   sleeperTiles,
   TRAIN_CATCHUP,
+  TRAIN_HEAD_JOIN,
+  TRAIN_JOINED,
   TRAIN_MAX_FOLLOWERS,
   TRAIN_SPACING,
   TRAIN_TUNNEL_SPACING,
@@ -126,6 +128,97 @@ describe('sleeping ghosts and the train', () => {
     game.update(0);
     expect(game.board.train.followers).toHaveLength(TRAIN_MAX_FOLLOWERS);
     expect(game.board.train.sleepers.every((sleeper) => !sleeper.awake)).toBe(true);
+  });
+
+  it('wakes a sleeper during a pellet without eating it until it reaches the back', () => {
+    const game = new Game(() => 0.5);
+    const events: string[] = [];
+    game.bus.on('sleeperWoken', () => events.push('wake'));
+    game.bus.on('trainGhostEaten', () => events.push('train'));
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'chase';
+    blinky.x = 7;
+    blinky.y = 13;
+    game.board.frightened = 9;
+    game.board.pac.x = SLEEPER_LEFT_X;
+    game.board.pac.y = 13;
+    game.board.pac.dir = { ...DIR_NONE };
+
+    game.update(0);
+    expect(events).toEqual(['wake']);
+    expect(game.board.score).toBe(0);
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.train.followers[0]?.joined).toBe(false);
+    expect(game.board.train.asleep()).toHaveLength(15);
+
+    game.update(1 / 60);
+    const joining = game.board.train.followers[0];
+    if (!joining) throw new Error('missing follower');
+    expect(joining.joined).toBe(false);
+    expect(events).toEqual(['wake']);
+    expect(Math.hypot(joining.x - joining.wakeX, joining.y - joining.wakeY)).toBeGreaterThan(0);
+    expect(Math.hypot(joining.x - blinky.x, joining.y - blinky.y)).toBeGreaterThan(TRAIN_JOINED);
+
+    for (let i = 0; i < 30 && !game.board.train.followers[0]?.joined; i++) game.update(1 / 60);
+    const arrived = game.board.train.followers[0];
+    if (!arrived) throw new Error('missing follower');
+    expect(arrived.joined).toBe(true);
+    expect(events).toEqual(['wake']);
+    expect(Math.hypot(arrived.x - blinky.x, arrived.y - blinky.y)).toBeLessThanOrEqual(TRAIN_JOINED + 0.001);
+
+    blinky.mode = 'house';
+    blinky.x = 14;
+    blinky.y = 14;
+    game.board.pac.x = arrived.x;
+    game.board.pac.y = arrived.y;
+    game.update(0);
+    expect(events).toEqual(['wake', 'train']);
+    expect(game.board.train.followers).toHaveLength(0);
+  });
+
+  it('does not eat a follower that is still overlapping Pac while joining', () => {
+    const game = new Game(() => 0.5);
+    const events: string[] = [];
+    game.bus.on('trainGhostEaten', () => events.push('train'));
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.board.frightened = 9;
+    game.board.train.leaderId = 'blinky';
+    const pending = follower(1, 5, 5);
+    pending.joined = false;
+    game.board.train.followers = [pending];
+    game.update(0);
+    expect(events).toEqual([]);
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.score).toBe(0);
+  });
+
+  it('lets a temporary head be eaten only after it leaves the wake tile', () => {
+    const game = new Game(() => 0.5);
+    const events: string[] = [];
+    game.bus.on('trainGhostEaten', () => events.push('train'));
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'eaten';
+    blinky.x = 14;
+    blinky.y = 14;
+    game.board.frightened = 9;
+    game.board.pac.x = SLEEPER_LEFT_X;
+    game.board.pac.y = 13;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.update(0);
+    expect(game.board.train.headKind(game.board.ghosts)).toBe('temporary');
+    expect(game.board.train.followers[0]?.joined).toBe(false);
+    expect(events).toEqual([]);
+
+    for (let i = 0; i < 90 && !game.board.train.followers[0]?.joined; i++) game.update(1 / 60);
+    const head = game.board.train.followers[0];
+    if (!head) throw new Error('missing head');
+    expect(head.joined).toBe(true);
+    expect(Math.hypot(head.x - head.wakeX, head.y - head.wakeY)).toBeGreaterThanOrEqual(TRAIN_HEAD_JOIN);
+    expect(events).toEqual([]);
   });
 
   it('does not let a follower kill Pac, and eats one when the pellet is active', () => {
@@ -276,5 +369,8 @@ function follower(id: number, x: number, y: number): TrainFollower {
     queued: null,
     centerKey: -1,
     reversePending: false,
+    joined: true,
+    wakeX: x,
+    wakeY: y,
   };
 }

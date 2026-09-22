@@ -42,9 +42,9 @@ Walls next to a corridor are drawn as half a tile on the blocked side so the lan
 
 ## Board speed
 
-Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, a wide jammer still goes out, and Pac keeps a permanent movement bonus (1.25 tiles/sec per clear, stacking for the rest of the match). Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
+Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, a wide jammer still goes out, and Pac keeps a permanent movement bonus (1.875 tiles/sec per clear, stacking for the rest of the match). Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
 
-The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets, including a clear that happens after the fruit has already been eaten and the dots refilled. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 1.25 tiles/sec bonus is the movement behind each clear's +1. The even-board fruit point does not add that bonus; the board pace table is the fruit's speed change.
+The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets, including a clear that happens after the fruit has already been eaten and the dots refilled. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 1.875 tiles/sec bonus is the movement behind each clear's +1. The even-board fruit point does not add that bonus; the board pace table is the fruit's speed change.
 
 Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). After the house-ring strip, the first fill has 251 of those (248 dots and 4 power pellets, minus the spawn tile), so the fruit appears after 126 pellets. Later fills restore the spawn dot, so that set is 252 and the half is 126 as well. It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. Clearing the board does not remove a fruit that is already waiting, and it does not start another fruit cycle. The next fruit waits until that fruit is eaten and the next fill begins.
 
@@ -54,14 +54,14 @@ Tiles per second, before the clear bonus:
 
 | Board | Pac | Ghost chase | Frightened |
 | --- | --- | --- | --- |
-| 1 | 6.4 | 4.5 | 2.05 |
-| 2 | 7.15 | 5.35 | 2.35 |
-| 3 | 7.9 | 6.25 | 2.7 |
-| 4 | 8.65 | 7.15 | 3.05 |
-| 5 | 9.35 | 8.05 | 3.4 |
-| 6+ | 10.0 | 8.9 | 3.75 |
+| 1 | 9.6 | 6.75 | 3.075 |
+| 2 | 10.725 | 8.025 | 3.525 |
+| 3 | 11.85 | 9.375 | 4.05 |
+| 4 | 12.975 | 10.725 | 4.575 |
+| 5 | 14.025 | 12.075 | 5.1 |
+| 6+ | 15 | 13.35 | 5.625 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.25 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.875 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. These paces are 1.5× the earlier table, including eyes, the house, and the door, so Pac and the ghosts stay in the same relationship. Elroy still matches Pac's unslowed pace (Elroy 2 is 1.1× that).
 
 ## Cruise Elroy
 
@@ -81,9 +81,11 @@ Pellets remaining (dots plus power pellets):
 
 Sixteen white ghosts sleep on the vertical corridors that cross the side tunnels: column 6 on the left and column 21 on the right. Each side has eight, on rows 10, 11, 12, 13, 15, 16, 17, and 18 (four above the tunnel row and four below). They sit on the tile center and are drawn smaller than the four main ghosts. The tunnel row itself is left clear.
 
-Pac wakes a sleeper by touching it. Woken ghosts join **one** train behind the main ghost who was closest to that sleeper. If a train is already out, the new ghost goes to the end of it. The train holds at most 32 followers (33 with the leader). A touch at that cap does nothing.
+Pac wakes a sleeper by touching it. That touch never eats the sleeper, even during a power pellet. Woken ghosts join **one** train behind the main ghost who was closest to that sleeper. If a train is already out, the new ghost goes to the end of it. The train holds at most 32 followers (33 with the leader). A touch at that cap does nothing.
 
-Followers match a normal ghost's size, stay semi-transparent, and take a cyan-to-magenta gradient by their place in line. They sit 1 tile behind the ghost ahead, or 0.5 tiles when that ghost is in a side tunnel. They do not kill Pac. While a power pellet is running they turn into normal frightened blue ghosts and stay in line, so Pac can eat them.
+A woken ghost is not eatable until it has reached its slot at the back of the train (within 0.08 tiles). A hop longer than 1.75 tiles snaps into that slot in one step and only then can be eaten. Until it arrives it is drawn as a semi-transparent train ghost, not as a blue frightened ghost. If the main leader is eyes or in the house, the new ghost is the temporary head and has no back slot; it becomes eatable after it has moved 1 tile away from the tile where it woke.
+
+Followers match a normal ghost's size, stay semi-transparent, and take a cyan-to-magenta gradient by their place in line. They sit 1 tile behind the ghost ahead, or 0.5 tiles when that ghost is in a side tunnel. They do not kill Pac. While a power pellet is running, followers who have finished joining turn into normal frightened blue ghosts and stay in line, so Pac can eat them.
 
 The leader is always one of the four main ghosts. Eating that leader uses the usual eat (points, pause, eyes, and a jammer). While the leader is eyes (`eaten`), walking back into the house (`entering`), or waiting in the house (`house`), the next follower becomes a temporary head and the train follows that head. When the main ghost is leaving the house or roaming again (`chase`, `scatter`, `frightened`, `leaving`), they lead once more. Eating a follower in the middle removes them; the ghosts behind slide forward into the closed gap (about 18 tiles/sec, and a hop longer than 1.75 tiles snaps into place instead of cutting through walls).
 
@@ -95,7 +97,7 @@ pause(n) = max(0.08s, 0.5s × 0.55^(n-1))
 
 `n` is the eat number in the current chain. After 2 seconds of active time with no ghost eat, `n` goes back to 1. Time spent inside the eat pause does not count toward those 2 seconds.
 
-A power pellet lasts 9 seconds on every board. A ring on the top wall starts full and drains to empty over that time; it has no digits. Eating any ghost while less than 1.5 seconds remain adds 1.5 seconds, and the ring refills to match the new remaining time.
+A power pellet lasts 9 seconds on every board. A thick open ring sits on the ghost house, with a clear center so the house stays visible. It starts full and drains to empty over that time; it has no digits. Eating any ghost while less than 1.5 seconds remain adds 1.5 seconds, and the ring refills to match the new remaining time.
 
 ## Inbound jammers
 

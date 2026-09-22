@@ -16,6 +16,17 @@ export const TRAIN_TUNNEL_SPACING = 0.5;
 /** How fast a follower slides into a slot that moved up. Tiles per second. */
 export const TRAIN_CATCHUP = 18;
 /**
+ * A woken ghost is eatable once it is this close to its slot at the back.
+ * Until then it is only joining, including on the frame Pac touches the sleeper.
+ */
+export const TRAIN_JOINED = 0.08;
+/**
+ * When the main leader is eyes or in the house, the new ghost is the temporary
+ * head and has no back slot. It becomes eatable after traveling this far from
+ * the tile where it woke, so the wake itself is never a frightened eat.
+ */
+export const TRAIN_HEAD_JOIN = 1;
+/**
  * Gaps this long or shorter glide. Anything farther (a new join, or the main
  * ghost taking the train back) snaps into formation so nobody cuts through walls.
  */
@@ -44,6 +55,11 @@ export interface TrainFollower extends Mover {
   id: number;
   centerKey: number;
   reversePending: boolean;
+  /** False while this ghost is still traveling into the train. */
+  joined: boolean;
+  /** Tile where this ghost woke. The temporary head leaves this spot before it can be eaten. */
+  wakeX: number;
+  wakeY: number;
 }
 
 interface PathPoint {
@@ -126,6 +142,9 @@ export class GhostTrain {
         queued: null,
         centerKey: -1,
         reversePending: false,
+        joined: false,
+        wakeX: sleeper.x,
+        wakeY: sleeper.y,
       });
       woke += 1;
     }
@@ -146,6 +165,7 @@ export class GhostTrain {
     let best: TrainFollower | null = null;
     let bestD = COLLIDE_DISTANCE;
     for (const follower of this.followers) {
+      if (!follower.joined) continue;
       const dist = Math.hypot(follower.x - pacX, follower.y - pacY);
       if (dist < bestD) {
         bestD = dist;
@@ -190,6 +210,9 @@ export class GhostTrain {
     if (!head) return;
     this.usePath(`temp:${head.id}`);
     if (dt > 0) stepHead(head, dt, maze, frightened, speeds, pacX, pacY, rng);
+    if (!head.joined && Math.hypot(head.x - head.wakeX, head.y - head.wakeY) >= TRAIN_HEAD_JOIN) {
+      head.joined = true;
+    }
     this.pushPath(head.x, head.y, maze);
     this.pullFollowers(dt, maze, 1);
   }
@@ -225,7 +248,8 @@ export class GhostTrain {
       const slot = slots[i - fromIndex];
       if (!follower || !slot) continue;
       if (dt <= 0) continue;
-      glideToward(follower, slot, dt, maze.cols, maze.tunnelRow);
+      const left = glideToward(follower, slot, dt, maze.cols, maze.tunnelRow);
+      if (left <= TRAIN_JOINED) follower.joined = true;
     }
   }
 }
@@ -301,33 +325,36 @@ export function slotsBehind(
   return out;
 }
 
-/** Move `member` toward `target`. Short hops glide; long ones snap. */
+/** Move `member` toward `target`. Short hops glide; long ones snap. Returns tiles still left. */
 export function glideToward(
   member: { x: number; y: number; dir: Dir },
   target: PathPoint,
   dt: number,
   cols: number,
   tunnelRow: number,
-): void {
+): number {
   const dx = unwrapDelta(member.x, target.x, member.y, target.y, cols, tunnelRow);
   const dy = target.y - member.y;
   const dist = Math.hypot(dx, dy);
   if (dist < 0.001) {
     member.x = target.x;
     member.y = target.y;
-    return;
+    return 0;
   }
   if (dist > TRAIN_SNAP) {
     member.x = target.x;
     member.y = target.y;
-  } else {
-    const step = Math.min(dist, TRAIN_CATCHUP * dt);
-    member.x += (dx / dist) * step;
-    member.y += (dy / dist) * step;
-    member.x = wrapTunnel(member.x, member.y, cols, tunnelRow);
+    if (Math.abs(dx) >= Math.abs(dy)) member.dir = { x: dx > 0 ? 1 : -1, y: 0 };
+    else member.dir = { x: 0, y: dy > 0 ? 1 : -1 };
+    return 0;
   }
+  const step = Math.min(dist, TRAIN_CATCHUP * dt);
+  member.x += (dx / dist) * step;
+  member.y += (dy / dist) * step;
+  member.x = wrapTunnel(member.x, member.y, cols, tunnelRow);
   if (Math.abs(dx) >= Math.abs(dy)) member.dir = { x: dx > 0 ? 1 : -1, y: 0 };
   else member.dir = { x: 0, y: dy > 0 ? 1 : -1 };
+  return dist - step;
 }
 
 function closestMain(x: number, y: number, ghosts: readonly Ghost[]): Ghost {

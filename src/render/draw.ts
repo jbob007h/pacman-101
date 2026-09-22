@@ -9,7 +9,7 @@ import { Tile } from '../gameplay/maze';
 import type { Pac } from '../gameplay/board';
 import type { Sim } from '../systems/sims';
 import type { Bolt, IncomingShot, Particle } from './fx';
-import { boardRect, panelRect } from './layout';
+import { boardRect, ghostHouseCenter, panelRect } from './layout';
 
 /** Visual size only. Collision and movement stay on the 1× tile logic. */
 export const SPRITE_SCALE = 2;
@@ -148,19 +148,20 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   const edible = input.frightened > 0;
   input.train.forEach((follower, index) => {
+    const arrived = follower.joined;
     drawGhostSprite(ctx, input, board.x, board.y, {
       x: follower.x,
       y: follower.y,
       dir: follower.dir,
       color: trainMemberColor(index, input.train.length),
-      mode: edible ? 'frightened' : 'chase',
+      mode: edible && arrived ? 'frightened' : 'chase',
       homeX: follower.id,
       scale: 1,
-      alpha: edible ? 1 : TRAIN_ALPHA,
+      alpha: edible && arrived ? 1 : TRAIN_ALPHA,
     });
   });
   drawPac(ctx, input, board.x, board.y);
-  drawPelletClock(ctx, input.frightened, board.x, board.y);
+  drawPelletClock(ctx, input.frightened);
   for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   drawEatScore(ctx, input, board.x, board.y);
   drawSpeedPopup(ctx, input, board.x, board.y);
@@ -440,28 +441,26 @@ function drawGhostSprite(
   ctx.restore();
 }
 
-/** Pie on the top wall. Full when a pellet is eaten, empty when the timer ends. No digits. */
-function drawPelletClock(ctx: CanvasRenderingContext2D, frightened: number, ox: number, oy: number): void {
+/**
+ * Open ring over the ghost house. Full when a pellet is eaten, empty when the
+ * timer ends. The center stays clear so the house shows through. No digits.
+ */
+function drawPelletClock(ctx: CanvasRenderingContext2D, frightened: number): void {
   const fill = pelletFill(frightened);
   if (fill <= 0) return;
-  const cx = ox + 14 * TILE;
-  const cy = oy + 8;
-  const radius = 7;
+  const { x: cx, y: cy } = ghostHouseCenter();
+  const radius = 30;
+  const width = 14;
   ctx.save();
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(6, 8, 16, 0.72)';
-  ctx.fill();
+  ctx.strokeStyle = 'rgba(255, 225, 74, 0.22)';
+  ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(cx, cy);
-  ctx.arc(cx, cy, radius - 1.5, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
-  ctx.closePath();
-  ctx.fillStyle = '#ffe14a';
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.strokeStyle = '#fff6c2';
-  ctx.lineWidth = 1.5;
+  ctx.arc(cx, cy, radius, -Math.PI / 2, -Math.PI / 2 + fill * Math.PI * 2);
+  ctx.strokeStyle = '#ffe14a';
   ctx.stroke();
   ctx.restore();
 }
