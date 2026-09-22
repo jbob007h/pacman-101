@@ -193,7 +193,7 @@ export const DOT_PRESSURE = 22;
 export const CLEAR_PRESSURE = 42;
 export const CLEAR_TARGETS = 8;
 /**
- * CPU battle clock. Two attacks every 0.8s is 2.5 attacks per second.
+ * CPU battle clock. Two attacks every 0.5s is 4 attacks per second.
  * Each attack picks one seat uniformly from the other living sims plus the
  * human, so the chance it hits the player is 1 / aliveCount (about 1/100 at
  * the open), not a fixed share of the shots.
@@ -202,10 +202,10 @@ export const CLEAR_TARGETS = 8;
  * Every {@link SIM_RELIEF_INTERVAL}, {@link SIM_RELIEFS_PER_TICK} living sims
  * shed pressure: usually a pellet ({@link SIM_PELLET_RELIEF}), sometimes a
  * board clear ({@link SIM_CLEAR_RELIEF} when the roll is under
- * {@link SIM_CLEAR_RELIEF_CHANCE}). That mix still leaves most of the field
- * alive at 4:00, including when the player is eating ghosts.
+ * {@link SIM_CLEAR_RELIEF_CHANCE}). At this rate an idle field is down to a
+ * few dozen sims by 4:00.
  */
-export const SIM_ATTACK_INTERVAL = 0.8;
+export const SIM_ATTACK_INTERVAL = 0.5;
 export const SIM_ATTACKS_PER_TICK = 2;
 export const SIM_PRESSURE = 28;
 export const SIM_RELIEF_INTERVAL = 2.5;

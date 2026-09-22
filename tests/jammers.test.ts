@@ -96,7 +96,7 @@ describe('jammers', () => {
     expect(pickCpuTarget([], () => 0.2)).toBeNull();
   });
 
-  it('sheds pressure when a cpu simulates a clear and keeps most of the field at four minutes', () => {
+  it('sheds pressure when a cpu simulates a clear and thins the field by four minutes', () => {
     const game = new Game(() => 0);
     const first = game.sims.sims[0];
     if (!first) throw new Error('missing sim');
@@ -106,12 +106,12 @@ describe('jammers', () => {
     expect(first.relief).toBeGreaterThan(0);
     expect(first.alive).toBe(true);
 
-    for (const seed of [1, 2, 3]) {
+    const idleAlive = [18, 24, 29];
+    for (const [index, seed] of [1, 2, 3].entries()) {
       const idle = new Game(mulberry32(seed));
       for (let i = 0; i < 4800; i++) idle.sims.update(0.05);
       const alive = idle.sims.aliveCount();
-      expect(alive).toBeGreaterThanOrEqual(60);
-      expect(alive).toBeLessThan(98);
+      expect(alive).toBe(idleAlive[index]);
       expect(idle.match.remaining()).toBe(1 + alive);
     }
 
@@ -122,7 +122,7 @@ describe('jammers', () => {
         playing.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
       }
     }
-    expect(playing.sims.aliveCount()).toBeGreaterThanOrEqual(40);
+    expect(playing.sims.aliveCount()).toBe(14);
     expect(playing.match.phase).toBe('playing');
   });
 
