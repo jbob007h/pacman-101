@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>101</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <script type="module" crossorigin src="/pacman-101/assets/index-B-mDTqXu.js"></script>
-    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-CnP1s8vx.css">
+    <script type="module" crossorigin src="/pacman-101/assets/index-oEwpN968.js"></script>
+    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-BbFs7GV-.css">
   </head>
   <body>
     <div id="app">
       <header id="hud">
         <div class="brand">
           <h1>101</h1>
-          <p>local battle maze</p>
+          <p id="hud-name">Pac</p>
         </div>
         <div class="stat alive-stat">
           <span>Alive</span>
@@ -48,6 +48,9 @@
             <p class="eyebrow">local battle maze</p>
             <h2>101</h2>
             <p>You, plus one hundred opponents. Eat the fruit to advance. White jammers slow you. Red ones kill.</p>
+            <label class="name-field" for="player-name-input">Your name
+              <input id="player-name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="Pac" />
+            </label>
             <div class="menu-actions">
               <button id="start" type="button">Start match</button>
               <button id="mute-menu" class="ghost" type="button" aria-pressed="false">Sound on</button>
@@ -56,10 +59,22 @@
         </div>
         <p id="countdown" hidden></p>
         <div id="overlay" hidden>
-          <div class="card">
+          <div class="card" id="overlay-card">
             <h2 id="overlay-title"></h2>
             <p id="overlay-body"></p>
-            <button id="overlay-restart" type="button">Restart match</button>
+            <div class="menu-actions">
+              <button id="overlay-restart" type="button">Restart match</button>
+              <button id="overlay-menu" class="ghost" type="button">Menu</button>
+            </div>
+          </div>
+          <div class="card ranking-card" id="ranking" hidden>
+            <h2>Standings</h2>
+            <p id="ranking-blurb"></p>
+            <ol id="ranking-list"></ol>
+            <div class="menu-actions">
+              <button id="ranking-restart" type="button">Restart match</button>
+              <button id="ranking-menu" class="ghost" type="button">Menu</button>
+            </div>
           </div>
         </div>
       </div>
@@ -71,7 +86,7 @@
         The fruit under the ghost house reloads the dots and advances the board. Clearing every pellet raises Speed by 1, pops "Speed Up!" on Pac, and leaves the maze empty until the fruit.
         White jammers slow you down and die if they touch you; a power pellet wipes them.
         Red jammers kill on contact, freeze while a power pellet is active, and vanish when you eat the fruit.
-        Red fill is pressure. An X means that opponent is out. R restarts. M or Sound on mutes the effects.
+        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. R restarts. M or Sound on mutes the effects.
       </p>
     </div>
   </body>
