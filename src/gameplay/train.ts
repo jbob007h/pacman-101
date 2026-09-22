@@ -31,7 +31,7 @@ export const TRAIN_JOINED = 0.08;
  */
 export const TRAIN_SNAP = 1.75;
 /** Follower size while the leader is not frightened, relative to a normal ghost. */
-export const TRAIN_CALM_SCALE = 0.25;
+export const TRAIN_CALM_SCALE = 0.5;
 
 /**
  * Vertical corridor that crosses each side tunnel (column 6 on the left, 21 on the right).

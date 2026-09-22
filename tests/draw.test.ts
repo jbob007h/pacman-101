@@ -62,9 +62,9 @@ describe('maze wall paint', () => {
     expect(ghostDrawMode('frightened', true, 9)).toBe('frightened');
   });
 
-  it('draws calm train followers at a quarter size and frightened ones full blue', () => {
-    expect(TRAIN_CALM_SCALE).toBe(0.25);
-    expect(trainFollowerLook(false)).toEqual({ mode: 'chase', scale: 0.25 });
+  it('draws calm train followers at half size and frightened ones full blue', () => {
+    expect(TRAIN_CALM_SCALE).toBe(0.5);
+    expect(trainFollowerLook(false)).toEqual({ mode: 'chase', scale: 0.5 });
     expect(trainFollowerLook(true)).toEqual({ mode: 'frightened', scale: 1 });
   });
 });

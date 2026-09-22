@@ -407,7 +407,7 @@ export function ghostDrawMode(mode: GhostMode, skipFright: boolean, frightenedLe
   return mode;
 }
 
-/** Calm followers are a quarter size. A frightened leader makes the whole train full-size blue. */
+/** Calm followers are half size. A frightened leader makes the whole train full-size blue. */
 export function trainFollowerLook(leaderFrightened: boolean): { mode: 'frightened' | 'chase'; scale: number } {
   if (leaderFrightened) return { mode: 'frightened', scale: 1 };
   return { mode: 'chase', scale: TRAIN_CALM_SCALE };
