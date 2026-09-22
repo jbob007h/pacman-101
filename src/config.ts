@@ -202,12 +202,14 @@ export const CLEAR_TARGETS = 8;
  * Every {@link SIM_RELIEF_INTERVAL}, {@link SIM_RELIEFS_PER_TICK} living sims
  * shed pressure: usually a pellet ({@link SIM_PELLET_RELIEF}), sometimes a
  * board clear ({@link SIM_CLEAR_RELIEF} when the roll is under
- * {@link SIM_CLEAR_RELIEF_CHANCE}). At this rate an idle field is down to a
- * few dozen sims by 4:00.
+ * {@link SIM_CLEAR_RELIEF_CHANCE}). Hits are 23 so four attacks a second still
+ * leave most of the field alive at 4:00. A straight scale of the old 28
+ * (about 18) barely eliminates anyone, because the smaller hits stop
+ * clustering over the kill line.
  */
 export const SIM_ATTACK_INTERVAL = 0.5;
 export const SIM_ATTACKS_PER_TICK = 2;
-export const SIM_PRESSURE = 28;
+export const SIM_PRESSURE = 23;
 export const SIM_RELIEF_INTERVAL = 2.5;
 export const SIM_RELIEFS_PER_TICK = 4;
 export const SIM_PELLET_RELIEF = 34;
