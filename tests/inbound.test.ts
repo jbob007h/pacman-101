@@ -74,7 +74,7 @@ describe('inbound jammers', () => {
     white.phase = 'live';
     expect(field.touch(10, 20, 0)).toBe(false);
     expect(white.phase).toBe('dying');
-    expect(field.slow).toBeCloseTo(1.2);
+    expect(field.slow).toBeCloseTo(0.6);
     expect(field.slowFactor).toBeCloseTo(0.42);
 
     const reds = new InboundField();
@@ -139,6 +139,71 @@ describe('inbound jammers', () => {
     expect(game.match.phase).toBe('lost');
   });
 
+  it('kills Pac when a red body overlaps even if the centers are farther than the old hitbox', () => {
+    const game = new Game(() => 0);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    const red = idle('red');
+    red.phase = 'live';
+    red.x = 10;
+    red.y = 20;
+    red.prevX = 10;
+    red.prevY = 20;
+    red.dir = { x: 0, y: 0 };
+    red.centerKey = 20 * 28 + 10;
+    game.board.inbound.jammers.push(red);
+    game.board.pac.dir = { x: -1, y: 0 };
+    game.board.pac.x = 10.7;
+    game.board.pac.y = 20;
+    game.update(1 / 60);
+    expect(game.board.pac.alive).toBe(false);
+    expect(game.match.phase).toBe('lost');
+  });
+
+  it('stops every live red while a power pellet is active, then lets them chase again', () => {
+    const game = new Game(() => 0);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    const pellet = findPellet(game.board.maze);
+    const red = idle('red');
+    red.phase = 'live';
+    red.x = 6;
+    red.y = 5;
+    red.prevX = 6;
+    red.prevY = 5;
+    red.dir = { x: 1, y: 0 };
+    red.centerKey = -1;
+    game.board.inbound.jammers.push(red);
+    game.board.pac.dir = { x: 1, y: 0 };
+    game.board.pac.x = pellet.x;
+    game.board.pac.y = pellet.y;
+    game.update(1 / 60);
+    expect(game.board.frightened).toBeGreaterThan(0);
+    expect(red.x).toBe(6);
+    expect(red.y).toBe(5);
+    expect(game.board.inbound.touch(6, 5, 0)).toBe(true);
+    expect(red.phase).toBe('live');
+    expect(game.board.pac.alive).toBe(true);
+    const heldX = red.x;
+    const heldY = red.y;
+    for (let i = 0; i < 8; i++) game.update(1 / 60);
+    expect(game.board.frightened).toBeGreaterThan(0);
+    expect(red.phase).toBe('live');
+    expect(red.x).toBe(heldX);
+    expect(red.y).toBe(heldY);
+
+    game.board.frightened = 0;
+    for (const ghost of game.board.ghosts) {
+      if (ghost.mode === 'frightened') ghost.mode = 'chase';
+    }
+    game.update(1 / 60);
+    expect(Math.hypot(red.x - heldX, red.y - heldY)).toBeGreaterThan(0.01);
+  });
+
   it('kills white jammers on a power pellet and leaves reds', () => {
     const game = new Game(() => 0);
     const pellet = findPellet(game.board.maze);
@@ -160,7 +225,6 @@ describe('inbound jammers', () => {
     const game = new Game(() => 0);
     game.update(0.05);
     expect(game.hud().time).toBe('0:00');
-    expect(game.hud().jammers).toBe('0/16');
     game.board.pac.dir = { x: -1, y: 0 };
     for (let i = 0; i < 20; i++) game.update(0.05);
     expect(game.hud().time).toBe('0:01');
@@ -173,6 +237,8 @@ function idle(kind: 'white' | 'red'): InboundJammer {
     phase: 'spawn',
     anim: 0,
     centerKey: -1,
+    prevX: 1,
+    prevY: 1,
     x: 1,
     y: 1,
     dir: { ...DIR_NONE },

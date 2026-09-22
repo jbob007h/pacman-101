@@ -107,7 +107,7 @@ export class Board {
     return base * this.inbound.slowFactor;
   }
 
-  /** Unslowed pace. Jammers chase at this rate so a hit actually lets them catch up. */
+  /** Unslowed pace. White and red chasers scale off this, not off a slowed Pac. */
   chaseSpeed(): number {
     return this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
   }
@@ -137,7 +137,9 @@ export class Board {
       return;
     }
     this.time += step;
-    this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed(), this.frightened > 0);
+    const pacX0 = this.pac.x;
+    const pacY0 = this.pac.y;
+    this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed(), this.redsFrozen());
     if (this.clearPause > 0) {
       this.clearPause -= step;
       return;
@@ -146,15 +148,17 @@ export class Board {
     const started = this.pac.dir.x !== 0 || this.pac.dir.y !== 0;
     if (!started) {
       this.moveGhosts(step, true);
+      if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, pacX0, pacY0)) this.kill();
       this.collide();
       return;
     }
     this.tickModes(step);
     this.consumeTile();
     this.tryEatFruit();
+    if (this.redsFrozen()) this.inbound.holdReds();
     if (!this.pac.alive) return;
     this.moveGhosts(step, false);
-    if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime)) this.kill();
+    if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, pacX0, pacY0)) this.kill();
     if (this.clearPause > 0) return;
     this.collide();
   }
@@ -293,6 +297,11 @@ export class Board {
     this.boardPellets = this.maze.remaining();
     this.inbound.killReds();
     this.clearPause = 0.7;
+  }
+
+  private redsFrozen(): boolean {
+    if (this.frightened > 0) return true;
+    return this.ghosts.some((ghost) => ghost.mode === 'frightened');
   }
 
   private frighten(): void {

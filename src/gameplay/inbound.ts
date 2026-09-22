@@ -2,9 +2,12 @@ import {
   inboundCount,
   JAMMER_CAP,
   JAMMER_DEATH_SECONDS,
+  JAMMER_HIT_DISTANCE,
   JAMMER_SPAWN_SECONDS,
   MAZE_COLS,
   MAZE_ROWS,
+  RED_CHASE_MULT,
+  WHITE_CHASE_MULT,
 } from '../config';
 import type { Rng } from '../shared/rng';
 import type { Dir } from '../shared/types';
@@ -21,6 +24,8 @@ export interface InboundJammer extends Mover {
   /** 0–1 progress of the spawn or death animation. */
   anim: number;
   centerKey: number;
+  prevX: number;
+  prevY: number;
 }
 
 const DIRS: readonly Dir[] = [DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN];
@@ -79,12 +84,12 @@ export function splitJammerColors(
 }
 
 /**
- * White slow starts at 1.2s and 42% speed, then grows by 0.25s every 30s of
- * match time, capped at the 7:00 step. Red jammers do not slow Pac.
+ * White slow starts at 0.6s and 42% speed, then grows by 0.12s every 30s of
+ * match time, capped at the 7:00 step. Red jammers do not slow Pac; they kill him.
  */
 export function slowProfile(elapsed: number): { seconds: number; factor: number } {
   const steps = Math.min(14, Math.floor(Math.max(0, elapsed) / 30));
-  return { seconds: 1.2 + steps * 0.25, factor: 0.42 };
+  return { seconds: 0.6 + steps * 0.12, factor: 0.42 };
 }
 
 export function formatMatchTime(seconds: number): string {
@@ -138,6 +143,8 @@ export class InboundField {
     }
     const next: InboundJammer[] = [];
     for (const jammer of this.jammers) {
+      jammer.prevX = jammer.x;
+      jammer.prevY = jammer.y;
       if (jammer.phase === 'spawn') {
         jammer.anim = Math.min(1, jammer.anim + dt / JAMMER_SPAWN_SECONDS);
         if (jammer.anim >= 1) {
@@ -156,7 +163,7 @@ export class InboundField {
         next.push(jammer);
         continue;
       }
-      const speed = chaseSpeed * (jammer.kind === 'red' ? 0.8 : 0.62);
+      const speed = chaseSpeed * (jammer.kind === 'red' ? RED_CHASE_MULT : WHITE_CHASE_MULT);
       const traveled = advanceMover(
         jammer,
         dt,
@@ -173,11 +180,12 @@ export class InboundField {
   }
 
   /** Returns true when a live red jammer touches Pac. Spawning jammers never collide. */
-  touch(pacX: number, pacY: number, elapsed: number): boolean {
+  touch(pacX: number, pacY: number, elapsed: number, prevPacX = pacX, prevPacY = pacY): boolean {
     let kill = false;
     for (const jammer of this.jammers) {
       if (jammer.phase !== 'live') continue;
-      if (Math.hypot(jammer.x - pacX, jammer.y - pacY) > 0.48) continue;
+      const hit = sweptHit(jammer.prevX, jammer.prevY, jammer.x, jammer.y, prevPacX, prevPacY, pacX, pacY, JAMMER_HIT_DISTANCE);
+      if (!hit) continue;
       if (jammer.kind === 'red') {
         kill = true;
         continue;
@@ -195,6 +203,19 @@ export class InboundField {
       if (jammer.kind !== 'white' || jammer.phase === 'dying') continue;
       jammer.phase = 'dying';
       jammer.anim = 0;
+    }
+  }
+
+  /**
+   * Put live reds back where they started this frame.
+   * The pellet is eaten after jammers move, so the eat frame would otherwise
+   * still chase for one step.
+   */
+  holdReds(): void {
+    for (const jammer of this.jammers) {
+      if (jammer.kind !== 'red' || jammer.phase !== 'live') continue;
+      jammer.x = jammer.prevX;
+      jammer.y = jammer.prevY;
     }
   }
 
@@ -227,6 +248,8 @@ function createJammer(kind: JammerKind, x: number, y: number, pacX: number, pacY
     phase: 'spawn',
     anim: 0,
     centerKey: -1,
+    prevX: x,
+    prevY: y,
     x,
     y,
     dir: { ...DIR_NONE },
@@ -330,4 +353,28 @@ function inGhostHouse(x: number, y: number): boolean {
 
 function tileKey(x: number, y: number): number {
   return y * MAZE_COLS + x;
+}
+
+/** True if the two movement segments come within `radius` of each other. */
+function sweptHit(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cx: number,
+  cy: number,
+  dx: number,
+  dy: number,
+  radius: number,
+): boolean {
+  const steps = 6;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const jx = ax + (bx - ax) * t;
+    const jy = ay + (by - ay) * t;
+    const px = cx + (dx - cx) * t;
+    const py = cy + (dy - cy) * t;
+    if (Math.hypot(jx - px, jy - py) <= radius) return true;
+  }
+  return false;
 }

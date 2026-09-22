@@ -28,9 +28,10 @@ Other scripts:
 
 ## Controls
 
+- The game opens on a title screen. Start match, Enter, or Space begins a match. Arrow keys do nothing until then.
 - Arrow keys or WASD to move. The maze waits until the first key. Reversing is instant; other turns happen at intersections.
 - Eat the large dots to frighten ghosts, then run into them to send jammers.
-- `R` or Restart starts a new match. The restart prompt also shows when you die or win.
+- `R` or Restart starts a new match. On the title screen, Restart starts the match. The restart prompt also shows when you die or win.
 - Eating a frightened ghost freezes the maze for half a second, then play resumes.
 
 Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, and an X means they are out. The Alive counter starts at 101 and includes you.
@@ -41,9 +42,9 @@ Eating the fruit under the ghost house refills the maze, bumps the Board counter
 
 The Speed readout starts at 0. It goes up by 1 only when fruit advances you off an even board (2, 4, 6, …). Leaving board 1, 3, or 5 does not change it.
 
-Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. A second clear before you take the fruit stacks the movement bonus and does not spawn another fruit.
+Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). After the house-ring strip, the first fill has 251 of those (248 dots and 4 power pellets, minus the spawn tile), so the fruit appears after 126 pellets. Later fills restore the spawn dot, so that set is 252 and the half is 126 as well. It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. A second clear before you take the fruit stacks the movement bonus and does not spawn another fruit.
 
-The side tunnels (the wrap row outside the ghost house) have no pellets. Ghosts in chase, scatter, or frightened mode move at 55% speed while they are in those tunnels. Pac does not slow down there, and eaten ghost eyes stay fast.
+The side tunnels (the wrap row outside the ghost house) have no pellets. The rectangle of corridors wrapped around the ghost house — columns 9–18, rows 11–17 — has no dots or power pellets either. Ghosts in chase, scatter, or frightened mode move at 55% speed while they are in those tunnels. Pac does not slow down there, and eaten ghost eyes stay fast.
 
 Tiles per second, before the clear bonus:
 
@@ -83,7 +84,7 @@ The match clock starts at 0:00 when you take the first step. Red share of each a
 | 6:30–7:00 | 11/12 |
 | 7:00+ | red only |
 
-A white jammer dies when it hits Pac and slows Pac to 42% speed. That slow lasts 1.2s at the start and grows by 0.25s every 30s of match time, through 7:00. A power pellet destroys every white jammer. A red jammer kills Pac on contact once it has finished fading in. During a power pellet the reds freeze in place and do not die. Eating the fruit clears every red jammer off the board.
+A white jammer dies when it hits Pac and slows Pac to 42% speed. That slow lasts 0.6s at the start and grows by 0.12s every 30s of match time, through 7:00. Whites chase faster than reds. A power pellet destroys every white jammer and freezes every red jammer in place until the pellet wears off. A live red jammer kills Pac when their bodies touch, including a graze, once it has finished fading in. Eating the fruit clears every red jammer off the board. The HUD clock starts at 0:00 on the first step. The jammer count is not shown.
 
 ## Layout
 
@@ -118,7 +119,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 
 - Local only: no networking, accounts, or ranked play
 - Side boards are status panels, not live mazes or ghost AIs
-- Incoming jammers are chasers on your maze. They slow Pac; they do not add junk tiles or steal controls
+- Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life, no sound, no Elroy speed curve
 - Ghost targeting is a simplified chase / scatter / frightened model
 - Clearing every pellet refills the maze and fires a wide jammer; eating the fruit is what advances the board. Neither ends the match

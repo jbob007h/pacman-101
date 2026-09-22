@@ -86,6 +86,7 @@ export class Maze {
     }
     this.openGhostHouse(this.initial);
     this.stripSideTunnel(this.initial);
+    this.stripGhostHouseRing(this.initial);
     this.cells = new Uint8Array(this.initial);
     this.left = this.countConsumables(this.cells);
     const issues = collectMazeIssues(this);
@@ -163,6 +164,21 @@ export class Maze {
       const index = y * MAZE_COLS + x;
       const tile = cells[index];
       if (tile === Tile.Dot || tile === Tile.Pellet) cells[index] = Tile.Empty;
+    }
+  }
+
+  /**
+   * The open rectangle wrapped around the ghost house: columns 9–18, rows 11–17.
+   * That ring is the corridor above the door, the lanes on either side, and the
+   * corridor under the house. No dots or power pellets there.
+   */
+  private stripGhostHouseRing(cells: Uint8Array): void {
+    for (let y = 11; y <= 17; y++) {
+      for (let x = 9; x <= 18; x++) {
+        const index = y * MAZE_COLS + x;
+        const tile = cells[index];
+        if (tile === Tile.Dot || tile === Tile.Pellet) cells[index] = Tile.Empty;
+      }
     }
   }
 

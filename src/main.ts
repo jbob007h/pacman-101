@@ -9,14 +9,15 @@ const scoreEl = document.querySelector<HTMLElement>('#score');
 const boardEl = document.querySelector<HTMLElement>('#board');
 const speedEl = document.querySelector<HTMLElement>('#speed');
 const timeEl = document.querySelector<HTMLElement>('#time');
-const jammerEl = document.querySelector<HTMLElement>('#jammers');
 const statusEl = document.querySelector<HTMLElement>('#status');
 const overlayEl = document.querySelector<HTMLElement>('#overlay');
 const overlayTitle = document.querySelector<HTMLElement>('#overlay-title');
 const overlayBody = document.querySelector<HTMLElement>('#overlay-body');
+const titleEl = document.querySelector<HTMLElement>('#title');
+const startButton = document.querySelector<HTMLButtonElement>('#start');
 const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #overlay-restart');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !jammerEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody || !titleEl || !startButton) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -24,6 +25,7 @@ const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('Canvas 2D is unavailable');
 
 const game = new Game();
+game.showTitle();
 let direction: Dir | null = null;
 
 function resize(): void {
@@ -40,10 +42,10 @@ function syncHud(): void {
   boardEl!.textContent = String(hud.board);
   speedEl!.textContent = String(hud.speed);
   timeEl!.textContent = hud.time;
-  jammerEl!.textContent = hud.jammers;
   statusEl!.textContent = hud.status;
-  document.body.dataset.phase = hud.phase;
+  document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
+  titleEl!.hidden = game.inMatch;
   if (hud.overlay) {
     overlayTitle!.textContent = hud.overlay.title;
     overlayBody!.textContent = hud.overlay.body;
@@ -53,13 +55,29 @@ function syncHud(): void {
   }
 }
 
-function restart(): void {
+function begin(): void {
   direction = null;
-  game.restart();
+  game.startMatch();
   syncHud();
 }
 
+function restart(): void {
+  direction = null;
+  if (!game.inMatch) begin();
+  else {
+    game.restart();
+    syncHud();
+  }
+}
+
 function onKeyDown(event: KeyboardEvent): void {
+  if (!game.inMatch) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      begin();
+    }
+    return;
+  }
   const next = dirFromKey(event.key);
   if (next) {
     event.preventDefault();
@@ -73,6 +91,7 @@ function onKeyDown(event: KeyboardEvent): void {
 }
 
 window.addEventListener('keydown', onKeyDown);
+startButton.addEventListener('click', begin);
 for (const button of restartButtons) button.addEventListener('click', restart);
 window.addEventListener('resize', resize);
 resize();

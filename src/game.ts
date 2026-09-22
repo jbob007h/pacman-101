@@ -1,4 +1,3 @@
-import { JAMMER_CAP } from './config';
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import { drawFrame, type DrawInput } from './render/draw';
@@ -17,7 +16,6 @@ export interface HudState {
   remaining: number;
   speed: number;
   time: string;
-  jammers: string;
   phase: MatchPhase;
   status: string;
   overlay: { title: string; body: string } | null;
@@ -38,6 +36,8 @@ export class Game {
   /** Seconds since the player started moving. Stays 0 until the first step. */
   matchTime = 0;
   private playStarted = false;
+  /** False on the title screen. Tests start in a match. */
+  inMatch = true;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -63,14 +63,26 @@ export class Game {
   }
 
   setDirection(dir: Dir | null): void {
-    if (this.match.phase !== 'playing') return;
+    if (!this.inMatch || this.match.phase !== 'playing') return;
     this.board.setDirection(dir);
+  }
+
+  /** Title screen. The match clock and the sims stay paused until {@link startMatch}. */
+  showTitle(): void {
+    this.restart();
+    this.inMatch = false;
+  }
+
+  startMatch(): void {
+    this.restart();
+    this.inMatch = true;
   }
 
   update(dt: number): void {
     const step = Math.min(0.05, Math.max(0, dt));
     this.elapsed += step;
     if (this.bannerT > 0) this.bannerT = Math.max(0, this.bannerT - step);
+    if (!this.inMatch) return;
     if (this.match.phase !== 'won') {
       this.board.matchTime = this.matchTime;
       this.board.update(step);
@@ -103,7 +115,6 @@ export class Game {
       remaining: this.match.remaining(),
       speed: this.board.displayedSpeed,
       time: formatMatchTime(this.matchTime),
-      jammers: `${this.board.inbound.count}/${JAMMER_CAP}`,
       phase,
       status: this.statusLine(),
       overlay: this.overlay(),

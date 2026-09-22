@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_W, BOARD_X, VIEW_H, VIEW_W } from '../src/config';
+import { BOARD_W, BOARD_X, PAC_START, VIEW_H, VIEW_W } from '../src/config';
 import { Maze, Tile } from '../src/gameplay/maze';
 import { panelRect } from '../src/render/layout';
 
@@ -10,7 +10,7 @@ describe('maze', () => {
     expect(maze.cols).toBe(28);
     expect(maze.rows).toBe(31);
     expect(maze.pelletCount()).toBe(4);
-    expect(maze.dotCount()).toBeGreaterThan(250);
+    expect(maze.dotCount()).toBeGreaterThan(200);
     expect(maze.remaining()).toBe(maze.dotCount() + maze.pelletCount());
   });
 
@@ -28,6 +28,19 @@ describe('maze', () => {
     expect(maze.inSideTunnel(1, maze.tunnelRow)).toBe(true);
     expect(maze.inSideTunnel(14, maze.tunnelRow)).toBe(false);
     expect(maze.blocks(14, 17, 'pac')).toBe(false);
+    const counted = new Maze();
+    expect(counted.dotCount()).toBe(248);
+    expect(counted.pelletCount()).toBe(4);
+    expect(counted.consume(PAC_START.x, PAC_START.y)).toBe('dot');
+    expect(counted.remaining()).toBe(251);
+    counted.resetDots();
+    expect(counted.remaining()).toBe(252);
+    for (let y = 11; y <= 17; y++) {
+      for (let x = 9; x <= 18; x++) {
+        const tile = maze.tile(x, y);
+        expect(tile === Tile.Dot || tile === Tile.Pellet).toBe(false);
+      }
+    }
   });
 });
 

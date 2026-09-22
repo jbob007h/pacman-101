@@ -98,6 +98,16 @@ export const JAMMER_CAP = 16;
 /** Seconds a jammer spends scaling in. It cannot touch Pac during this window. */
 export const JAMMER_SPAWN_SECONDS = 0.7;
 export const JAMMER_DEATH_SECONDS = 0.38;
+/**
+ * Center distance that counts as a hit. Matches the drawn bodies:
+ * Pac radius 7.1px plus jammer radius 6.4px is 0.84 tiles. The old 0.48
+ * check let those circles overlap without a collision.
+ */
+export const JAMMER_HIT_DISTANCE = 0.86;
+/** White chasers, as a fraction of Pac's unslowed speed. Faster than reds. */
+export const WHITE_CHASE_MULT = 0.86;
+/** Red chasers, as a fraction of Pac's unslowed speed. Slower than whites. */
+export const RED_CHASE_MULT = 0.42;
 
 /**
  * How many inbound jammers one attack tries to spawn, before the board cap.
