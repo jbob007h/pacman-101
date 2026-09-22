@@ -1,4 +1,6 @@
+import { JAMMER_CAP } from './config';
 import { Board } from './gameplay/board';
+import { formatMatchTime } from './gameplay/inbound';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField } from './render/fx';
 import { boardRect, panelCenter } from './render/layout';
@@ -14,6 +16,8 @@ export interface HudState {
   board: number;
   remaining: number;
   speed: number;
+  time: string;
+  jammers: string;
   phase: MatchPhase;
   status: string;
   overlay: { title: string; body: string } | null;
@@ -31,6 +35,9 @@ export class Game {
   private banner = '';
   private bannerT = 0;
   elapsed = 0;
+  /** Seconds since the player started moving. Stays 0 until the first step. */
+  matchTime = 0;
+  private playStarted = false;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -50,8 +57,8 @@ export class Game {
       this.setBanner(`Eliminated #${event.simId}`);
     });
     this.bus.on('incomingJammer', (event) => {
-      this.board.applyIncomingJammer(event.strength);
-      this.setBanner(`Incoming jammer from #${event.fromSimId}`);
+      const spawned = this.board.spawnInbound(event.strength);
+      this.setBanner(spawned > 0 ? `Jammer from #${event.fromSimId}` : 'Jammers are full');
     });
   }
 
@@ -64,8 +71,14 @@ export class Game {
     const step = Math.min(0.05, Math.max(0, dt));
     this.elapsed += step;
     if (this.bannerT > 0) this.bannerT = Math.max(0, this.bannerT - step);
-    if (this.match.phase !== 'won') this.board.update(step);
+    if (this.match.phase !== 'won') {
+      this.board.matchTime = this.matchTime;
+      this.board.update(step);
+    }
     const started = this.board.pac.dir.x !== 0 || this.board.pac.dir.y !== 0;
+    if (started) this.playStarted = true;
+    if (this.playStarted && this.match.phase === 'playing') this.matchTime += step;
+    this.board.matchTime = this.matchTime;
     if (this.match.phase === 'playing' && started) this.sims.update(step);
     this.fx.update(step);
   }
@@ -78,6 +91,8 @@ export class Game {
     this.banner = '';
     this.bannerT = 0;
     this.elapsed = 0;
+    this.matchTime = 0;
+    this.playStarted = false;
   }
 
   hud(): HudState {
@@ -87,6 +102,8 @@ export class Game {
       board: this.board.speeds().board,
       remaining: this.match.remaining(),
       speed: this.board.displayedSpeed,
+      time: formatMatchTime(this.matchTime),
+      jammers: `${this.board.inbound.count}/${JAMMER_CAP}`,
       phase,
       status: this.statusLine(),
       overlay: this.overlay(),
@@ -100,13 +117,14 @@ export class Game {
       ghosts: this.board.ghosts,
       sims: this.sims.sims,
       bolts: this.fx.bolts,
-      incoming: this.board.incoming,
       frightened: this.board.frightened,
       deathTime: this.board.deathTime,
       time: this.elapsed,
       eatPause: this.board.eatPause,
       eatPoints: this.board.lastEatPoints,
       fruit: this.board.fruit,
+      jammers: this.board.inbound.jammers,
+      slow: this.board.inbound.slow,
     };
     drawFrame(ctx, input);
   }
@@ -118,7 +136,7 @@ export class Game {
     }
     if (this.match.phase === 'won') return 'You are the last one standing';
     if (this.match.phase === 'lost') return 'Eliminated';
-    if (this.board.incoming > 0) return 'Jammed — ghosts are faster';
+    if (this.board.inbound.slow > 0) return 'Slowed by a jammer';
     if (this.board.frightened > 0) return 'Ghosts are frightened and slow — eat them to jam opponents';
     return 'Large dots frighten ghosts. Eating them sends jammers sideways.';
   }

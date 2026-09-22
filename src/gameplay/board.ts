@@ -17,6 +17,7 @@ import type { Rng } from '../shared/rng';
 import type { Dir } from '../shared/types';
 import { DIR_NONE } from '../shared/types';
 import { createGhosts, updateGhost, type Ghost, type GhostMode } from './ghosts';
+import { InboundField } from './inbound';
 import { Maze } from './maze';
 import { advanceMover, applyQueuedTurn, type Mover } from './movement';
 
@@ -42,16 +43,18 @@ const WAVES: readonly Wave[] = [
 
 /**
  * Main-board simulation. Emits gameplay events and never touches sims or the HUD.
- * Incoming jammer pressure is applied through {@link Board.applyIncomingJammer}.
+ * Incoming jammers are spawned through {@link Board.spawnInbound}.
  */
 export class Board {
   readonly maze: Maze;
+  readonly inbound = new InboundField();
   pac: Pac;
   ghosts: Ghost[];
   score = 0;
   time = 0;
   frightened = 0;
-  incoming = 0;
+  /** Match clock, copied from the composition root. Slow duration reads it. */
+  matchTime = 0;
   deathTime = 0;
   clearPause = 0;
   /** Freeze after eating a frightened ghost. Gameplay clocks do not advance. */
@@ -99,6 +102,13 @@ export class Board {
 
   /** Board pace plus the permanent full-clear bonus. The HUD Speed number is {@link displayedSpeed}. */
   pacSpeed(): number {
+    const base = this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
+    if (this.inbound.slow <= 0) return base;
+    return base * this.inbound.slowFactor;
+  }
+
+  /** Unslowed pace. Jammers chase at this rate so a hit actually lets them catch up. */
+  chaseSpeed(): number {
     return this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
   }
 
@@ -107,10 +117,13 @@ export class Board {
     this.pac.queued = dir;
   }
 
-  /** Systems hook: a sim dumped junk on the human. Speeds ghosts for a few seconds. */
-  applyIncomingJammer(strength: number): void {
-    if (!this.pac.alive) return;
-    this.incoming = Math.min(7, this.incoming + 1.6 + strength * 0.04);
+  /**
+   * Systems hook: a sim threw jammers onto the maze.
+   * Returns how many sprites spawned. Overflow past the cap is not spawned.
+   */
+  spawnInbound(strength: number): number {
+    if (!this.pac.alive) return 0;
+    return this.inbound.spawn(strength, this.matchTime, this.maze, this.pac.x, this.pac.y, this.rng);
   }
 
   update(dt: number): void {
@@ -124,7 +137,7 @@ export class Board {
       return;
     }
     this.time += step;
-    if (this.incoming > 0) this.incoming = Math.max(0, this.incoming - step);
+    this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed());
     if (this.clearPause > 0) {
       this.clearPause -= step;
       return;
@@ -141,6 +154,7 @@ export class Board {
     this.tryEatFruit();
     if (!this.pac.alive) return;
     this.moveGhosts(step, false);
+    this.inbound.touch(this.pac.x, this.pac.y, this.matchTime);
     if (this.clearPause > 0) return;
     this.collide();
   }
@@ -152,7 +166,6 @@ export class Board {
     this.score = 0;
     this.time = 0;
     this.frightened = 0;
-    this.incoming = 0;
     this.deathTime = 0;
     this.clearPause = 0;
     this.eatPause = 0;
@@ -169,6 +182,8 @@ export class Board {
     this.waveTime = WAVES[0]?.duration ?? 18;
     this.maze.consume(PAC_START.x, PAC_START.y);
     this.boardPellets = this.maze.remaining();
+    this.matchTime = 0;
+    this.inbound.reset();
   }
 
   private tickModes(dt: number): void {
@@ -280,6 +295,7 @@ export class Board {
   }
 
   private frighten(): void {
+    this.inbound.killWhites();
     this.frightened = FRIGHT_SECONDS;
     for (const ghost of this.ghosts) {
       if (isHuntable(ghost.mode) || ghost.mode === 'frightened') {
@@ -299,7 +315,7 @@ export class Board {
         maze: this.maze,
         wave: this.wave,
         frightenedLeft: this.frightened,
-        incoming: this.incoming > 0,
+        incoming: false,
         speeds: this.speeds(),
         pacX: this.pac.x,
         pacY: this.pac.y,

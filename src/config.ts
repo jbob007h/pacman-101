@@ -92,6 +92,24 @@ export const SIM_ATTACK_INTERVAL = 0.5;
 export const SIM_ATTACKS_PER_TICK = 2;
 export const SIM_PRESSURE = 18;
 export const SIM_INCOMING_CHANCE = 0.1;
+
+/** Most inbound sprites that can sit on the maze at once, including ones still fading in or dying. */
+export const JAMMER_CAP = 16;
+/** Seconds a jammer spends scaling in. It cannot touch Pac during this window. */
+export const JAMMER_SPAWN_SECONDS = 0.7;
+export const JAMMER_DEATH_SECONDS = 0.38;
+/** After a red jammer hits, it keeps chasing but cannot hit again until this elapses. */
+export const RED_IMMUNE_SECONDS = 1.7;
+
+/**
+ * How many inbound jammers one attack tries to spawn, before the board cap.
+ * Strength 8 → 1, 12 → 2, 24 → 3, and anything past 64 stays at 8.
+ * Overflow past {@link JAMMER_CAP} is dropped, not queued.
+ */
+export function inboundCount(strength: number): number {
+  if (strength <= 0) return 0;
+  return Math.min(8, Math.max(1, Math.ceil(strength / 8)));
+}
 export const PRESSURE_RECOVERY = 2;
 export const PRESSURE_LOCK = 1.6;
 export const FOCUS_BIAS = 0.8;

@@ -1,6 +1,7 @@
 import { TILE } from '../config';
 import type { Ghost } from '../gameplay/ghosts';
 import { frightenedFlash } from '../gameplay/ghosts';
+import type { InboundJammer } from '../gameplay/inbound';
 import type { Maze } from '../gameplay/maze';
 import { Tile } from '../gameplay/maze';
 import type { Pac } from '../gameplay/board';
@@ -14,13 +15,14 @@ export interface DrawInput {
   ghosts: readonly Ghost[];
   sims: readonly Sim[];
   bolts: readonly Bolt[];
-  incoming: number;
   frightened: number;
   deathTime: number;
   time: number;
   eatPause: number;
   eatPoints: number;
   fruit: { x: number; y: number } | null;
+  jammers: readonly InboundJammer[];
+  slow: number;
 }
 
 export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void {
@@ -43,17 +45,18 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   ctx.fillRect(board.x, board.y, board.w, board.h);
   drawMaze(ctx, input.maze, board.x, board.y, input.time);
   if (input.fruit) drawFruit(ctx, input.fruit, board.x, board.y);
+  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   drawPac(ctx, input, board.x, board.y);
   drawEatScore(ctx, input, board.x, board.y);
   ctx.restore();
 
-  ctx.strokeStyle = input.incoming > 0 ? 'rgba(255,70,80,0.9)' : '#243058';
-  ctx.lineWidth = input.incoming > 0 ? 4 : 2;
+  ctx.strokeStyle = input.slow > 0 ? 'rgba(140, 190, 255, 0.9)' : '#243058';
+  ctx.lineWidth = input.slow > 0 ? 4 : 2;
   ctx.strokeRect(board.x + 1, board.y + 1, board.w - 2, board.h - 2);
-  if (input.incoming > 0) {
-    const alpha = 0.18 + 0.2 * Math.abs(Math.sin(input.time * 9));
-    ctx.fillStyle = `rgba(255, 40, 50, ${alpha})`;
+  if (input.slow > 0) {
+    const alpha = 0.05 + 0.04 * Math.abs(Math.sin(input.time * 9));
+    ctx.fillStyle = `rgba(80, 140, 255, ${alpha})`;
     ctx.fillRect(board.x, board.y, board.w, board.h);
   }
 
@@ -112,12 +115,50 @@ function drawPac(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy
   for (const point of spritePoints(pac.x, pac.y, input.maze)) {
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;
-    ctx.fillStyle = '#ffe14a';
+    ctx.fillStyle = input.slow > 0 ? '#9fd4ff' : '#ffe14a';
     ctx.beginPath();
     ctx.moveTo(sx, sy);
     ctx.arc(sx, sy, radius, facing + mouth, facing + Math.PI * 2 - mouth);
     ctx.closePath();
     ctx.fill();
+  }
+}
+
+function drawJammer(
+  ctx: CanvasRenderingContext2D,
+  jammer: InboundJammer,
+  maze: Maze,
+  ox: number,
+  oy: number,
+): void {
+  let scale = 1;
+  let alpha = 1;
+  if (jammer.phase === 'spawn') {
+    scale = 0.2 + 0.8 * jammer.anim;
+    alpha = jammer.anim;
+  } else if (jammer.phase === 'dying') {
+    scale = 1 - 0.75 * jammer.anim;
+    alpha = 1 - jammer.anim;
+  } else if (jammer.immune > 0) {
+    alpha = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(jammer.immune * 18));
+  }
+  const color = jammer.kind === 'red' ? '#ff2f3a' : '#f7f8ff';
+  const ring = jammer.kind === 'red' ? '#ffd0d4' : '#9eb0d8';
+  for (const point of spritePoints(jammer.x, jammer.y, maze)) {
+    const sx = ox + point.x * TILE + TILE / 2;
+    const sy = oy + point.y * TILE + TILE / 2;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(sx, sy);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(0, 0, 5.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = ring;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+    ctx.restore();
   }
 }
 

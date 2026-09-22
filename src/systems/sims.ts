@@ -92,7 +92,8 @@ export class SimWorld {
     if (!attacker) return;
     attacker.busy = 1;
     if (this.rng() < SIM_INCOMING_CHANCE) {
-      this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength: 12 });
+      const strength = 8 + Math.round(attacker.pressure / 4);
+      this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength });
       return;
     }
     const action = simVsSimAction(this.snapshot(), this.rng);

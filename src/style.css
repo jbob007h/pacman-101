@@ -26,7 +26,7 @@ body {
 
 #hud {
   display: grid;
-  grid-template-columns: auto auto auto auto auto 1fr auto;
+  grid-template-columns: auto auto auto auto auto auto auto 1fr auto;
   gap: 18px;
   align-items: center;
   margin-bottom: 10px;
@@ -52,7 +52,7 @@ body {
 .stat {
   display: flex;
   flex-direction: column;
-  min-width: 72px;
+  min-width: 58px;
 }
 
 .stat span {
@@ -74,6 +74,14 @@ body {
 
 #speed {
   color: #ffe14a;
+}
+
+#time {
+  color: #f4f7ff;
+}
+
+#jammers {
+  color: #ffb4c0;
 }
 
 #status {
@@ -156,6 +164,7 @@ button:hover {
     grid-template-areas:
       "brand score restart"
       "alive board speed"
+      "time jammers jammers"
       "status status status";
     gap: 10px 12px;
   }
@@ -182,6 +191,14 @@ button:hover {
 
   .speed-stat {
     grid-area: speed;
+  }
+
+  .time-stat {
+    grid-area: time;
+  }
+
+  .jammer-stat {
+    grid-area: jammers;
   }
 
   #status {

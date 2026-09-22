@@ -56,7 +56,34 @@ Tiles per second, before the clear bonus:
 | 5 | 9.35 | 8.05 | 3.4 |
 | 6+ | 10.0 | 8.9 | 3.75 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. An incoming jammer speeds chase ghosts only, not frightened ones. Each full clear adds 0.35 to Pac's tiles/sec on top of the row above.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 0.35 to Pac's tiles/sec on top of the row above.
+
+## Inbound jammers
+
+Opponents sometimes throw jammers onto your maze instead of at each other. Attack strength decides how many sprites that throw tries to spawn (`ceil(strength / 8)`, at most 8). The maze never holds more than 16, counting ones that are still fading in or dying. Anything past 16 is dropped.
+
+They spawn in a quadrant Pac is not standing in, scale up, and cannot touch Pac until that fade-in finishes. Then they chase.
+
+The match clock starts at 0:00 when you take the first step. Red share of each attack after the opening one:
+
+| Elapsed | Red share |
+| --- | --- |
+| 0:00–1:30 | white only |
+| first attack at or after 1:30 | exactly one red, the rest white |
+| 1:30–2:00 | 1/12 |
+| 2:00–2:30 | 2/12 |
+| 2:30–3:00 | 3/12 |
+| 3:00–3:30 | 4/12 |
+| 3:30–4:00 | 5/12 |
+| 4:00–4:30 | 6/12 |
+| 4:30–5:00 | 7/12 |
+| 5:00–5:30 | 8/12 |
+| 5:30–6:00 | 9/12 |
+| 6:00–6:30 | 10/12 |
+| 6:30–7:00 | 11/12 |
+| 7:00+ | red only |
+
+A white jammer dies when it hits Pac and slows Pac to 42% speed. That slow lasts 1.2s at the start and grows by 0.25s every 30s of match time, through 7:00. A power pellet destroys every white jammer. A red jammer does not die on a pellet or on a hit. The hit slows Pac to 26% speed for 1.75× the white duration at that same moment, then the red cannot hit again for 1.7s while it keeps chasing.
 
 ## Layout
 
@@ -76,7 +103,7 @@ Gameplay emits facts and does not know about the side boards:
 - `boardCleared`
 - `playerDied`
 
-Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simEliminated`, `playerEliminated`), and the occasional `incomingJammer`. Incoming junk is applied on the composition root through `Board.applyIncomingJammer` — systems never import gameplay.
+Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simEliminated`, `playerEliminated`), and the occasional `incomingJammer`. Incoming junk is applied on the composition root through `Board.spawnInbound` — systems never import gameplay.
 
 ## Milestone 1
 
@@ -84,14 +111,14 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 - Ghosts chase (with a short scatter cycle), turn frightened on a power pellet, and can be eaten
 - Eaten ghosts and dot milestones send pressure at simulated opponents; a full clear hits several at once
 - Opponents die when pressure reaches 100; panels show alive, pressured, busy, and dead
-- Sims also lean on each other, and sometimes speed up your ghosts for a few seconds
+- Sims also lean on each other, and sometimes throw white or red jammers onto your maze
 - Match starts at 101 alive, counts down, and offers restart on death or victory
 
 ## Known gaps
 
 - Local only: no networking, accounts, or ranked play
 - Side boards are status panels, not live mazes or ghost AIs
-- Incoming jammers only make your ghosts faster — no junk items, slow tiles, or stolen controls
+- Incoming jammers are chasers on your maze. They slow Pac; they do not add junk tiles or steal controls
 - One life, no sound, no Elroy speed curve
 - Ghost targeting is a simplified chase / scatter / frightened model
 - Clearing every pellet refills the maze and fires a wide jammer; eating the fruit is what advances the board. Neither ends the match
