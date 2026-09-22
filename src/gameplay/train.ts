@@ -1,11 +1,9 @@
-import { COLLIDE_DISTANCE, type BoardSpeeds } from '../config';
-import type { Rng } from '../shared/rng';
+import { COLLIDE_DISTANCE } from '../config';
 import type { Dir, GhostId } from '../shared/types';
-import { DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP } from '../shared/types';
-import type { Ghost, GhostMode } from './ghosts';
-import { ghostMoveSpeed } from './ghosts';
+import { DIR_LEFT } from '../shared/types';
+import type { Ghost } from './ghosts';
 import type { Maze } from './maze';
-import { advanceMover, nearCenter, type Mover } from './movement';
+import type { Mover } from './movement';
 
 /** Followers behind the leader, not counting the leader. 33 total with the leader. */
 export const TRAIN_MAX_FOLLOWERS = 32;
@@ -26,12 +24,6 @@ export const TRAIN_CATCHUP = 18;
  * Until then it is only joining, including on the frame Pac touches the sleeper.
  */
 export const TRAIN_JOINED = 0.08;
-/**
- * When the main leader is eyes or in the house, the new ghost is the temporary
- * head and has no back slot. It becomes eatable after traveling this far from
- * the tile where it woke, so the wake itself is never a frightened eat.
- */
-export const TRAIN_HEAD_JOIN = 1;
 /**
  * Gaps this long or shorter glide once a follower has joined. Anything farther
  * snaps into formation so a ghost already in the train does not cut through walls.
@@ -64,7 +56,7 @@ export interface TrainFollower extends Mover {
   reversePending: boolean;
   /** False while this ghost is still traveling into the train. */
   joined: boolean;
-  /** Tile where this ghost woke. The temporary head leaves this spot before it can be eaten. */
+  /** Tile where this ghost woke. */
   wakeX: number;
   wakeY: number;
 }
@@ -78,12 +70,10 @@ interface PathPoint {
  * Sleeping ghosts and the single train they join. The four main ghosts stay in
  * {@link ./ghosts.ts}; this module only follows one of them.
  *
- * Leader rule: the first wake picks the closest main ghost and the train follows
- * that ghost. Later wakes append. While that main ghost is eyes (`eaten`),
- * walking back into the house (`entering`), or waiting in the house (`house`),
- * the next follower is a temporary head and the train follows that head's path.
- * When the main ghost is `leaving`, chasing, scattering, or frightened again,
- * they lead once more and the followers slide back behind them.
+ * Leader rule: the first wake picks the closest of the four main ghosts, in
+ * tile units, and every follower lines up behind that ghost. House, eyes,
+ * leaving, and frightened do not change the pick and do not let the sleeper
+ * lead a train of its own. Later wakes append to the same leader.
  */
 export class GhostTrain {
   readonly sleepers: Sleeper[];
@@ -130,22 +120,19 @@ export class GhostTrain {
     return this.sleepers.filter((sleeper) => !sleeper.awake).map((sleeper) => ({ x: sleeper.x, y: sleeper.y }));
   }
 
-  /**
-   * `main` while the chosen main ghost is out leading.
-   * `temporary` while that ghost is eyes or back in the house and a follower is the head.
-   */
-  headKind(ghosts: readonly Ghost[]): 'main' | 'temporary' | 'none' {
+  /** `main` while a real main ghost is the leader. Followers never lead the train. */
+  headKind(ghosts: readonly Ghost[]): 'main' | 'none' {
     if (this.followers.length === 0 || !this.leaderId) return 'none';
     const leader = ghosts.find((ghost) => ghost.id === this.leaderId);
-    if (!leader) return 'none';
-    return leaderYields(leader.mode) ? 'temporary' : 'main';
+    if (!leader || !isMainGhost(leader)) return 'none';
+    return 'main';
   }
 
   /**
    * Wake every sleeper Pac is touching. Returns how many woke.
    * At {@link TRAIN_MAX_FOLLOWERS} a touch does nothing and the sleeper stays down.
    */
-  touch(pacX: number, pacY: number, ghosts: readonly Ghost[]): number {
+  touch(pacX: number, pacY: number, ghosts: readonly Ghost[], maze: Maze): number {
     const hits = this.sleepers.filter(
       (sleeper) => !sleeper.awake && Math.hypot(sleeper.x - pacX, sleeper.y - pacY) < COLLIDE_DISTANCE,
     );
@@ -157,7 +144,9 @@ export class GhostTrain {
       if (this.followers.length >= TRAIN_MAX_FOLLOWERS) break;
       if (ghosts.length === 0) break;
       if (this.followers.length === 0) {
-        this.leaderId = closestMain(sleeper.x, sleeper.y, ghosts).id;
+        const leader = closestMain(sleeper.x, sleeper.y, ghosts, maze);
+        if (!leader) break;
+        this.leaderId = leader.id;
         this.path = [];
         this.pathSource = '';
         this.holdUntilMove = null;
@@ -241,16 +230,7 @@ export class GhostTrain {
     return best;
   }
 
-  update(
-    dt: number,
-    ghosts: readonly Ghost[],
-    maze: Maze,
-    frightened: boolean,
-    speeds: BoardSpeeds,
-    pacX: number,
-    pacY: number,
-    rng: Rng,
-  ): void {
+  update(dt: number, ghosts: readonly Ghost[], maze: Maze): void {
     if (dt < 0) return;
     if (this.followers.length === 0) {
       this.leaderId = null;
@@ -260,7 +240,7 @@ export class GhostTrain {
       return;
     }
     const leader = ghosts.find((ghost) => ghost.id === this.leaderId);
-    if (!leader) {
+    if (!leader || !isMainGhost(leader)) {
       this.followers = [];
       this.leaderId = null;
       this.path = [];
@@ -268,24 +248,9 @@ export class GhostTrain {
       this.holdUntilMove = null;
       return;
     }
-    if (!leaderYields(leader.mode)) {
-      this.usePath(`main:${leader.id}`);
-      this.pushPath(leader.x, leader.y, maze);
-      this.pullFollowers(dt, maze, 0);
-      return;
-    }
-    const head = this.followers[0];
-    if (!head) return;
-    this.usePath(`temp:${head.id}`);
-    if (!head.joined && dt > 0) {
-      const left = flyStraight(head, headJoinPoint(head, leader), dt, TRAIN_JOIN_SPEED);
-      if (left <= TRAIN_JOINED || Math.hypot(head.x - head.wakeX, head.y - head.wakeY) >= TRAIN_HEAD_JOIN) {
-        head.joined = true;
-      }
-    }
-    if (head.joined && dt > 0) stepHead(head, dt, maze, frightened, speeds, pacX, pacY, rng);
-    this.pushPath(head.x, head.y, maze);
-    this.pullFollowers(dt, maze, 1);
+    this.usePath(`main:${leader.id}`);
+    this.pushPath(leader.x, leader.y, maze);
+    this.pullFollowers(dt, maze, 0);
   }
 
   private usePath(source: string): void {
@@ -372,9 +337,29 @@ export class GhostTrain {
   }
 }
 
-/** Eyes, the walk back into the house, and the house wait. The train uses a temporary head. */
-export function leaderYields(mode: GhostMode): boolean {
-  return mode === 'eaten' || mode === 'entering' || mode === 'house';
+const MAIN_IDS: readonly GhostId[] = ['blinky', 'pinky', 'inky', 'clyde'];
+
+function isMainGhost(ghost: Ghost): boolean {
+  return MAIN_IDS.includes(ghost.id);
+}
+
+/**
+ * Tile-unit gap between two actors. Positions are already in tiles, not pixels.
+ * A ghost mid-wrap on the tunnel row is folded back onto the board, and two
+ * points on that row use the short way around.
+ */
+export function mainGhostDistance(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  cols: number,
+  tunnelRow: number,
+): number {
+  const x0 = tunnelX(ax, ay, cols, tunnelRow);
+  const x1 = tunnelX(bx, by, cols, tunnelRow);
+  const dx = unwrapDelta(x0, x1, ay, by, cols, tunnelRow);
+  return Math.hypot(dx, by - ay);
 }
 
 export function sleeperTiles(): { x: number; y: number }[] {
@@ -468,16 +453,6 @@ export function flyStraight(
   return dist - step;
 }
 
-/** One tile from the wake, toward the yielding leader, in a straight line. */
-function headJoinPoint(head: TrainFollower, leader: Ghost): PathPoint {
-  const dx = leader.x - head.wakeX;
-  const dy = leader.y - head.wakeY;
-  const dist = Math.hypot(dx, dy);
-  if (dist < 1e-4) return { x: head.wakeX - TRAIN_HEAD_JOIN, y: head.wakeY };
-  const travel = Math.min(TRAIN_HEAD_JOIN, dist);
-  return { x: head.wakeX + (dx / dist) * travel, y: head.wakeY + (dy / dist) * travel };
-}
-
 /** Move `member` toward `target`. Short hops glide; long ones snap. Returns tiles still left. */
 export function glideToward(
   member: { x: number; y: number; dir: Dir },
@@ -510,11 +485,13 @@ export function glideToward(
   return dist - step;
 }
 
-function closestMain(x: number, y: number, ghosts: readonly Ghost[]): Ghost {
-  let best = ghosts[0] as Ghost;
+/** Closest main ghost. Ties keep the earlier one, so Blinky wins a dead heat. Mode is ignored. */
+function closestMain(x: number, y: number, ghosts: readonly Ghost[], maze: Maze): Ghost | null {
+  let best: Ghost | null = null;
   let bestD = Infinity;
   for (const ghost of ghosts) {
-    const dist = Math.hypot(ghost.x - x, ghost.y - y);
+    if (!isMainGhost(ghost)) continue;
+    const dist = mainGhostDistance(x, y, ghost.x, ghost.y, maze.cols, maze.tunnelRow);
     if (dist < bestD) {
       bestD = dist;
       best = ghost;
@@ -523,76 +500,12 @@ function closestMain(x: number, y: number, ghosts: readonly Ghost[]): Ghost {
   return best;
 }
 
-function stepHead(
-  member: TrainFollower,
-  dt: number,
-  maze: Maze,
-  frightened: boolean,
-  speeds: BoardSpeeds,
-  pacX: number,
-  pacY: number,
-  rng: Rng,
-): void {
-  const speed = ghostMoveSpeed(
-    frightened ? 'frightened' : 'chase',
-    false,
-    speeds,
-    maze.inSideTunnel(member.x, member.y),
-  );
-  advanceMover(
-    member,
-    dt,
-    speed,
-    (x, y) => maze.blocks(x, y, 'ghost'),
-    maze.tunnelRow,
-    maze.cols,
-    () => steerHead(member, maze, frightened, pacX, pacY, rng),
-  );
-}
-
-function steerHead(
-  member: TrainFollower,
-  maze: Maze,
-  frightened: boolean,
-  pacX: number,
-  pacY: number,
-  rng: Rng,
-): void {
-  if (!nearCenter(member)) return;
-  const tx = Math.round(member.x);
-  const ty = Math.round(member.y);
-  const key = ty * maze.cols + tx;
-  if (member.centerKey === key && !member.reversePending) return;
-  member.reversePending = false;
-  const blocked = (dir: Dir) => maze.blocks(tx + dir.x, ty + dir.y, 'ghost');
-  const options = [DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN].filter((dir) => {
-    if (dir.x === -member.dir.x && dir.y === -member.dir.y && (member.dir.x !== 0 || member.dir.y !== 0)) {
-      return false;
-    }
-    return !blocked(dir);
-  });
-  const fallback = options.length > 0 ? options : [DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN].filter((dir) => !blocked(dir));
-  if (fallback.length === 0) {
-    member.centerKey = key;
-    return;
-  }
-  let next = fallback[0] ?? DIR_LEFT;
-  if (frightened) {
-    next = fallback[Math.floor(rng() * fallback.length)] ?? next;
-  } else {
-    let best = Infinity;
-    for (const dir of fallback) {
-      const score = (tx + dir.x - pacX) ** 2 + (ty + dir.y - pacY) ** 2;
-      if (score < best) {
-        best = score;
-        next = dir;
-      }
-    }
-  }
-  member.dir = { ...next };
-  member.centerKey = key;
-  member.x = tx;
-  member.y = ty;
+function tunnelX(x: number, y: number, cols: number, tunnelRow: number): number {
+  if (Math.round(y) !== tunnelRow) return x;
+  let col = x;
+  while (col < -0.5) col += cols;
+  while (col > cols - 0.5) col -= cols;
+  return col;
 }
 
 /** Delta from `x0` to `x1`, unwrapped when both points sit on the tunnel row. */

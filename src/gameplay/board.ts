@@ -412,18 +412,9 @@ export class Board {
   }
 
   private stepTrain(step: number): void {
-    const woke = this.train.touch(this.pac.x, this.pac.y, this.ghosts);
+    const woke = this.train.touch(this.pac.x, this.pac.y, this.ghosts, this.maze);
     for (let i = 0; i < woke; i++) this.bus.emit({ type: 'sleeperWoken' });
-    this.train.update(
-      step,
-      this.ghosts,
-      this.maze,
-      this.frightened > 0,
-      this.speeds(),
-      this.pac.x,
-      this.pac.y,
-      this.rng,
-    );
+    this.train.update(step, this.ghosts, this.maze);
   }
 
   /**

@@ -19,9 +19,9 @@ import {
   slotsBehind,
   sleeperTiles,
   TRAIN_CATCHUP,
-  TRAIN_HEAD_JOIN,
   TRAIN_JOIN_SPEED,
   TRAIN_JOINED,
+  mainGhostDistance,
   TRAIN_MAX_FOLLOWERS,
   TRAIN_SPACING,
   TRAIN_TUNNEL_SPACING,
@@ -196,30 +196,67 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.score).toBe(0);
   });
 
-  it('lets a temporary head be eaten only after it leaves the wake tile', () => {
+  it('puts the first woken ghost behind the closest main ghost, even in the house', () => {
+    const mains = ['blinky', 'pinky', 'inky', 'clyde'] as const;
     const game = new Game(() => 0.5);
-    const events: string[] = [];
-    game.bus.on('trainGhostEaten', () => events.push('train'));
-    const blinky = game.board.ghosts[0];
-    if (!blinky) throw new Error('missing blinky');
-    blinky.mode = 'eaten';
-    blinky.x = 14;
-    blinky.y = 14;
-    game.board.frightened = 9;
     game.board.pac.x = SLEEPER_LEFT_X;
     game.board.pac.y = 13;
     game.board.pac.dir = { ...DIR_NONE };
     game.update(0);
-    expect(game.board.train.headKind(game.board.ghosts)).toBe('temporary');
-    expect(game.board.train.followers[0]?.joined).toBe(false);
-    expect(events).toEqual([]);
 
-    for (let i = 0; i < 90 && !game.board.train.followers[0]?.joined; i++) game.update(1 / 60);
-    const head = game.board.train.followers[0];
-    if (!head) throw new Error('missing head');
-    expect(head.joined).toBe(true);
-    expect(Math.hypot(head.x - head.wakeX, head.y - head.wakeY)).toBeGreaterThanOrEqual(TRAIN_HEAD_JOIN);
-    expect(events).toEqual([]);
+    const leaderId = game.board.train.leaderId;
+    expect(mains).toContain(leaderId);
+    expect(leaderId).toBe('inky');
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.train.headKind(game.board.ghosts)).toBe('main');
+    const inky = game.board.ghosts.find((ghost) => ghost.id === 'inky');
+    const follower = game.board.train.followers[0];
+    if (!inky || !follower) throw new Error('missing train');
+    expect(inky.mode).toBe('house');
+    const before = Math.hypot(follower.x - inky.x, follower.y - inky.y);
+    game.update(1 / 60);
+    expect(game.board.train.leaderId).toBe('inky');
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(Math.hypot(follower.x - inky.x, follower.y - inky.y)).toBeLessThan(before);
+
+    for (const mode of ['eaten', 'frightened', 'house'] as const) {
+      const again = new Game(() => 0.5);
+      for (const ghost of again.board.ghosts) {
+        ghost.x = 24;
+        ghost.y = 24;
+        ghost.mode = 'chase';
+      }
+      const blinky = again.board.ghosts[0];
+      if (!blinky) throw new Error('missing blinky');
+      blinky.mode = mode;
+      blinky.x = 8;
+      blinky.y = 13;
+      again.board.pac.x = SLEEPER_LEFT_X;
+      again.board.pac.y = 13;
+      again.board.pac.dir = { ...DIR_NONE };
+      again.update(0);
+      expect(again.board.train.leaderId).toBe('blinky');
+      expect(again.board.train.followers).toHaveLength(1);
+      expect(again.board.train.headKind(again.board.ghosts)).toBe('main');
+      const waking = again.board.train.followers[0];
+      if (!waking) throw new Error('missing follower');
+      const start = Math.hypot(waking.x - blinky.x, waking.y - blinky.y);
+      again.board.train.update(1 / 60, again.board.ghosts, again.board.maze);
+      expect(Math.hypot(waking.x - blinky.x, waking.y - blinky.y)).toBeLessThan(start);
+      expect(waking.x).toBeGreaterThan(SLEEPER_LEFT_X);
+    }
+  });
+
+  it('measures closest across the tunnel wrap in tile units', () => {
+    const cols = 28;
+    const tunnel = 14;
+    const wrapped = mainGhostDistance(0.2, tunnel, 27.2, tunnel, cols, tunnel);
+    const longWay = Math.hypot(27, 0);
+    expect(wrapped).toBeLessThan(2);
+    expect(wrapped).toBeLessThan(longWay);
+    expect(mainGhostDistance(6, 13, -0.4, tunnel, cols, tunnel)).toBeCloseTo(
+      mainGhostDistance(6, 13, 27.6, tunnel, cols, tunnel),
+    );
   });
 
   it('does not let a follower kill Pac, and eats one when the pellet is active', () => {
@@ -293,10 +330,9 @@ describe('sleeping ghosts and the train', () => {
     game.board.train.leaderId = 'blinky';
     game.board.train.followers = [follower(1, 4, 5), follower(2, 4, 5), follower(3, 4, 5)];
     const maze = game.board.maze;
-    const speeds = game.board.speeds();
     for (let step = 0; step < 50; step++) {
       blinky.x += 0.12;
-      game.board.train.update(1 / 60, game.board.ghosts, maze, true, speeds, 1, 23, () => 0);
+      game.board.train.update(1 / 60, game.board.ghosts, maze);
     }
     const spread = game.board.train.followers.map((item) => item.x);
     expect(spread[0]! - spread[2]!).toBeGreaterThan(1.2);
@@ -309,7 +345,7 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.train.followers.map((item) => item.x)).toEqual(frozen.map((item) => item.x));
     expect(game.board.train.followers.map((item) => item.y)).toEqual(frozen.map((item) => item.y));
 
-    game.board.train.update(1 / 60, game.board.ghosts, maze, true, speeds, 1, 23, () => 0);
+    game.board.train.update(1 / 60, game.board.ghosts, maze);
     for (let i = 0; i < frozen.length; i++) {
       const follower = game.board.train.followers[i];
       const spot = frozen[i];
@@ -319,7 +355,7 @@ describe('sleeping ghosts and the train', () => {
     }
 
     blinky.x += 0.35;
-    game.board.train.update(1 / 60, game.board.ghosts, maze, true, speeds, 1, 23, () => 0);
+    game.board.train.update(1 / 60, game.board.ghosts, maze);
     for (let i = 0; i < frozen.length; i++) {
       const follower = game.board.train.followers[i];
       const spot = frozen[i];
