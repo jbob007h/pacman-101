@@ -87,19 +87,32 @@ export class GhostTrain {
    * until this body actually moves. That blocks the eat from reforming the line.
    */
   private holdUntilMove: PathPoint | null = null;
+  /** Follower ids stay unique after a sleeper reload, so a new wake cannot share an id with someone still in the line. */
+  private nextFollowerId = 0;
 
   constructor() {
     this.sleepers = sleeperTiles().map((tile, id) => ({ id, x: tile.x, y: tile.y, awake: false }));
   }
 
   /**
-   * Fresh round of sleepers. Every follower was born from a sleeper, so the
-   * train is dissolved and all 16 go back to sleep on their original tiles.
-   * The four main ghosts are not part of this reset: a board advance calls
-   * this and leaves their position, mode, and identity alone. Match restart
-   * uses the same call, then replaces the mains itself.
+   * Match restart. Sleepers go back to their tiles and the train is cleared.
+   * A fruit advance uses {@link reloadSleepers} instead, so the live train stays.
    */
   reset(): void {
+    this.reloadSleepers();
+    this.followers = [];
+    this.leaderId = null;
+    this.path = [];
+    this.pathSource = '';
+    this.holdUntilMove = null;
+  }
+
+  /**
+   * Put all 16 sleepers back on their original tiles, asleep. The leader,
+   * followers, and path are left where they are. New wakes append to that
+   * train until it holds {@link TRAIN_MAX_FOLLOWERS} followers.
+   */
+  reloadSleepers(): void {
     const tiles = sleeperTiles();
     for (const sleeper of this.sleepers) {
       const tile = tiles[sleeper.id];
@@ -109,11 +122,6 @@ export class GhostTrain {
       }
       sleeper.awake = false;
     }
-    this.followers = [];
-    this.leaderId = null;
-    this.path = [];
-    this.pathSource = '';
-    this.holdUntilMove = null;
   }
 
   asleep(): { x: number; y: number }[] {
@@ -153,7 +161,7 @@ export class GhostTrain {
       }
       sleeper.awake = true;
       this.followers.push({
-        id: sleeper.id,
+        id: this.nextFollowerId++,
         x: sleeper.x,
         y: sleeper.y,
         dir: { ...DIR_LEFT },

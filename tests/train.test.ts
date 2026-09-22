@@ -552,6 +552,12 @@ describe('sleeping ghosts and the train', () => {
     game.board.frightened = 5;
     expect(game.board.train.handoffLeader(blinky, game.board.maze)).toBe(true);
     expect(game.board.train.followers).toHaveLength(1);
+    const kept = game.board.train.followers.map((follower) => ({
+      id: follower.id,
+      x: follower.x,
+      y: follower.y,
+    }));
+    const leaderId = game.board.train.leaderId;
     const mains = ghosts.map((ghost) => ({
       id: ghost.id,
       color: ghost.color,
@@ -568,8 +574,8 @@ describe('sleeping ghosts and the train', () => {
 
     expect(game.board.boardIndex).toBe(1);
     expect(game.board.maze.remaining()).toBeGreaterThan(1);
-    expect(game.board.train.followers).toHaveLength(0);
-    expect(game.board.train.leaderId).toBeNull();
+    expect(game.board.train.leaderId).toBe(leaderId);
+    expect(game.board.train.followers.map((follower) => ({ id: follower.id, x: follower.x, y: follower.y }))).toEqual(kept);
     expect(game.board.train.asleep()).toHaveLength(16);
     expect(game.board.train.sleepers.map((sleeper) => ({ x: sleeper.x, y: sleeper.y, awake: sleeper.awake }))).toEqual(
       sleeperTiles().map((tile) => ({ x: tile.x, y: tile.y, awake: false })),
@@ -584,9 +590,31 @@ describe('sleeping ghosts and the train', () => {
     game.board.pac.x = SLEEPER_RIGHT_X;
     game.board.pac.y = SLEEPER_ROWS[0] ?? 10;
     game.update(0);
-    expect(game.board.train.leaderId).not.toBeNull();
-    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.train.leaderId).toBe(leaderId);
+    expect(game.board.train.followers).toHaveLength(2);
+    expect(game.board.train.followers[0]).toMatchObject(kept[0] ?? {});
     expect(game.board.train.asleep()).toHaveLength(15);
+
+    const train = game.board.train;
+    const anchor = train.followers[0];
+    if (!anchor) throw new Error('missing anchor');
+    while (train.followers.length < TRAIN_MAX_FOLLOWERS - 1) {
+      train.followers.push(follower(1000 + train.followers.length, 3, 3));
+    }
+    game.board.pac.x = SLEEPER_RIGHT_X;
+    game.board.pac.y = SLEEPER_ROWS[1] ?? 11;
+    game.update(0);
+    expect(train.leaderId).toBe(leaderId);
+    expect(train.followers).toHaveLength(TRAIN_MAX_FOLLOWERS);
+    expect(train.followers[0]).toBe(anchor);
+
+    game.board.pac.x = SLEEPER_RIGHT_X;
+    game.board.pac.y = SLEEPER_ROWS[2] ?? 12;
+    game.update(0);
+    expect(train.followers).toHaveLength(TRAIN_MAX_FOLLOWERS);
+    expect(train.sleepers.find((sleeper) => sleeper.x === SLEEPER_RIGHT_X && sleeper.y === (SLEEPER_ROWS[2] ?? 12))?.awake).toBe(
+      false,
+    );
   });
 
   it('keeps an awakened train when the pellets are cleared without the fruit', () => {
