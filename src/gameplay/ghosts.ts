@@ -3,6 +3,7 @@ import {
   GHOST_EATEN_SPEED,
   GHOST_HOUSE_SPEED,
   INCOMING_GHOST_MULT,
+  TUNNEL_GHOST_MULT,
   type BoardSpeeds,
 } from '../config';
 import type { Rng } from '../shared/rng';
@@ -96,6 +97,19 @@ export function ghostSpeed(mode: GhostMode, incoming: boolean, speeds: BoardSpee
   }
 }
 
+/** Slows chase, scatter, and frightened ghosts while they are in a side tunnel. Eyes stay fast. */
+export function ghostMoveSpeed(
+  mode: GhostMode,
+  incoming: boolean,
+  speeds: BoardSpeeds,
+  inTunnel: boolean,
+): number {
+  const speed = ghostSpeed(mode, incoming, speeds);
+  if (!inTunnel) return speed;
+  if (mode === 'chase' || mode === 'scatter' || mode === 'frightened') return speed * TUNNEL_GHOST_MULT;
+  return speed;
+}
+
 export function frightenedFlash(left: number, time: number): boolean {
   if (left <= 0 || left > 2) return false;
   return Math.floor(time * 8) % 2 === 0;
@@ -128,7 +142,12 @@ export function updateGhost(ghostActor: Ghost, world: GhostWorld): void {
   }
 
   const who: Passer = ghostActor.mode === 'eaten' ? 'eyes' : 'ghost';
-  const speed = ghostSpeed(ghostActor.mode, world.incoming, world.speeds);
+  const speed = ghostMoveSpeed(
+    ghostActor.mode,
+    world.incoming,
+    world.speeds,
+    maze.inSideTunnel(ghostActor.x, ghostActor.y),
+  );
   const traveled = advanceMover(
     ghostActor,
     dt,

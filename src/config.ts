@@ -31,8 +31,24 @@ export const FRIGHT_SECONDS = 9;
 export const EAT_GHOST_PAUSE = 0.5;
 
 /**
+ * Tile directly under the ghost house. Fruit appears here once half the pellets are gone.
+ * House interior is rows 13–15, columns 11–16; the open corridor below the house is row 17.
+ */
+export const FRUIT_TILE = { x: 14, y: 17 };
+export const FRUIT_SCORE = 100;
+
+/**
+ * Tiles per second added to Pac for each full pellet clear this match.
+ * The on-screen Speed number does not include this bonus.
+ */
+export const CLEAR_SPEED_BONUS = 0.35;
+
+/** Chase, scatter, and frightened ghosts use this fraction of their speed in the side tunnels. */
+export const TUNNEL_GHOST_MULT = 0.55;
+
+/**
  * Tiles per second. Board 1 is the slow, readable pace.
- * Each clear advances one row. Past the last row the pace stays capped.
+ * Eating the fruit advances one row. Past the last row the pace stays capped.
  * Frightened speed stays under half of that board's chase speed.
  */
 const BOARD_PACE: readonly { pac: number; ghost: number; fright: number }[] = [

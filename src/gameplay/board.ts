@@ -1,8 +1,11 @@
 import {
+  CLEAR_SPEED_BONUS,
   COLLIDE_DISTANCE,
   DOT_SCORE,
   EAT_GHOST_PAUSE,
   FRIGHT_SECONDS,
+  FRUIT_SCORE,
+  FRUIT_TILE,
   GHOST_SCORE_BASE,
   PAC_START,
   PELLET_SCORE,
@@ -54,10 +57,22 @@ export class Board {
   /** Freeze after eating a frightened ghost. Gameplay clocks do not advance. */
   eatPause = 0;
   lastEatPoints = 0;
-  /** Zero-based. Clearing the maze advances it and raises the pace. */
+  /** Zero-based. Eating the fruit advances it and raises the pace. */
   boardIndex = 0;
+  /**
+   * Player-facing Speed. Starts at 0 and increases by 1 when fruit advances off an even board (2, 4, 6…).
+   * The full-clear movement bonus is separate and does not change this number.
+   */
+  displayedSpeed = 0;
+  /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
+  clearBoost = 0;
+  /** Fruit sitting under the ghost house, or null when none is out. */
+  fruit: { x: number; y: number } | null = null;
   dotsEaten = 0;
   combo = 0;
+  /** Edible dots + power pellets at the start of the current pellet set. Fruit is not included. */
+  private boardPellets = 0;
+  private fruitSpawned = false;
   private waveIndex = 0;
   private waveTime: number = WAVES[0]?.duration ?? 18;
   wave: 'chase' | 'scatter' = WAVES[0]?.mode ?? 'chase';
@@ -71,6 +86,7 @@ export class Board {
     this.pac = spawnPac();
     this.ghosts = createGhosts();
     this.maze.consume(PAC_START.x, PAC_START.y);
+    this.boardPellets = this.maze.remaining();
   }
 
   get playing(): boolean {
@@ -79,6 +95,11 @@ export class Board {
 
   speeds(): BoardSpeeds {
     return speedsForBoard(this.boardIndex);
+  }
+
+  /** Board pace plus the permanent full-clear bonus. The HUD Speed number is {@link displayedSpeed}. */
+  pacSpeed(): number {
+    return this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
   }
 
   setDirection(dir: Dir | null): void {
@@ -117,6 +138,7 @@ export class Board {
     }
     this.tickModes(step);
     this.consumeTile();
+    this.tryEatFruit();
     if (!this.pac.alive) return;
     this.moveGhosts(step, false);
     if (this.clearPause > 0) return;
@@ -136,12 +158,17 @@ export class Board {
     this.eatPause = 0;
     this.lastEatPoints = 0;
     this.boardIndex = 0;
+    this.displayedSpeed = 0;
+    this.clearBoost = 0;
+    this.fruit = null;
+    this.fruitSpawned = false;
     this.dotsEaten = 0;
     this.combo = 0;
     this.waveIndex = 0;
     this.wave = WAVES[0]?.mode ?? 'chase';
     this.waveTime = WAVES[0]?.duration ?? 18;
     this.maze.consume(PAC_START.x, PAC_START.y);
+    this.boardPellets = this.maze.remaining();
   }
 
   private tickModes(dt: number): void {
@@ -181,7 +208,7 @@ export class Board {
     const traveled = advanceMover(
       this.pac,
       dt,
-      this.speeds().pac,
+      this.pacSpeed(),
       (x, y) => this.maze.blocks(x, y, 'pac'),
       this.maze.tunnelRow,
       this.maze.cols,
@@ -206,12 +233,50 @@ export class Board {
     this.dotsEaten += 1;
     const remaining = this.maze.remaining();
     this.bus.emit({ type: 'dotEaten', totalEaten: this.dotsEaten, remaining });
-    if (remaining === 0) {
-      this.bus.emit({ type: 'boardCleared' });
-      this.maze.resetDots();
-      this.boardIndex += 1;
-      this.clearPause = 0.7;
-    }
+    this.maybeSpawnFruit(remaining);
+    if (remaining === 0) this.onPelletsCleared();
+  }
+
+  /**
+   * Half of the current pellet set (dots + power pellets, fruit excluded).
+   * Threshold is `ceil(boardPellets / 2)` eaten, counted from the set that was on the board
+   * after the silent spawn-tile consume or the latest refill.
+   */
+  private maybeSpawnFruit(remaining: number): void {
+    if (this.fruitSpawned || this.boardPellets <= 0) return;
+    const eaten = this.boardPellets - remaining;
+    if (eaten < Math.ceil(this.boardPellets / 2)) return;
+    this.fruitSpawned = true;
+    this.fruit = { x: FRUIT_TILE.x, y: FRUIT_TILE.y };
+  }
+
+  /** Full clear refills the maze and permanently speeds Pac. It does not advance the board. */
+  private onPelletsCleared(): void {
+    this.bus.emit({ type: 'boardCleared' });
+    this.clearBoost += 1;
+    this.maze.resetDots();
+    this.boardPellets = this.maze.remaining();
+    this.clearPause = 0.7;
+  }
+
+  private tryEatFruit(): void {
+    const fruit = this.fruit;
+    if (!fruit) return;
+    if (Math.hypot(this.pac.x - fruit.x, this.pac.y - fruit.y) > 0.45) return;
+    this.score += FRUIT_SCORE;
+    this.advanceFromFruit();
+  }
+
+  /** Same refill and pace step the maze used to take on a full clear. */
+  private advanceFromFruit(): void {
+    const finishedBoard = this.boardIndex + 1;
+    if (finishedBoard % 2 === 0) this.displayedSpeed += 1;
+    this.boardIndex += 1;
+    this.fruit = null;
+    this.fruitSpawned = false;
+    this.maze.resetDots();
+    this.boardPellets = this.maze.remaining();
+    this.clearPause = 0.7;
   }
 
   private frighten(): void {

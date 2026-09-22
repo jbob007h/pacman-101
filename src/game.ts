@@ -13,6 +13,7 @@ export interface HudState {
   score: number;
   board: number;
   remaining: number;
+  speed: number;
   phase: MatchPhase;
   status: string;
   overlay: { title: string; body: string } | null;
@@ -85,6 +86,7 @@ export class Game {
       score: this.board.score,
       board: this.board.speeds().board,
       remaining: this.match.remaining(),
+      speed: this.board.displayedSpeed,
       phase,
       status: this.statusLine(),
       overlay: this.overlay(),
@@ -104,6 +106,7 @@ export class Game {
       time: this.elapsed,
       eatPause: this.board.eatPause,
       eatPoints: this.board.lastEatPoints,
+      fruit: this.board.fruit,
     };
     drawFrame(ctx, input);
   }

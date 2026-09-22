@@ -85,6 +85,7 @@ export class Maze {
       }
     }
     this.openGhostHouse(this.initial);
+    this.stripSideTunnel(this.initial);
     this.cells = new Uint8Array(this.initial);
     this.left = this.countConsumables(this.cells);
     const issues = collectMazeIssues(this);
@@ -143,6 +144,26 @@ export class Maze {
   resetDots(): void {
     this.cells.set(this.initial);
     this.left = this.countConsumables(this.cells);
+  }
+
+  /**
+   * Side-tunnel tiles on the wrap row, outside the ghost-house notch (columns 10–17).
+   * Coordinates may sit just outside the maze while a mover is wrapping.
+   */
+  inSideTunnel(x: number, y: number): boolean {
+    if (Math.round(y) !== this.tunnelRow) return false;
+    let col = Math.round(x);
+    if (col < 0 || col >= this.cols) col = ((col % this.cols) + this.cols) % this.cols;
+    return col < 10 || col > 17;
+  }
+
+  private stripSideTunnel(cells: Uint8Array): void {
+    const y = TUNNEL_ROW;
+    for (let x = 0; x < MAZE_COLS; x++) {
+      const index = y * MAZE_COLS + x;
+      const tile = cells[index];
+      if (tile === Tile.Dot || tile === Tile.Pellet) cells[index] = Tile.Empty;
+    }
   }
 
   private openGhostHouse(cells: Uint8Array): void {

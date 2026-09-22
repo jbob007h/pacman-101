@@ -37,9 +37,15 @@ Side panels: a number is an opponent, red fill is pressure, a gold border means 
 
 ## Board speed
 
-Clearing the maze refills the dots, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6.
+Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board: the maze refills, a wide jammer still goes out, and Pac keeps a small permanent movement bonus (0.35 tiles/sec per clear, stacking for the rest of the match). That bonus is not part of the on-screen Speed number.
 
-Tiles per second:
+The Speed readout starts at 0. It goes up by 1 only when fruit advances you off an even board (2, 4, 6, …). Leaving board 1, 3, or 5 does not change it.
+
+Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the spawn tile is already gone, and fruit itself does not count). It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. A second clear before you take the fruit stacks the movement bonus and does not spawn another fruit.
+
+The side tunnels (the wrap row outside the ghost house) have no pellets. Ghosts in chase, scatter, or frightened mode move at 55% speed while they are in those tunnels. Pac does not slow down there, and eaten ghost eyes stay fast.
+
+Tiles per second, before the clear bonus:
 
 | Board | Pac | Ghost chase | Frightened |
 | --- | --- | --- | --- |
@@ -50,7 +56,7 @@ Tiles per second:
 | 5 | 9.35 | 8.05 | 3.4 |
 | 6+ | 10.0 | 8.9 | 3.75 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. An incoming jammer speeds chase ghosts only, not frightened ones.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. An incoming jammer speeds chase ghosts only, not frightened ones. Each full clear adds 0.35 to Pac's tiles/sec on top of the row above.
 
 ## Layout
 
@@ -86,7 +92,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 - Local only: no networking, accounts, or ranked play
 - Side boards are status panels, not live mazes or ghost AIs
 - Incoming jammers only make your ghosts faster — no junk items, slow tiles, or stolen controls
-- One life, no sound, no fruit, no Elroy speed curve, no tunnel slowdown
+- One life, no sound, no Elroy speed curve
 - Ghost targeting is a simplified chase / scatter / frightened model
-- Clearing the board refills it and fires a wide jammer; it does not end the match
+- Clearing every pellet refills the maze and fires a wide jammer; eating the fruit is what advances the board. Neither ends the match
 - Placeholder colors, not pixel art

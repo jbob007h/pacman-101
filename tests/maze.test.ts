@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_W, BOARD_X, VIEW_H, VIEW_W } from '../src/config';
-import { Maze } from '../src/gameplay/maze';
+import { Maze, Tile } from '../src/gameplay/maze';
 import { panelRect } from '../src/render/layout';
 
 describe('maze', () => {
@@ -21,6 +21,13 @@ describe('maze', () => {
     expect(maze.blocks(13, 12, 'pac')).toBe(true);
     expect(maze.blocks(14, 12, 'eyes')).toBe(false);
     expect(maze.blocks(14, 23, 'pac')).toBe(false);
+    for (let x = 0; x < maze.cols; x++) {
+      const tile = maze.tile(x, maze.tunnelRow);
+      expect(tile === Tile.Dot || tile === Tile.Pellet).toBe(false);
+    }
+    expect(maze.inSideTunnel(1, maze.tunnelRow)).toBe(true);
+    expect(maze.inSideTunnel(14, maze.tunnelRow)).toBe(false);
+    expect(maze.blocks(14, 17, 'pac')).toBe(false);
   });
 });
 

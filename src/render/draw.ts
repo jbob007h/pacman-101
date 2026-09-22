@@ -20,6 +20,7 @@ export interface DrawInput {
   time: number;
   eatPause: number;
   eatPoints: number;
+  fruit: { x: number; y: number } | null;
 }
 
 export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void {
@@ -41,6 +42,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   ctx.fillStyle = '#00000c';
   ctx.fillRect(board.x, board.y, board.w, board.h);
   drawMaze(ctx, input.maze, board.x, board.y, input.time);
+  if (input.fruit) drawFruit(ctx, input.fruit, board.x, board.y);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   drawPac(ctx, input, board.x, board.y);
   drawEatScore(ctx, input, board.x, board.y);
@@ -249,6 +251,27 @@ function drawBolts(ctx: CanvasRenderingContext2D, bolts: readonly Bolt[]): void 
     ctx.arc(x, y, 3.2, 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+function drawFruit(
+  ctx: CanvasRenderingContext2D,
+  fruit: { x: number; y: number },
+  ox: number,
+  oy: number,
+): void {
+  const cx = ox + fruit.x * TILE + TILE / 2;
+  const cy = oy + fruit.y * TILE + TILE / 2;
+  ctx.strokeStyle = '#3d8f3a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - 2);
+  ctx.quadraticCurveTo(cx + 4, cy - 8, cx + 6, cy - 7);
+  ctx.stroke();
+  ctx.fillStyle = '#e23b3b';
+  ctx.beginPath();
+  ctx.arc(cx - 2.5, cy + 1, 4.2, 0, Math.PI * 2);
+  ctx.arc(cx + 2.2, cy + 1.4, 4.2, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function spritePoints(x: number, y: number, maze: Maze): { x: number; y: number }[] {

@@ -26,7 +26,7 @@ body {
 
 #hud {
   display: grid;
-  grid-template-columns: auto auto auto auto 1fr auto;
+  grid-template-columns: auto auto auto auto auto 1fr auto;
   gap: 18px;
   align-items: center;
   margin-bottom: 10px;
@@ -70,6 +70,10 @@ body {
 
 #alive {
   color: #8cf0ff;
+}
+
+#speed {
+  color: #ffe14a;
 }
 
 #status {
@@ -151,7 +155,7 @@ button:hover {
     grid-template-columns: auto 1fr auto;
     grid-template-areas:
       "brand score restart"
-      "alive board board"
+      "alive board speed"
       "status status status";
   }
 
@@ -169,6 +173,10 @@ button:hover {
 
   .board-stat {
     grid-area: board;
+  }
+
+  .speed-stat {
+    grid-area: speed;
   }
 
   #status {
