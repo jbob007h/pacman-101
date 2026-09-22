@@ -2,14 +2,20 @@
 
 Local battle maze inspired by Pac-Man 99. You play the center board. One hundred simulated opponents sit on mini-boards — fifty on the left, fifty on the right. Eating a frightened ghost (or clearing dots) throws jammers at them. Stack enough pressure and they are eliminated. Last one standing wins.
 
-## Run
+## Play online
+
+https://jbob007h.github.io/pacman-101/
+
+The static site is published from the `gh-pages` branch. A GitHub Actions workflow (`.github/workflows/pages.yml`) can also deploy `dist` once Pages is set to GitHub Actions.
+
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the URL Vite prints, usually `http://localhost:5173`.
+Open the URL Vite prints. With the GitHub Pages base path, that is usually `http://localhost:5173/pacman-101/`.
 
 Other scripts:
 
