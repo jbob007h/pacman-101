@@ -244,6 +244,50 @@ describe('main board', () => {
     expect(game.board.eatPopupCount).toBe(1);
     expect(game.board.combo).toBe(1);
   });
+
+  it('keeps the eat count when a new pellet refills fright that is still running', () => {
+    const game = new Game(() => 0.5);
+    const blinky = game.board.ghosts[0];
+    const pinky = game.board.ghosts[1];
+    const inky = game.board.ghosts[2];
+    if (!blinky || !pinky || !inky) throw new Error('missing ghosts');
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.board.frightened = 4;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    blinky.mode = 'frightened';
+    blinky.x = 5;
+    blinky.y = 5;
+    game.update(0);
+    while (game.board.eatPause > 0) game.update(0.05);
+    pinky.mode = 'frightened';
+    pinky.x = 5;
+    pinky.y = 5;
+    game.update(0);
+    expect(game.board.eatPopupCount).toBe(2);
+
+    while (game.board.eatPause > 0) game.update(0.05);
+    game.board.pac.x = 1;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: 1, y: 0 };
+    game.update(1 / 60);
+    expect(game.board.frightened).toBeGreaterThan(8);
+    expect(game.board.eatPopupCount).toBe(2);
+
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.board.pac.x = 8;
+    game.board.pac.y = 5;
+    inky.mode = 'frightened';
+    inky.x = 8;
+    inky.y = 5;
+    game.update(0);
+    expect(game.board.eatPopupCount).toBe(3);
+    expect(game.board.eatPopupX).toBe(8);
+  });
 });
 
 function steer(x: number, y: number): Dir {

@@ -88,7 +88,9 @@ export class Board {
    * including during the eat pause.
    */
   eatPopup = 0;
-  /** Ghosts eaten in the current pellet. 0 once fright has fully ended. */
+  /** Ghosts eaten since fright last fully ended. Shown by {@link eatPopupCount}. */
+  private frightEats = 0;
+  /** Snapshot of {@link frightEats} for the popup. A new pellet does not clear it while fright is still running. */
   eatPopupCount = 0;
   eatPopupX = 0;
   eatPopupY = 0;
@@ -234,6 +236,7 @@ export class Board {
     this.speedPopup = 0;
     this.eatPopup = 0;
     this.eatPopupCount = 0;
+    this.frightEats = 0;
     this.eatChain = 0;
     this.sinceGhostEat = 0;
     this.train.reset();
@@ -256,6 +259,7 @@ export class Board {
       if (this.frightened <= 0) {
         this.frightened = 0;
         this.combo = 0;
+        this.frightEats = 0;
         for (const ghost of this.ghosts) {
           if (ghost.mode === 'frightened') {
             ghost.mode = this.wave;
@@ -495,8 +499,9 @@ export class Board {
     this.eatChain += 1;
     this.sinceGhostEat = 0;
     this.eatPause = eatPauseForChain(this.eatChain);
+    this.frightEats += 1;
     this.eatPopup = SPEED_POPUP_SECONDS;
-    this.eatPopupCount = this.combo;
+    this.eatPopupCount = this.frightEats;
     this.eatPopupX = this.pac.x;
     this.eatPopupY = this.pac.y;
     if (this.frightened > 0 && this.frightened < PELLET_EXTEND_THRESHOLD) {
