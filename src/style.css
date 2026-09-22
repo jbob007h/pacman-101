@@ -152,11 +152,16 @@ button:hover {
 
 @media (max-width: 800px) {
   #hud {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:
       "brand score restart"
       "alive board speed"
       "status status status";
+    gap: 10px 12px;
+  }
+
+  .stat {
+    min-width: 0;
   }
 
   .brand {
