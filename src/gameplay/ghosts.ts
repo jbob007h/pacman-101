@@ -26,6 +26,14 @@ export interface Ghost extends Mover {
   homeX: number;
   homeY: number;
   stuck: number;
+  /**
+   * Set when this ghost is eaten and sent home. They ignore the pellet that is
+   * already running: leaving the house puts them in chase or scatter, so they
+   * can kill Pac while that timer is still going. The next power pellet clears
+   * the flag and starts a new fright cycle. Eyes already on the way home stay
+   * eyes; if the new pellet is still active when they exit, they come out blue.
+   */
+  skipFright: boolean;
 }
 
 export interface GhostWorld {
@@ -85,6 +93,7 @@ function ghost(
     homeX: x,
     homeY: y,
     stuck: 0,
+    skipFright: false,
   };
 }
 
@@ -224,7 +233,8 @@ function leaveHouse(ghostActor: Ghost, world: GhostWorld): void {
   ghostActor.dir = { ...DIR_UP };
   if (ghostActor.y <= 11) {
     ghostActor.y = 11;
-    ghostActor.mode = world.frightenedLeft > 0 ? 'frightened' : world.wave;
+    const reuseFright = world.frightenedLeft > 0 && !ghostActor.skipFright;
+    ghostActor.mode = reuseFright ? 'frightened' : world.wave;
     ghostActor.dir = { ...DIR_LEFT };
     ghostActor.centerKey = -1;
     ghostActor.reversePending = false;

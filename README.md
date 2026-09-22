@@ -83,7 +83,7 @@ Sixteen white ghosts sleep on the vertical corridors that cross the side tunnels
 
 Pac wakes a sleeper by touching it. That touch never eats the sleeper, even during a power pellet. Woken ghosts join **one** train behind the main ghost who was closest to that sleeper. If a train is already out, the new ghost goes to the end of it. The train holds at most 32 followers (33 with the leader). A touch at that cap does nothing.
 
-A woken ghost is not eatable until it has reached its slot at the back of the train (within 0.08 tiles). A hop longer than 1.75 tiles snaps into that slot in one step and only then can be eaten. Until it arrives it is drawn as a semi-transparent train ghost, not as a blue frightened ghost. If the main leader is eyes or in the house, the new ghost is the temporary head and has no back slot; it becomes eatable after it has moved 1 tile away from the tile where it woke.
+A woken ghost flies in a straight line to its slot at 48 tiles/sec, through walls, much faster than a chasing ghost. Until it arrives (within 0.08 tiles) it is not a collide target: it cannot be eaten and it cannot kill Pac, and it is drawn as a semi-transparent train ghost rather than a blue frightened ghost. After it joins, normal train spacing applies. Followers already in line still glide at 18 tiles/sec, and a hop longer than 1.75 tiles snaps so they do not cut through walls while reforming. If the main leader is eyes or in the house, the new ghost is the temporary head and has no back slot; it flies in a straight line for 1 tile from the tile where it woke, and only then can be eaten and starts leading.
 
 Followers match a normal ghost's size, stay semi-transparent, and take a cyan-to-magenta gradient by their place in line. They sit 1 tile behind the ghost ahead, or 0.5 tiles when that ghost is in a side tunnel. They do not kill Pac. While a power pellet is running, followers who have finished joining turn into normal frightened blue ghosts and stay in line, so Pac can eat them.
 
@@ -96,6 +96,8 @@ pause(n) = max(0.08s, 0.5s × 0.55^(n-1))
 ```
 
 `n` is the eat number in the current chain. After 2 seconds of active time with no ghost eat, `n` goes back to 1. Time spent inside the eat pause does not count toward those 2 seconds.
+
+A main ghost that is eaten and sent home sets `skipFright`. That ghost ignores the pellet already running: they come back out of the house in chase or scatter and can kill Pac while the ring is still draining. The next power pellet clears `skipFright` on every ghost and starts a new fright cycle. Ghosts still on the way home stay eyes; if that new pellet is still active when they leave, they come out frightened. A leader handoff does not set the flag, because that ghost never goes home.
 
 A power pellet lasts 9 seconds on every board. A thick open ring sits on the ghost house, with a clear center so the house stays visible. It starts full and drains to empty over that time; it has no digits. Eating any ghost while less than 1.5 seconds remain adds 1.5 seconds, and the ring refills to match the new remaining time.
 

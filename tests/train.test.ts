@@ -20,6 +20,7 @@ import {
   sleeperTiles,
   TRAIN_CATCHUP,
   TRAIN_HEAD_JOIN,
+  TRAIN_JOIN_SPEED,
   TRAIN_JOINED,
   TRAIN_MAX_FOLLOWERS,
   TRAIN_SPACING,
@@ -269,6 +270,7 @@ describe('sleeping ghosts and the train', () => {
     expect(blinky.id).toBe('blinky');
     expect(blinky.color).toBe(color);
     expect(blinky.mode).toBe('frightened');
+    expect(blinky.skipFright).toBe(false);
     expect(blinky.x).toBe(8);
     expect(blinky.y).toBe(5);
     expect(blinky.dir).toEqual({ x: 1, y: 0 });
@@ -341,6 +343,7 @@ describe('sleeping ghosts and the train', () => {
     game.board.train.leaderId = 'blinky';
     game.update(0);
     expect(blinky.mode).toBe('eaten');
+    expect(blinky.skipFright).toBe(true);
     expect(blinky.x).toBe(5);
     expect(blinky.y).toBe(5);
   });
@@ -559,6 +562,62 @@ describe('sleeping ghosts and the train', () => {
     expect(maze.remaining()).toBe(0);
     expect(game.board.train.followers).toHaveLength(1);
     expect(game.board.train.asleep()).toHaveLength(15);
+  });
+
+  it('flies a woken ghost through walls in a straight line and will not eat it until it joins', () => {
+    const game = new Game(() => 0.5);
+    const events: string[] = [];
+    game.bus.on('trainGhostEaten', () => events.push('train'));
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'chase';
+    blinky.x = 9;
+    blinky.y = 13;
+    game.board.frightened = 9;
+    game.board.pac.x = SLEEPER_LEFT_X;
+    game.board.pac.y = 13;
+    game.board.pac.dir = { ...DIR_NONE };
+    expect(game.board.maze.blocks(7, 13, 'ghost')).toBe(true);
+
+    game.update(0);
+    const joining = game.board.train.followers[0];
+    if (!joining) throw new Error('missing follower');
+    expect(joining.joined).toBe(false);
+    expect(events).toEqual([]);
+
+    game.update(1 / 60);
+    const flown = game.board.train.followers[0];
+    if (!flown) throw new Error('missing follower');
+    expect(flown.joined).toBe(false);
+    expect(flown.y).toBe(13);
+    expect(flown.x - SLEEPER_LEFT_X).toBeCloseTo(TRAIN_JOIN_SPEED / 60);
+    expect(Math.round(flown.x)).toBe(7);
+    expect(game.board.maze.blocks(Math.round(flown.x), Math.round(flown.y), 'ghost')).toBe(true);
+    expect(TRAIN_JOIN_SPEED).toBeGreaterThan(game.board.speeds().ghost * 3);
+    expect(events).toEqual([]);
+
+    game.board.pac.x = flown.x;
+    game.board.pac.y = flown.y;
+    game.update(0);
+    expect(events).toEqual([]);
+    expect(game.board.score).toBe(0);
+    expect(game.board.pac.alive).toBe(true);
+
+    game.board.pac.x = 1;
+    game.board.pac.y = 23;
+    for (let i = 0; i < 20 && !game.board.train.followers[0]?.joined; i++) game.update(1 / 60);
+    const arrived = game.board.train.followers[0];
+    if (!arrived) throw new Error('missing follower');
+    expect(arrived.joined).toBe(true);
+    expect(Math.hypot(arrived.x - blinky.x, arrived.y - blinky.y)).toBeLessThanOrEqual(TRAIN_JOINED + 0.05);
+
+    blinky.mode = 'house';
+    blinky.x = 14;
+    blinky.y = 14;
+    game.board.pac.x = arrived.x;
+    game.board.pac.y = arrived.y;
+    game.update(0);
+    expect(events).toEqual(['train']);
   });
 });
 

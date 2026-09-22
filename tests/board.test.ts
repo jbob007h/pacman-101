@@ -36,6 +36,73 @@ describe('main board', () => {
     expect(seen.some((event) => event.startsWith('ghost:'))).toBe(true);
     expect(game.sims.sims.some((sim) => sim.pressure > 0 || !sim.alive)).toBe(true);
   });
+
+  it('lets an eaten ghost leave the house deadly while the same pellet is still running', () => {
+    const game = new Game(() => 0.5);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'frightened';
+    blinky.x = 5;
+    blinky.y = 5;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.board.frightened = 9;
+    game.update(0);
+    expect(blinky.mode).toBe('eaten');
+    expect(blinky.skipFright).toBe(true);
+
+    blinky.mode = 'house';
+    blinky.x = 14;
+    blinky.y = 14;
+    blinky.releaseAt = 0;
+    blinky.dir = { x: 0, y: -1 };
+    game.board.pac.x = 20;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: -1, y: 0 };
+    let mode: string = blinky.mode;
+    for (let i = 0; i < 80 && mode !== 'chase'; i++) {
+      game.update(1 / 60);
+      mode = blinky.mode;
+    }
+    expect(blinky.mode).toBe('chase');
+    expect(blinky.skipFright).toBe(true);
+    expect(game.board.frightened).toBeGreaterThan(1);
+    expect(game.board.pac.alive).toBe(true);
+
+    game.board.pac.x = blinky.x;
+    game.board.pac.y = blinky.y;
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.update(0);
+    expect(game.board.pac.alive).toBe(false);
+    expect(game.board.frightened).toBeGreaterThan(1);
+  });
+
+  it('frightens a returned ghost only after another power pellet', () => {
+    const game = new Game(() => 0.5);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'chase';
+    blinky.skipFright = true;
+    blinky.x = 14;
+    blinky.y = 11;
+    game.board.frightened = 9;
+    game.board.pac.x = 1;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: 1, y: 0 };
+    game.update(1 / 60);
+    expect(game.board.frightened).toBeGreaterThan(8);
+    expect(blinky.skipFright).toBe(false);
+    expect(blinky.mode).toBe('frightened');
+  });
 });
 
 function steer(x: number, y: number): Dir {

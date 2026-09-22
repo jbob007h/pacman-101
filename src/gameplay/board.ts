@@ -377,6 +377,7 @@ export class Board {
     this.inbound.killWhites();
     this.frightened = FRIGHT_SECONDS;
     for (const ghost of this.ghosts) {
+      ghost.skipFright = false;
       if (isHuntable(ghost.mode) || ghost.mode === 'frightened') {
         ghost.mode = 'frightened';
         ghost.reversePending = true;
@@ -461,6 +462,7 @@ export class Board {
       ghost.mode = 'eaten';
       ghost.reversePending = true;
       ghost.centerKey = -1;
+      ghost.skipFright = true;
     }
     this.lastEatPoints = points;
     this.beginEatPause();

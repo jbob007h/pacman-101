@@ -13,7 +13,13 @@ export const TRAIN_MAX_FOLLOWERS = 32;
 export const TRAIN_SPACING = 1;
 /** Tiles between train members while the member ahead is in a side tunnel. */
 export const TRAIN_TUNNEL_SPACING = 0.5;
-/** How fast a follower slides into a slot that moved up. Tiles per second. */
+/**
+ * Wake flight, in tiles per second. A sleeper flies in a straight line to its
+ * slot, through walls, much faster than chase (about 6–12) or eyes (16.2).
+ * Joined followers use {@link TRAIN_CATCHUP} instead.
+ */
+export const TRAIN_JOIN_SPEED = 48;
+/** How fast a follower already in the train slides into a slot that moved. Tiles per second. */
 export const TRAIN_CATCHUP = 18;
 /**
  * A woken ghost is eatable once it is this close to its slot at the back.
@@ -27,8 +33,9 @@ export const TRAIN_JOINED = 0.08;
  */
 export const TRAIN_HEAD_JOIN = 1;
 /**
- * Gaps this long or shorter glide. Anything farther (a new join, or the main
- * ghost taking the train back) snaps into formation so nobody cuts through walls.
+ * Gaps this long or shorter glide once a follower has joined. Anything farther
+ * snaps into formation so a ghost already in the train does not cut through walls.
+ * The wake flight does not use this: it always interpolates in a straight line.
  */
 export const TRAIN_SNAP = 1.75;
 /** Drawn opacity of a follower that is not frightened. */
@@ -270,10 +277,13 @@ export class GhostTrain {
     const head = this.followers[0];
     if (!head) return;
     this.usePath(`temp:${head.id}`);
-    if (dt > 0) stepHead(head, dt, maze, frightened, speeds, pacX, pacY, rng);
-    if (!head.joined && Math.hypot(head.x - head.wakeX, head.y - head.wakeY) >= TRAIN_HEAD_JOIN) {
-      head.joined = true;
+    if (!head.joined && dt > 0) {
+      const left = flyStraight(head, headJoinPoint(head, leader), dt, TRAIN_JOIN_SPEED);
+      if (left <= TRAIN_JOINED || Math.hypot(head.x - head.wakeX, head.y - head.wakeY) >= TRAIN_HEAD_JOIN) {
+        head.joined = true;
+      }
     }
+    if (head.joined && dt > 0) stepHead(head, dt, maze, frightened, speeds, pacX, pacY, rng);
     this.pushPath(head.x, head.y, maze);
     this.pullFollowers(dt, maze, 1);
   }
@@ -354,7 +364,9 @@ export class GhostTrain {
       const slot = slots[i - fromIndex];
       if (!follower || !slot) continue;
       if (dt <= 0) continue;
-      const left = glideToward(follower, slot, dt, maze.cols, maze.tunnelRow);
+      const left = follower.joined
+        ? glideToward(follower, slot, dt, maze.cols, maze.tunnelRow)
+        : flyStraight(follower, slot, dt, TRAIN_JOIN_SPEED);
       if (left <= TRAIN_JOINED) follower.joined = true;
     }
   }
@@ -429,6 +441,41 @@ export function slotsBehind(
     out.push({ x: cx, y: cy });
   }
   return out;
+}
+
+/**
+ * Straight-line wake flight. No maze, no tunnel wrap, no snap. Returns tiles still left.
+ */
+export function flyStraight(
+  member: { x: number; y: number; dir: Dir },
+  target: PathPoint,
+  dt: number,
+  speed: number,
+): number {
+  const dx = target.x - member.x;
+  const dy = target.y - member.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 0.001) {
+    member.x = target.x;
+    member.y = target.y;
+    return 0;
+  }
+  const step = Math.min(dist, Math.max(0, speed) * dt);
+  member.x += (dx / dist) * step;
+  member.y += (dy / dist) * step;
+  if (Math.abs(dx) >= Math.abs(dy)) member.dir = { x: dx > 0 ? 1 : -1, y: 0 };
+  else member.dir = { x: 0, y: dy > 0 ? 1 : -1 };
+  return dist - step;
+}
+
+/** One tile from the wake, toward the yielding leader, in a straight line. */
+function headJoinPoint(head: TrainFollower, leader: Ghost): PathPoint {
+  const dx = leader.x - head.wakeX;
+  const dy = leader.y - head.wakeY;
+  const dist = Math.hypot(dx, dy);
+  if (dist < 1e-4) return { x: head.wakeX - TRAIN_HEAD_JOIN, y: head.wakeY };
+  const travel = Math.min(TRAIN_HEAD_JOIN, dist);
+  return { x: head.wakeX + (dx / dist) * travel, y: head.wakeY + (dy / dist) * travel };
 }
 
 /** Move `member` toward `target`. Short hops glide; long ones snap. Returns tiles still left. */
