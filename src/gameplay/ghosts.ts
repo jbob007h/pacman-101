@@ -1,10 +1,9 @@
 import {
-  GHOST_CHASE_SPEED,
   GHOST_DOOR_SPEED,
   GHOST_EATEN_SPEED,
-  GHOST_FRIGHT_SPEED,
   GHOST_HOUSE_SPEED,
   INCOMING_GHOST_MULT,
+  type BoardSpeeds,
 } from '../config';
 import type { Rng } from '../shared/rng';
 import type { Dir, GhostId, Passer, Vec } from '../shared/types';
@@ -34,6 +33,7 @@ export interface GhostWorld {
   wave: 'chase' | 'scatter';
   frightenedLeft: number;
   incoming: boolean;
+  speeds: BoardSpeeds;
   pacX: number;
   pacY: number;
   pacDir: Dir;
@@ -79,20 +79,20 @@ function ghost(
   };
 }
 
-export function ghostSpeed(mode: GhostMode, incoming: boolean): number {
+export function ghostSpeed(mode: GhostMode, incoming: boolean, speeds: BoardSpeeds): number {
   const boost = incoming ? INCOMING_GHOST_MULT : 1;
   switch (mode) {
     case 'eaten':
       return GHOST_EATEN_SPEED;
     case 'frightened':
-      return GHOST_FRIGHT_SPEED * boost;
+      return speeds.fright;
     case 'house':
       return GHOST_HOUSE_SPEED;
     case 'leaving':
     case 'entering':
       return GHOST_DOOR_SPEED;
     default:
-      return GHOST_CHASE_SPEED * boost;
+      return speeds.ghost * boost;
   }
 }
 
@@ -128,7 +128,7 @@ export function updateGhost(ghostActor: Ghost, world: GhostWorld): void {
   }
 
   const who: Passer = ghostActor.mode === 'eaten' ? 'eyes' : 'ghost';
-  const speed = ghostSpeed(ghostActor.mode, world.incoming);
+  const speed = ghostSpeed(ghostActor.mode, world.incoming, world.speeds);
   const traveled = advanceMover(
     ghostActor,
     dt,

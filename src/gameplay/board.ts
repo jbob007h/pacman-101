@@ -1,11 +1,13 @@
 import {
   COLLIDE_DISTANCE,
   DOT_SCORE,
+  EAT_GHOST_PAUSE,
   FRIGHT_SECONDS,
   GHOST_SCORE_BASE,
-  PAC_SPEED,
   PAC_START,
   PELLET_SCORE,
+  speedsForBoard,
+  type BoardSpeeds,
 } from '../config';
 import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
@@ -49,6 +51,11 @@ export class Board {
   incoming = 0;
   deathTime = 0;
   clearPause = 0;
+  /** Freeze after eating a frightened ghost. Gameplay clocks do not advance. */
+  eatPause = 0;
+  lastEatPoints = 0;
+  /** Zero-based. Clearing the maze advances it and raises the pace. */
+  boardIndex = 0;
   dotsEaten = 0;
   combo = 0;
   private waveIndex = 0;
@@ -67,7 +74,11 @@ export class Board {
   }
 
   get playing(): boolean {
-    return this.pac.alive && this.clearPause <= 0;
+    return this.pac.alive && this.clearPause <= 0 && this.eatPause <= 0;
+  }
+
+  speeds(): BoardSpeeds {
+    return speedsForBoard(this.boardIndex);
   }
 
   setDirection(dir: Dir | null): void {
@@ -83,11 +94,15 @@ export class Board {
 
   update(dt: number): void {
     const step = Math.min(dt, 0.05);
-    this.time += step;
     if (!this.pac.alive) {
       this.deathTime += step;
       return;
     }
+    if (this.eatPause > 0) {
+      this.eatPause = Math.max(0, this.eatPause - step);
+      return;
+    }
+    this.time += step;
     if (this.incoming > 0) this.incoming = Math.max(0, this.incoming - step);
     if (this.clearPause > 0) {
       this.clearPause -= step;
@@ -118,6 +133,9 @@ export class Board {
     this.incoming = 0;
     this.deathTime = 0;
     this.clearPause = 0;
+    this.eatPause = 0;
+    this.lastEatPoints = 0;
+    this.boardIndex = 0;
     this.dotsEaten = 0;
     this.combo = 0;
     this.waveIndex = 0;
@@ -163,7 +181,7 @@ export class Board {
     const traveled = advanceMover(
       this.pac,
       dt,
-      PAC_SPEED,
+      this.speeds().pac,
       (x, y) => this.maze.blocks(x, y, 'pac'),
       this.maze.tunnelRow,
       this.maze.cols,
@@ -191,6 +209,7 @@ export class Board {
     if (remaining === 0) {
       this.bus.emit({ type: 'boardCleared' });
       this.maze.resetDots();
+      this.boardIndex += 1;
       this.clearPause = 0.7;
     }
   }
@@ -216,6 +235,7 @@ export class Board {
         wave: this.wave,
         frightenedLeft: this.frightened,
         incoming: this.incoming > 0,
+        speeds: this.speeds(),
         pacX: this.pac.x,
         pacY: this.pac.y,
         pacDir: this.pac.dir,
@@ -244,6 +264,8 @@ export class Board {
     ghost.mode = 'eaten';
     ghost.reversePending = true;
     ghost.centerKey = -1;
+    this.lastEatPoints = points;
+    this.eatPause = EAT_GHOST_PAUSE;
     this.bus.emit({ type: 'ghostEaten', ghostId: ghost.id, strength, combo: this.combo });
   }
 

@@ -31,8 +31,26 @@ Other scripts:
 - Arrow keys or WASD to move. The maze waits until the first key. Reversing is instant; other turns happen at intersections.
 - Eat the large dots to frighten ghosts, then run into them to send jammers.
 - `R` or Restart starts a new match. The restart prompt also shows when you die or win.
+- Eating a frightened ghost freezes the maze for half a second, then play resumes.
 
 Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, and an X means they are out. The Alive counter starts at 101 and includes you.
+
+## Board speed
+
+Clearing the maze refills the dots, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6.
+
+Tiles per second:
+
+| Board | Pac | Ghost chase | Frightened |
+| --- | --- | --- | --- |
+| 1 | 6.4 | 4.5 | 2.05 |
+| 2 | 7.15 | 5.35 | 2.35 |
+| 3 | 7.9 | 6.25 | 2.7 |
+| 4 | 8.65 | 7.15 | 3.05 |
+| 5 | 9.35 | 8.05 | 3.4 |
+| 6+ | 10.0 | 8.9 | 3.75 |
+
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. An incoming jammer speeds chase ghosts only, not frightened ones.
 
 ## Layout
 

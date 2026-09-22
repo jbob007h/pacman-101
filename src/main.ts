@@ -6,13 +6,14 @@ import './style.css';
 const canvas = document.querySelector<HTMLCanvasElement>('#view');
 const aliveEl = document.querySelector<HTMLElement>('#alive');
 const scoreEl = document.querySelector<HTMLElement>('#score');
+const boardEl = document.querySelector<HTMLElement>('#board');
 const statusEl = document.querySelector<HTMLElement>('#status');
 const overlayEl = document.querySelector<HTMLElement>('#overlay');
 const overlayTitle = document.querySelector<HTMLElement>('#overlay-title');
 const overlayBody = document.querySelector<HTMLElement>('#overlay-body');
 const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #overlay-restart');
 
-if (!canvas || !aliveEl || !scoreEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -33,6 +34,7 @@ function syncHud(): void {
   const hud = game.hud();
   aliveEl!.textContent = String(hud.remaining);
   scoreEl!.textContent = String(hud.score);
+  boardEl!.textContent = String(hud.board);
   statusEl!.textContent = hud.status;
   document.body.dataset.phase = hud.phase;
   document.body.dataset.remaining = String(hud.remaining);

@@ -18,6 +18,8 @@ export interface DrawInput {
   frightened: number;
   deathTime: number;
   time: number;
+  eatPause: number;
+  eatPoints: number;
 }
 
 export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void {
@@ -41,6 +43,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   drawMaze(ctx, input.maze, board.x, board.y, input.time);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   drawPac(ctx, input, board.x, board.y);
+  drawEatScore(ctx, input, board.x, board.y);
   ctx.restore();
 
   ctx.strokeStyle = input.incoming > 0 ? 'rgba(255,70,80,0.9)' : '#243058';
@@ -114,6 +117,20 @@ function drawPac(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy
     ctx.closePath();
     ctx.fill();
   }
+}
+
+function drawEatScore(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy: number): void {
+  if (input.eatPause <= 0 || input.eatPoints <= 0) return;
+  const pac = input.pac;
+  const sx = ox + pac.x * TILE + TILE / 2;
+  const sy = oy + pac.y * TILE + TILE / 2;
+  ctx.fillStyle = '#9fd4ff';
+  ctx.font = 'bold 13px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(String(input.eatPoints), sx, sy - 14);
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'alphabetic';
 }
 
 function drawGhost(ctx: CanvasRenderingContext2D, ghost: Ghost, input: DrawInput, ox: number, oy: number): void {

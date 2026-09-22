@@ -11,6 +11,7 @@ import { SimWorld } from './systems/sims';
 
 export interface HudState {
   score: number;
+  board: number;
   remaining: number;
   phase: MatchPhase;
   status: string;
@@ -82,6 +83,7 @@ export class Game {
     const phase = this.match.phase;
     return {
       score: this.board.score,
+      board: this.board.speeds().board,
       remaining: this.match.remaining(),
       phase,
       status: this.statusLine(),
@@ -100,6 +102,8 @@ export class Game {
       frightened: this.board.frightened,
       deathTime: this.board.deathTime,
       time: this.elapsed,
+      eatPause: this.board.eatPause,
+      eatPoints: this.board.lastEatPoints,
     };
     drawFrame(ctx, input);
   }
@@ -112,7 +116,7 @@ export class Game {
     if (this.match.phase === 'won') return 'You are the last one standing';
     if (this.match.phase === 'lost') return 'Eliminated';
     if (this.board.incoming > 0) return 'Jammed — ghosts are faster';
-    if (this.board.frightened > 0) return 'Ghosts are frightened — eat them to jam opponents';
+    if (this.board.frightened > 0) return 'Ghosts are frightened and slow — eat them to jam opponents';
     return 'Large dots frighten ghosts. Eating them sends jammers sideways.';
   }
 

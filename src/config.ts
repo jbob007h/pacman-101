@@ -23,13 +23,45 @@ export const BOARD_Y = 0;
 export const VIEW_W = SIDE_W + GUTTER + BOARD_W + GUTTER + SIDE_W;
 export const VIEW_H = BOARD_H;
 
-export const PAC_SPEED = 8.5;
-export const GHOST_CHASE_SPEED = 6.45;
-export const GHOST_FRIGHT_SPEED = 4.3;
-export const GHOST_EATEN_SPEED = 13;
+export const GHOST_EATEN_SPEED = 12;
 export const GHOST_HOUSE_SPEED = 3.2;
-export const GHOST_DOOR_SPEED = 6;
+export const GHOST_DOOR_SPEED = 5.2;
 export const FRIGHT_SECONDS = 9;
+/** Classic-style freeze after eating a frightened ghost, in seconds. */
+export const EAT_GHOST_PAUSE = 0.5;
+
+/**
+ * Tiles per second. Board 1 is the slow, readable pace.
+ * Each clear advances one row. Past the last row the pace stays capped.
+ * Frightened speed stays under half of that board's chase speed.
+ */
+const BOARD_PACE: readonly { pac: number; ghost: number; fright: number }[] = [
+  { pac: 6.4, ghost: 4.5, fright: 2.05 },
+  { pac: 7.15, ghost: 5.35, fright: 2.35 },
+  { pac: 7.9, ghost: 6.25, fright: 2.7 },
+  { pac: 8.65, ghost: 7.15, fright: 3.05 },
+  { pac: 9.35, ghost: 8.05, fright: 3.4 },
+  { pac: 10.0, ghost: 8.9, fright: 3.75 },
+];
+
+export interface BoardSpeeds {
+  /** 1-based board number. */
+  board: number;
+  pac: number;
+  ghost: number;
+  fright: number;
+}
+
+export function speedsForBoard(boardIndex: number): BoardSpeeds {
+  const index = Math.max(0, Math.min(Math.floor(boardIndex), BOARD_PACE.length - 1));
+  const row = BOARD_PACE[index] ?? BOARD_PACE[0];
+  return {
+    board: index + 1,
+    pac: row?.pac ?? 6.4,
+    ghost: row?.ghost ?? 4.5,
+    fright: row?.fright ?? 2.05,
+  };
+}
 export const INCOMING_GHOST_MULT = 1.28;
 
 export const SIM_COUNT = 100;
