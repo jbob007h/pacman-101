@@ -86,7 +86,7 @@ export class SimWorld {
   }
 
   private simAttack(): void {
-    const alive = this.sims.filter((sim) => sim.alive);
+    const alive = this.sims.filter((sim) => sim.alive && sim.pressure < KILL_PRESSURE);
     if (alive.length === 0) return;
     const attacker = alive[Math.floor(this.rng() * alive.length)];
     if (!attacker) return;
@@ -108,7 +108,7 @@ export class SimWorld {
     let reason: JammerAction['reason'] = 'sim';
     for (const action of actions) {
       const sim = this.sims[action.targetId - 1];
-      if (!sim?.alive) continue;
+      if (!sim?.alive || sim.pressure >= KILL_PRESSURE) continue;
       sim.pressure += action.strength;
       sim.heat = 1;
       sim.lock = PRESSURE_LOCK;

@@ -83,6 +83,8 @@ Opponents sometimes throw jammers onto your maze instead of at each other. Attac
 
 They spawn in a quadrant Pac is not standing in and cannot touch Pac until the spawn-in finishes (1.6 seconds). The sprite starts large and pulses up and down, then settles to normal size. Then they chase.
 
+An incoming attack is drawn from that opponent’s side panel to the middle of the ghost house. When it arrives the maze flashes, the screen shakes, particles burst, and only then do the jammers spawn. Outbound jammers are chosen only from opponents who are still alive.
+
 The match clock starts at 0:00 when you take the first step. Red share of each attack after the opening one:
 
 | Elapsed | Red share |

@@ -27,10 +27,36 @@ describe('jammers', () => {
     const sims = [
       { id: 1, alive: false, pressure: 100 },
       { id: 2, alive: true, pressure: 0 },
+      { id: 3, alive: true, pressure: 100 },
     ];
-    expect(pickSimIds(sims, 1, () => 0)).toEqual([2]);
+    expect(pickSimIds(sims, 4, () => 0)).toEqual([2]);
     const actions = jammersFromEvent({ type: 'boardCleared' }, sims, () => 0);
     expect(actions.map((action) => action.targetId)).toEqual([2]);
+    const ghost = jammersFromEvent({ type: 'ghostEaten', ghostId: 'blinky', strength: 4, combo: 4 }, sims, () => 0);
+    expect(ghost.map((action) => action.targetId)).toEqual([2]);
+  });
+
+  it('does not send a later ghost or clear attack at a sim that is already out', () => {
+    const game = new Game(() => 0);
+    const sent: number[][] = [];
+    game.bus.on('jammersSent', (event) => {
+      if (event.reason === 'sim') return;
+      sent.push([...event.targets]);
+    });
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'pinky', strength: 2, combo: 2 });
+    const fallen = game.sims.sims[0];
+    if (!fallen) throw new Error('missing sim');
+    expect(fallen.alive).toBe(false);
+    const pressure = fallen.pressure;
+    const before = sent.length;
+
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'inky', strength: 1, combo: 1 });
+    game.bus.emit({ type: 'boardCleared' });
+    expect(fallen.alive).toBe(false);
+    expect(fallen.pressure).toBe(pressure);
+    expect(sent.length).toBeGreaterThan(before);
+    for (const targets of sent.slice(before)) expect(targets).not.toContain(fallen.id);
   });
 
   it('drops the alive count as simulated opponents knock each other out', () => {

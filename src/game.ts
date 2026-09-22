@@ -4,7 +4,7 @@ import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField } from './render/fx';
-import { boardRect, panelCenter } from './render/layout';
+import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
 import type { Dir } from './shared/types';
 import { DIR_NONE } from './shared/types';
 import { EventBus } from './shared/events';
@@ -68,8 +68,8 @@ export class Game {
       this.setBanner(`Eliminated #${event.simId}`);
     });
     this.bus.on('incomingJammer', (event) => {
-      const spawned = this.board.spawnInbound(event.strength);
-      this.setBanner(spawned > 0 ? `Jammer from #${event.fromSimId}` : 'Jammers are full');
+      this.fx.queueIncoming(panelCenter(event.fromSimId), ghostHouseCenter(), event.strength);
+      this.setBanner(`Jammer from #${event.fromSimId}`);
     });
     this.bus.on('dotEaten', () => this.sfx.dot());
     this.bus.on('powerPelletEaten', () => this.sfx.pellet());
@@ -114,7 +114,7 @@ export class Game {
     if (!this.inMatch) return;
     if (this.beatIndex >= 0) this.advanceCountdown(step);
     if (this.countdownHolding) {
-      this.fx.update(step);
+      this.tickFx(step);
       this.sfx.tick(step);
       return;
     }
@@ -127,7 +127,7 @@ export class Game {
     if (this.playStarted && this.match.phase === 'playing') this.matchTime += step;
     this.board.matchTime = this.matchTime;
     if (this.match.phase === 'playing' && started) this.sims.update(step);
-    this.fx.update(step);
+    this.tickFx(step);
     this.sfx.tick(step);
     if (this.inMatch) {
       this.sfx.sync({
@@ -177,6 +177,10 @@ export class Game {
       ghosts: this.board.ghosts,
       sims: this.sims.sims,
       bolts: this.fx.bolts,
+      incoming: this.fx.incoming,
+      particles: this.fx.particles,
+      shake: this.fx.shake,
+      mazeFlash: this.fx.flash,
       frightened: this.board.frightened,
       deathTime: this.board.deathTime,
       time: this.elapsed,
@@ -187,6 +191,14 @@ export class Game {
       slow: this.board.inbound.slow,
     };
     drawFrame(ctx, input);
+  }
+
+  private tickFx(step: number): void {
+    this.fx.update(step, (strength) => {
+      this.sfx.impact();
+      const spawned = this.board.spawnInbound(strength);
+      if (spawned === 0) this.setBanner('Jammers are full');
+    });
   }
 
   private get countdownHolding(): boolean {

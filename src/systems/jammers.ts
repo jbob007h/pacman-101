@@ -6,6 +6,7 @@ import {
   FOCUS_BIAS,
   GHOST_PRESSURE_BASE,
   GHOST_PRESSURE_STEP,
+  KILL_PRESSURE,
   SIM_PRESSURE,
 } from '../config';
 import type { GameplayEvent, JamReason } from '../shared/events';
@@ -27,13 +28,18 @@ export interface JammerAction {
  * Pure targeting. Prefers sims that are already under pressure so repeated
  * ghost eats stack into an elimination instead of dissolving across 100 boards.
  */
+/** Still in the match. Eliminated sims, and anyone already at kill pressure, are not targets. */
+export function livingSims(sims: readonly JammerSim[]): JammerSim[] {
+  return sims.filter((sim) => sim.alive && sim.pressure < KILL_PRESSURE);
+}
+
 export function pickSimIds(
   sims: readonly JammerSim[],
   count: number,
   rng: Rng,
   bias = FOCUS_BIAS,
 ): number[] {
-  const available = new Set(sims.filter((sim) => sim.alive).map((sim) => sim.id));
+  const available = new Set(livingSims(sims).map((sim) => sim.id));
   const pressureOf = new Map(sims.map((sim) => [sim.id, sim.pressure]));
   const picked: number[] = [];
   for (let i = 0; i < count && available.size > 0; i++) {

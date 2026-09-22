@@ -184,6 +184,14 @@ export class Sfx {
     this.play('red-spawn', () => this.tone(98, 0.14, 'square', 0.06, 0, 70));
   }
 
+  /** Thud when an incoming attack reaches the ghost house. */
+  impact(): void {
+    this.play('impact', () => {
+      this.tone(150, 0.1, 'sawtooth', 0.06, 0, 70);
+      this.burst(0.09, 0.045);
+    });
+  }
+
   death(): void {
     this.play('death', () => {
       this.tone(420, 0.38, 'sawtooth', 0.07, 0, 70);

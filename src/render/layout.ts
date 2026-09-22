@@ -1,4 +1,4 @@
-import { BOARD_H, BOARD_W, BOARD_X, BOARD_Y, GUTTER, PANEL_GAP, PANEL_H, PANEL_W, SIDE_COLS } from '../config';
+import { BOARD_H, BOARD_W, BOARD_X, BOARD_Y, GUTTER, PANEL_GAP, PANEL_H, PANEL_W, SIDE_COLS, TILE } from '../config';
 
 export interface Rect {
   x: number;
@@ -29,4 +29,10 @@ export function panelRect(simId: number): Rect {
 export function panelCenter(simId: number): { x: number; y: number } {
   const rect = panelRect(simId);
   return { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 };
+}
+
+/** Pixel center of the ghost-house interior (columns 11–16, rows 13–15). */
+export function ghostHouseCenter(): { x: number; y: number } {
+  const board = boardRect();
+  return { x: board.x + 14 * TILE, y: board.y + 14.5 * TILE };
 }

@@ -6,7 +6,7 @@ import type { Maze } from '../gameplay/maze';
 import { Tile } from '../gameplay/maze';
 import type { Pac } from '../gameplay/board';
 import type { Sim } from '../systems/sims';
-import type { Bolt } from './fx';
+import type { Bolt, IncomingShot, Particle } from './fx';
 import { boardRect, panelRect } from './layout';
 
 /** Visual size only. Collision and movement stay on the 1× tile logic. */
@@ -31,6 +31,10 @@ export interface DrawInput {
   ghosts: readonly Ghost[];
   sims: readonly Sim[];
   bolts: readonly Bolt[];
+  incoming: readonly IncomingShot[];
+  particles: readonly Particle[];
+  shake: number;
+  mazeFlash: number;
   frightened: number;
   deathTime: number;
   time: number;
@@ -102,6 +106,11 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   const height = view.height / (ctx.getTransform().d || 1);
   ctx.fillStyle = '#070b14';
   ctx.fillRect(0, 0, width, height);
+  ctx.save();
+  if (input.shake > 0) {
+    const mag = input.shake * 6;
+    ctx.translate(Math.sin(input.time * 48) * mag, Math.cos(input.time * 37) * mag);
+  }
 
   for (const sim of input.sims) drawPanel(ctx, sim, input.time);
   ctx.textAlign = 'left';
@@ -114,7 +123,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   ctx.clip();
   ctx.fillStyle = '#00000c';
   ctx.fillRect(board.x, board.y, board.w, board.h);
-  drawMaze(ctx, input.maze, board.x, board.y, input.time);
+  drawMaze(ctx, input.maze, board.x, board.y, input.time, input.mazeFlash);
   if (input.fruit) drawFruit(ctx, input.fruit, board.x, board.y);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   drawPac(ctx, input, board.x, board.y);
@@ -132,9 +141,16 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   }
 
   drawBolts(ctx, input.bolts);
+  drawIncoming(ctx, input.incoming);
+  drawParticles(ctx, input.particles);
+  if (input.mazeFlash > 0) {
+    ctx.fillStyle = `rgba(255, 70, 90, ${input.mazeFlash * 0.34})`;
+    ctx.fillRect(board.x, board.y, board.w, board.h);
+  }
+  ctx.restore();
 }
 
-function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: number, time: number): void {
+function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: number, time: number, flash: number): void {
   for (let y = 0; y < maze.rows; y++) {
     for (let x = 0; x < maze.cols; x++) {
       const tile = maze.tile(x, y);
@@ -143,7 +159,7 @@ function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: num
       if (tile === Tile.Wall) {
         const fill = wallFill(maze, x, y);
         const border = fill.w < TILE || fill.h < TILE;
-        ctx.fillStyle = border ? '#2c4bff' : '#16267a';
+        ctx.fillStyle = wallColor(border, flash);
         ctx.fillRect(px + fill.x, py + fill.y, fill.w, fill.h);
         if (border) {
           ctx.fillStyle = '#8eabff';
@@ -374,6 +390,41 @@ function drawPanel(ctx: CanvasRenderingContext2D, sim: Sim, time: number): void 
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
   ctx.fillText(String(sim.id), rect.x + rect.w - 4, rect.y + 3);
+}
+
+function wallColor(border: boolean, flash: number): string {
+  if (flash <= 0.05) return border ? '#2c4bff' : '#16267a';
+  return border ? '#ff6d88' : '#8a2452';
+}
+
+function drawIncoming(ctx: CanvasRenderingContext2D, shots: readonly IncomingShot[]): void {
+  for (const shot of shots) {
+    const eased = shot.t * shot.t * (3 - 2 * shot.t);
+    const x = shot.sx + (shot.tx - shot.sx) * eased;
+    const y = shot.sy + (shot.ty - shot.sy) * eased;
+    ctx.strokeStyle = 'rgba(255, 236, 170, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(shot.sx, shot.sy);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.fillStyle = '#fff7d2';
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 90, 70, 0.9)';
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function drawParticles(ctx: CanvasRenderingContext2D, particles: readonly Particle[]): void {
+  for (const particle of particles) {
+    const alpha = Math.max(0, particle.life / particle.max);
+    ctx.fillStyle = `rgba(255, 214, 120, ${alpha})`;
+    ctx.fillRect(particle.x - 2, particle.y - 2, 4, 4);
+  }
 }
 
 function drawBolts(ctx: CanvasRenderingContext2D, bolts: readonly Bolt[]): void {
