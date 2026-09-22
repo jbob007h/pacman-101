@@ -5,6 +5,7 @@ import {
   EAT_PAUSE_FLOOR,
   eatPauseForChain,
   FRIGHT_SECONDS,
+  FRUIT_TILE,
   GHOST_SCORE_BASE,
   pelletFill,
 } from '../src/config';
@@ -464,6 +465,100 @@ describe('sleeping ghosts and the train', () => {
     game.update(0);
     expect(game.board.frightened).toBeCloseTo(1.49 + 1.5);
     expect(pelletFill(game.board.frightened)).toBeCloseTo((1.49 + 1.5) / FRIGHT_SECONDS);
+  });
+
+  it('reloads the sleepers when the fruit advances the board and leaves the main ghosts', () => {
+    const game = new Game(() => 0.5);
+    const ghosts = game.board.ghosts;
+    for (const ghost of ghosts) ghost.mode = 'chase';
+    const blinky = ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.x = SLEEPER_LEFT_X;
+    blinky.y = 14;
+
+    game.board.pac.x = SLEEPER_LEFT_X;
+    game.board.pac.y = 13;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.update(0);
+    game.board.pac.y = 12;
+    game.update(0);
+    expect(game.board.train.followers).toHaveLength(2);
+    const shifted = game.board.train.sleepers.find((sleeper) => sleeper.awake);
+    if (!shifted) throw new Error('missing awake sleeper');
+    shifted.x += 4;
+
+    const handedFrom = game.board.train.followers[0];
+    if (!handedFrom) throw new Error('missing follower');
+    const handedAt = { x: handedFrom.x, y: handedFrom.y };
+    game.board.frightened = 5;
+    expect(game.board.train.handoffLeader(blinky, game.board.maze)).toBe(true);
+    expect(game.board.train.followers).toHaveLength(1);
+    const mains = ghosts.map((ghost) => ({
+      id: ghost.id,
+      color: ghost.color,
+      mode: ghost.mode,
+      x: ghost.x,
+      y: ghost.y,
+    }));
+
+    game.board.fruit = { ...FRUIT_TILE };
+    game.board.pac.x = FRUIT_TILE.x;
+    game.board.pac.y = FRUIT_TILE.y;
+    game.board.pac.dir = { x: -1, y: 0 };
+    game.update(0);
+
+    expect(game.board.boardIndex).toBe(1);
+    expect(game.board.maze.remaining()).toBeGreaterThan(1);
+    expect(game.board.train.followers).toHaveLength(0);
+    expect(game.board.train.leaderId).toBeNull();
+    expect(game.board.train.asleep()).toHaveLength(16);
+    expect(game.board.train.sleepers.map((sleeper) => ({ x: sleeper.x, y: sleeper.y, awake: sleeper.awake }))).toEqual(
+      sleeperTiles().map((tile) => ({ x: tile.x, y: tile.y, awake: false })),
+    );
+    expect(ghosts.map((ghost) => ({ id: ghost.id, color: ghost.color, mode: ghost.mode, x: ghost.x, y: ghost.y }))).toEqual(mains);
+    expect(blinky.x).toBe(handedAt.x);
+    expect(blinky.y).toBe(handedAt.y);
+    expect(blinky.mode).toBe('frightened');
+
+    game.board.pac.dir = { ...DIR_NONE };
+    while (game.board.clearPause > 0) game.update(0.05);
+    game.board.pac.x = SLEEPER_RIGHT_X;
+    game.board.pac.y = SLEEPER_ROWS[0] ?? 10;
+    game.update(0);
+    expect(game.board.train.leaderId).not.toBeNull();
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.train.asleep()).toHaveLength(15);
+  });
+
+  it('keeps an awakened train when the pellets are cleared without the fruit', () => {
+    const game = new Game(() => 0.5);
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'chase';
+    blinky.x = SLEEPER_LEFT_X;
+    blinky.y = 14;
+    game.board.pac.x = SLEEPER_LEFT_X;
+    game.board.pac.y = 13;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.update(0);
+    expect(game.board.train.followers).toHaveLength(1);
+
+    const maze = game.board.maze;
+    const last = { x: 5, y: 5 };
+    for (let y = 0; y < maze.rows; y++) {
+      for (let x = 0; x < maze.cols; x++) {
+        if (x === last.x && y === last.y) continue;
+        maze.consume(x, y);
+      }
+    }
+    game.board.pac.dir = { x: 0, y: -1 };
+    game.board.pac.x = last.x;
+    game.board.pac.y = last.y;
+    game.update(1 / 60);
+    expect(game.board.boardIndex).toBe(0);
+    expect(maze.remaining()).toBe(0);
+    expect(game.board.train.followers).toHaveLength(1);
+    expect(game.board.train.asleep()).toHaveLength(15);
   });
 });
 

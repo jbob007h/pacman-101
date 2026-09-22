@@ -95,8 +95,23 @@ export class GhostTrain {
     this.sleepers = sleeperTiles().map((tile, id) => ({ id, x: tile.x, y: tile.y, awake: false }));
   }
 
+  /**
+   * Fresh round of sleepers. Every follower was born from a sleeper, so the
+   * train is dissolved and all 16 go back to sleep on their original tiles.
+   * The four main ghosts are not part of this reset: a board advance calls
+   * this and leaves their position, mode, and identity alone. Match restart
+   * uses the same call, then replaces the mains itself.
+   */
   reset(): void {
-    for (const sleeper of this.sleepers) sleeper.awake = false;
+    const tiles = sleeperTiles();
+    for (const sleeper of this.sleepers) {
+      const tile = tiles[sleeper.id];
+      if (tile) {
+        sleeper.x = tile.x;
+        sleeper.y = tile.y;
+      }
+      sleeper.awake = false;
+    }
     this.followers = [];
     this.leaderId = null;
     this.path = [];

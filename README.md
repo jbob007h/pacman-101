@@ -79,7 +79,7 @@ Pellets remaining (dots plus power pellets):
 
 ## Sleeping ghosts and the train
 
-Sixteen white ghosts sleep on the vertical corridors that cross the side tunnels: column 6 on the left and column 21 on the right. Each side has eight, on rows 10, 11, 12, 13, 15, 16, 17, and 18 (four above the tunnel row and four below). They sit on the tile center and are drawn smaller than the four main ghosts. The tunnel row itself is left clear.
+Sixteen white ghosts sleep on the vertical corridors that cross the side tunnels: column 6 on the left and column 21 on the right. Each side has eight, on rows 10, 11, 12, 13, 15, 16, 17, and 18 (four above the tunnel row and four below). They sit on the tile center and are drawn smaller than the four main ghosts. The tunnel row itself is left clear. Eating the fruit puts all 16 back to sleep on those same tiles, the same as the opening board. Followers in the train all came from sleepers, so that train is dissolved and those ghosts can be woken again. The four main ghosts keep the position, mode, and identity they had at the advance. Clearing every pellet does not do this; the train stays out until the fruit is eaten.
 
 Pac wakes a sleeper by touching it. That touch never eats the sleeper, even during a power pellet. Woken ghosts join **one** train behind the main ghost who was closest to that sleeper. If a train is already out, the new ghost goes to the end of it. The train holds at most 32 followers (33 with the leader). A touch at that cap does nothing.
 

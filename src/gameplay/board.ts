@@ -344,7 +344,12 @@ export class Board {
     this.advanceFromFruit();
   }
 
-  /** Same refill and pace step the maze used to take on a full clear. */
+  /**
+   * Same refill and pace step the maze used to take on a full clear.
+   * Sleepers reload with the pellets: the train is dissolved and all 16 go
+   * back to sleep on their original tiles. Main ghosts are not retargeted
+   * or moved here.
+   */
   private advanceFromFruit(): void {
     const finishedBoard = this.boardIndex + 1;
     if (finishedBoard % 2 === 0) this.displayedSpeed += 1;
@@ -353,6 +358,7 @@ export class Board {
     this.fruitSpawned = false;
     this.maze.resetDots();
     this.boardPellets = this.maze.remaining();
+    this.train.reset();
     this.inbound.killReds();
     this.clearPause = 0.7;
   }
