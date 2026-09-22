@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { GHOST_PRESSURE_BASE, GHOST_PRESSURE_STEP, KILL_PRESSURE } from '../src/config';
+import {
+  GHOST_PRESSURE_BASE,
+  GHOST_PRESSURE_STEP,
+  KILL_PRESSURE,
+  SIM_CLEAR_RELIEF,
+  SIM_PRESSURE,
+} from '../src/config';
 import { Game } from '../src/game';
-import { jammersFromEvent, pickSimIds } from '../src/systems/jammers';
+import { jammersFromEvent, pickCpuTarget, pickSimIds } from '../src/systems/jammers';
 import { mulberry32 } from '../src/shared/rng';
 
 describe('jammers', () => {
-  it('stacks ghost eats onto a pressured sim until it is eliminated', () => {
+  it('eliminates a sim when repeated ghost eats land on the same seat', () => {
     const game = new Game(() => 0);
     const eliminated: number[] = [];
     game.bus.on('simEliminated', (event) => eliminated.push(event.simId));
@@ -59,18 +65,65 @@ describe('jammers', () => {
     for (const targets of sent.slice(before)) expect(targets).not.toContain(fallen.id);
   });
 
-  it('drops the alive count as simulated opponents knock each other out', () => {
-    const game = new Game(mulberry32(1));
-    game.board.pac.dir = { x: -1, y: 0 };
-    for (const ghost of game.board.ghosts) {
-      ghost.mode = 'house';
-      ghost.x = 13;
-      ghost.y = 14;
-      ghost.releaseAt = 1e9;
+  it('picks living targets uniformly and gives the player one seat in a cpu attack', () => {
+    const sims = [
+      { id: 1, alive: true, pressure: 90 },
+      { id: 2, alive: true, pressure: 0 },
+      { id: 3, alive: true, pressure: 12 },
+      { id: 4, alive: true, pressure: 40 },
+    ];
+    const counts = [0, 0, 0, 0];
+    const rng = mulberry32(3);
+    for (let i = 0; i < 4000; i++) {
+      const id = pickSimIds(sims, 1, rng)[0];
+      if (id === undefined) throw new Error('missing target');
+      const bin = counts[id - 1];
+      if (bin === undefined) throw new Error('missing bin');
+      counts[id - 1] = bin + 1;
     }
-    for (let i = 0; i < 600; i++) game.update(0.05);
-    expect(game.sims.aliveCount()).toBeLessThan(100);
-    expect(game.match.remaining()).toBe(1 + game.sims.aliveCount());
+    for (const count of counts) {
+      expect(count).toBeGreaterThan(800);
+      expect(count).toBeLessThan(1200);
+    }
+
+    const others = Array.from({ length: 99 }, (_, index) => index + 1);
+    let human = 0;
+    const rolls = 20000;
+    const seatRng = mulberry32(4);
+    for (let i = 0; i < rolls; i++) if (pickCpuTarget(others, seatRng) === null) human += 1;
+    expect(human / rolls).toBeGreaterThan(0.007);
+    expect(human / rolls).toBeLessThan(0.014);
+    expect(pickCpuTarget([], () => 0.2)).toBeNull();
+  });
+
+  it('sheds pressure when a cpu simulates a clear and keeps most of the field at four minutes', () => {
+    const game = new Game(() => 0);
+    const first = game.sims.sims[0];
+    if (!first) throw new Error('missing sim');
+    first.pressure = 80;
+    for (let i = 0; i < 60; i++) game.sims.update(0.05);
+    expect(first.pressure).toBeLessThan(80 - SIM_CLEAR_RELIEF + SIM_PRESSURE);
+    expect(first.relief).toBeGreaterThan(0);
+    expect(first.alive).toBe(true);
+
+    for (const seed of [1, 2, 3]) {
+      const idle = new Game(mulberry32(seed));
+      for (let i = 0; i < 4800; i++) idle.sims.update(0.05);
+      const alive = idle.sims.aliveCount();
+      expect(alive).toBeGreaterThanOrEqual(60);
+      expect(alive).toBeLessThan(98);
+      expect(idle.match.remaining()).toBe(1 + alive);
+    }
+
+    const playing = new Game(mulberry32(1));
+    for (let i = 1; i <= 4800; i++) {
+      playing.sims.update(0.05);
+      if (i % 240 === 0) {
+        playing.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+      }
+    }
+    expect(playing.sims.aliveCount()).toBeGreaterThanOrEqual(40);
+    expect(playing.match.phase).toBe('playing');
   });
 
   it('wins when the last sim is eliminated and loses when pac dies', () => {

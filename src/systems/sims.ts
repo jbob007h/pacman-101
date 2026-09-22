@@ -4,12 +4,16 @@ import {
   PRESSURE_RECOVERY,
   SIM_ATTACK_INTERVAL,
   SIM_ATTACKS_PER_TICK,
+  SIM_CLEAR_RELIEF,
+  SIM_CLEAR_RELIEF_CHANCE,
   SIM_COUNT,
-  SIM_INCOMING_CHANCE,
+  SIM_PELLET_RELIEF,
+  SIM_RELIEF_INTERVAL,
+  SIM_RELIEFS_PER_TICK,
 } from '../config';
 import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
-import { jammersFromEvent, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
+import { jammersFromEvent, pickCpuTarget, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
 import { cpuName } from './names';
 
 export interface Sim {
@@ -22,6 +26,8 @@ export interface Sim {
   heat: number;
   /** 0–1 while this sim is firing a jammer. */
   busy: number;
+  /** 0–1 teal flash after a simulated pellet or board clear. */
+  relief: number;
   /** Seconds before pressure starts recovering. */
   lock: number;
   phase: number;
@@ -34,6 +40,7 @@ export interface Sim {
 export class SimWorld {
   readonly sims: Sim[];
   private attackAcc = 0;
+  private reliefAcc = 0;
 
   constructor(
     private readonly bus: EventBus,
@@ -68,12 +75,14 @@ export class SimWorld {
     const fresh = createSims(this.rng);
     this.sims.splice(0, this.sims.length, ...fresh);
     this.attackAcc = 0;
+    this.reliefAcc = 0;
   }
 
   private step(dt: number): void {
     for (const sim of this.sims) {
       if (sim.heat > 0) sim.heat = Math.max(0, sim.heat - dt / 0.45);
       if (sim.busy > 0) sim.busy = Math.max(0, sim.busy - dt / 0.7);
+      if (sim.relief > 0) sim.relief = Math.max(0, sim.relief - dt / 0.55);
       if (!sim.alive) continue;
       if (sim.lock > 0) sim.lock -= dt;
       else if (sim.pressure > 0) sim.pressure = Math.max(0, sim.pressure - PRESSURE_RECOVERY * dt);
@@ -85,6 +94,13 @@ export class SimWorld {
       this.attackAcc -= SIM_ATTACK_INTERVAL;
       for (let i = 0; i < SIM_ATTACKS_PER_TICK; i++) this.simAttack();
     }
+
+    this.reliefAcc += dt;
+    let reliefGuard = 0;
+    while (this.reliefAcc >= SIM_RELIEF_INTERVAL && reliefGuard++ < 4) {
+      this.reliefAcc -= SIM_RELIEF_INTERVAL;
+      this.relieve();
+    }
   }
 
   private simAttack(): void {
@@ -93,13 +109,27 @@ export class SimWorld {
     const attacker = alive[Math.floor(this.rng() * alive.length)];
     if (!attacker) return;
     attacker.busy = 1;
-    if (this.rng() < SIM_INCOMING_CHANCE) {
+    const others = alive.filter((sim) => sim.id !== attacker.id).map((sim) => sim.id);
+    const targetId = pickCpuTarget(others, this.rng);
+    if (targetId === null) {
       const strength = 8 + Math.round(attacker.pressure / 4);
       this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength });
       return;
     }
-    const action = simVsSimAction(this.snapshot(), this.rng);
-    if (action) this.apply([action]);
+    this.apply([simVsSimAction(targetId)]);
+  }
+
+  /** A few living sims eat a pellet or clear a board and lose pressure. */
+  private relieve(): void {
+    const candidates = this.sims.filter((sim) => sim.alive && sim.pressure > 0);
+    for (let i = 0; i < SIM_RELIEFS_PER_TICK && candidates.length > 0; i++) {
+      const index = Math.floor(this.rng() * candidates.length);
+      const sim = candidates.splice(index, 1)[0];
+      if (!sim) break;
+      const drop = this.rng() < SIM_CLEAR_RELIEF_CHANCE ? SIM_CLEAR_RELIEF : SIM_PELLET_RELIEF;
+      sim.pressure = Math.max(0, sim.pressure - drop);
+      sim.relief = 1;
+    }
   }
 
   private apply(actions: JammerAction[]): void {
@@ -145,6 +175,7 @@ function createSims(rng: Rng): Sim[] {
     pressure: 0,
     heat: 0,
     busy: 0,
+    relief: 0,
     lock: 0,
     phase: rng() * Math.PI * 2,
   }));

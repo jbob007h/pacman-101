@@ -184,10 +184,27 @@ export const DOT_MILESTONE = 50;
 export const DOT_PRESSURE = 22;
 export const CLEAR_PRESSURE = 42;
 export const CLEAR_TARGETS = 8;
-export const SIM_ATTACK_INTERVAL = 0.5;
+/**
+ * CPU battle clock. Two attacks every 0.8s is 2.5 attacks per second.
+ * Each attack picks one seat uniformly from the other living sims plus the
+ * human, so the chance it hits the player is 1 / aliveCount (about 1/100 at
+ * the open), not a fixed share of the shots.
+ * A sim hit adds {@link SIM_PRESSURE}. Passive recovery is
+ * {@link PRESSURE_RECOVERY} per second after {@link PRESSURE_LOCK}.
+ * Every {@link SIM_RELIEF_INTERVAL}, {@link SIM_RELIEFS_PER_TICK} living sims
+ * shed pressure: usually a pellet ({@link SIM_PELLET_RELIEF}), sometimes a
+ * board clear ({@link SIM_CLEAR_RELIEF} when the roll is under
+ * {@link SIM_CLEAR_RELIEF_CHANCE}). That mix still leaves most of the field
+ * alive at 4:00, including when the player is eating ghosts.
+ */
+export const SIM_ATTACK_INTERVAL = 0.8;
 export const SIM_ATTACKS_PER_TICK = 2;
-export const SIM_PRESSURE = 18;
-export const SIM_INCOMING_CHANCE = 0.1;
+export const SIM_PRESSURE = 28;
+export const SIM_RELIEF_INTERVAL = 2.5;
+export const SIM_RELIEFS_PER_TICK = 4;
+export const SIM_PELLET_RELIEF = 34;
+export const SIM_CLEAR_RELIEF = 68;
+export const SIM_CLEAR_RELIEF_CHANCE = 0.2;
 
 /** Most inbound sprites that can sit on the maze at once, including ones still fading in or dying. */
 export const JAMMER_CAP = 16;
@@ -219,9 +236,10 @@ export function inboundCount(strength: number): number {
   if (strength <= 0) return 0;
   return Math.min(8, Math.max(1, Math.ceil(strength / 8)));
 }
-export const PRESSURE_RECOVERY = 2;
-export const PRESSURE_LOCK = 1.6;
-export const FOCUS_BIAS = 0.8;
+/** Pressure shed per second once the post-hit lock has expired. */
+export const PRESSURE_RECOVERY = 0.6;
+/** Seconds after a hit before passive recovery starts. Relief ignores this lock. */
+export const PRESSURE_LOCK = 1;
 
 export const DOT_SCORE = 10;
 export const PELLET_SCORE = 50;

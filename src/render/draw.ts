@@ -550,6 +550,10 @@ function drawPanel(ctx: CanvasRenderingContext2D, sim: Sim, time: number): void 
     ctx.lineTo(rect.x + 16, rect.y + rect.h - 14);
     ctx.stroke();
   }
+  if (sim.relief > 0) {
+    ctx.fillStyle = `rgba(70, 220, 170, ${sim.relief * 0.55})`;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  }
   if (sim.heat > 0) {
     ctx.fillStyle = `rgba(255, 244, 210, ${sim.heat * 0.72})`;
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);

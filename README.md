@@ -36,7 +36,9 @@ Other scripts:
 - Eating a frightened ghost freezes the maze for half a second, then play resumes.
 - Eating a normal dot stops Pac for 1 simulation frame. A power pellet stops him for 3. Ghosts and jammers keep moving. The maze steps at a fixed 60Hz; the canvas can still draw on the display refresh, and a stalled tab catches up at most 5 frames.
 
-Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, and an X means they are out. The Alive counter starts at 101 and includes you.
+Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, a teal flash is a pellet or board clear shedding pressure, and an X means they are out. The Alive counter starts at 101 and includes you.
+
+CPU attacks pick one living seat at random: every other living opponent, plus you. At the start that is about 1 in 100 shots aimed at your maze, and the share only grows as the field shrinks. Your own ghost eats, dot milestones, and clears pick living opponents the same way, with no preference for whoever is already hurt. Every 2.5s, four living opponents shed pressure (34 for a pellet, 68 for a clear, a clear on 1 in 5 of those rolls) so the red bars are not a one-way climb. Two CPU attacks land every 0.8s at 28 pressure each, and passive recovery is 0.6 per second after a 1s lock. That keeps most of the field in the match at the four-minute mark.
 
 Walls next to a corridor are drawn as half a tile on the blocked side so the lanes look thin; the collision grid is unchanged. Pac, ghosts, and jammers are drawn at 2× size, still centered on their tile, so they can overhang those half-walls.
 
@@ -158,7 +160,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 - Ghosts chase (with a short scatter cycle), turn frightened on a power pellet, and can be eaten
 - Eaten ghosts and dot milestones send pressure at simulated opponents; a full clear hits several at once
 - Opponents die when pressure reaches 100; panels show alive, pressured, busy, and dead
-- Sims also lean on each other, and sometimes throw white or red jammers onto your maze
+- Sims attack a random living seat, including you at 1/alive odds, and sometimes throw white or red jammers onto your maze. Pellet and clear relief pulls their pressure back down
 - Match starts at 101 alive, counts down, and offers restart on death or victory
 
 ## Known gaps

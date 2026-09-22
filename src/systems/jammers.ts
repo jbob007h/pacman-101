@@ -3,7 +3,6 @@ import {
   CLEAR_TARGETS,
   DOT_MILESTONE,
   DOT_PRESSURE,
-  FOCUS_BIAS,
   GHOST_PRESSURE_BASE,
   GHOST_PRESSURE_STEP,
   KILL_PRESSURE,
@@ -24,33 +23,35 @@ export interface JammerAction {
   reason: JamReason;
 }
 
-/**
- * Pure targeting. Prefers sims that are already under pressure so repeated
- * ghost eats stack into an elimination instead of dissolving across 100 boards.
- */
 /** Still in the match. Eliminated sims, and anyone already at kill pressure, are not targets. */
 export function livingSims(sims: readonly JammerSim[]): JammerSim[] {
   return sims.filter((sim) => sim.alive && sim.pressure < KILL_PRESSURE);
 }
 
-export function pickSimIds(
-  sims: readonly JammerSim[],
-  count: number,
-  rng: Rng,
-  bias = FOCUS_BIAS,
-): number[] {
-  const available = new Set(livingSims(sims).map((sim) => sim.id));
-  const pressureOf = new Map(sims.map((sim) => [sim.id, sim.pressure]));
+/** Uniform sample of living sims. Pressure does not change the odds. */
+export function pickSimIds(sims: readonly JammerSim[], count: number, rng: Rng): number[] {
+  const available = livingSims(sims).map((sim) => sim.id);
   const picked: number[] = [];
-  for (let i = 0; i < count && available.size > 0; i++) {
-    const pressured = [...available].filter((id) => (pressureOf.get(id) ?? 0) > 8);
-    const source = pressured.length > 0 && rng() < bias ? pressured : [...available];
-    const target = source[Math.floor(rng() * source.length)];
+  for (let i = 0; i < count && available.length > 0; i++) {
+    const index = Math.floor(rng() * available.length);
+    const target = available[index];
     if (target === undefined) break;
-    available.delete(target);
+    available.splice(index, 1);
     picked.push(target);
   }
   return picked;
+}
+
+/**
+ * One CPU attack. `otherIds` are the living sims except the attacker.
+ * The human is the extra seat, so a null result hits the player with
+ * probability 1 / (otherIds.length + 1).
+ */
+export function pickCpuTarget(otherIds: readonly number[], rng: Rng): number | null {
+  const seats = otherIds.length + 1;
+  const roll = Math.floor(rng() * seats);
+  if (roll >= otherIds.length) return null;
+  return otherIds[roll] ?? null;
 }
 
 export function jammersFromEvent(event: GameplayEvent, sims: readonly JammerSim[], rng: Rng): JammerAction[] {
@@ -63,15 +64,12 @@ export function jammersFromEvent(event: GameplayEvent, sims: readonly JammerSim[
     return mapTargets(pickSimIds(sims, 1, rng), DOT_PRESSURE, 'dots');
   }
   if (event.type === 'boardCleared') {
-    return mapTargets(pickSimIds(sims, CLEAR_TARGETS, rng, 0.35), CLEAR_PRESSURE, 'clear');
+    return mapTargets(pickSimIds(sims, CLEAR_TARGETS, rng), CLEAR_PRESSURE, 'clear');
   }
   return [];
 }
 
-export function simVsSimAction(sims: readonly JammerSim[], rng: Rng): JammerAction | null {
-  const targets = pickSimIds(sims, 1, rng);
-  const targetId = targets[0];
-  if (targetId === undefined) return null;
+export function simVsSimAction(targetId: number): JammerAction {
   return { targetId, strength: SIM_PRESSURE, reason: 'sim' };
 }
 
