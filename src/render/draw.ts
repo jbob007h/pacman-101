@@ -12,6 +12,19 @@ import { boardRect, panelRect } from './layout';
 /** Visual size only. Collision and movement stay on the 1× tile logic. */
 export const SPRITE_SCALE = 2;
 
+/**
+ * Spawn pulse. Starts large and swings up and down, then settles at 1
+ * as `anim` reaches 1. Six waves across the spawn window.
+ */
+export function jammerSpawnScale(anim: number): number {
+  const t = Math.min(1, Math.max(0, anim));
+  const waves = 6;
+  const envelope = 1 - t;
+  const mid = 1 + envelope * 0.5;
+  const amp = envelope * 0.35;
+  return mid + Math.sin(t * waves * Math.PI * 2) * amp;
+}
+
 export interface DrawInput {
   maze: Maze;
   pac: Pac;
@@ -196,8 +209,8 @@ function drawJammer(
   let scale = 1;
   let alpha = 1;
   if (jammer.phase === 'spawn') {
-    scale = 0.2 + 0.8 * jammer.anim;
-    alpha = jammer.anim;
+    scale = jammerSpawnScale(jammer.anim);
+    alpha = 1;
   } else if (jammer.phase === 'dying') {
     scale = 1 - 0.75 * jammer.anim;
     alpha = 1 - jammer.anim;
@@ -211,7 +224,7 @@ function drawJammer(
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;
     ctx.save();
-    ctx.globalAlpha = Math.max(alpha, jammer.phase === 'spawn' ? 0.35 : 0);
+    ctx.globalAlpha = alpha;
     ctx.translate(sx, sy);
     ctx.scale(scale, scale);
     ctx.fillStyle = glow;

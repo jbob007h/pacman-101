@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JAMMER_CAP } from '../src/config';
+import { JAMMER_CAP, JAMMER_SPAWN_SECONDS } from '../src/config';
 import { Game } from '../src/game';
 import { InboundField, quadrantOf, redWeight, slowProfile, splitJammerColors, type InboundJammer } from '../src/gameplay/inbound';
 import { Tile } from '../src/gameplay/maze';
@@ -58,6 +58,27 @@ describe('inbound jammers', () => {
     }
     expect(game.board.spawnInbound(40)).toBe(0);
     expect(game.board.inbound.count).toBe(JAMMER_CAP);
+  });
+
+  it('pulses in for the full spawn window and cannot hit until that ends', () => {
+    const game = new Game(() => 0.3);
+    game.board.pac.x = 14;
+    game.board.pac.y = 23;
+    expect(game.board.spawnInbound(8)).toBeGreaterThan(0);
+    const jammer = game.board.inbound.jammers[0];
+    if (!jammer) throw new Error('missing jammer');
+    const maze = game.board.maze;
+    let elapsed = 0;
+    while (elapsed < JAMMER_SPAWN_SECONDS - 0.05) {
+      game.board.inbound.update(0.05, maze, game.board.pac.x, game.board.pac.y, 6.4, false);
+      elapsed += 0.05;
+    }
+    expect(JAMMER_SPAWN_SECONDS).toBeGreaterThan(1);
+    expect(jammer.phase).toBe('spawn');
+    expect(jammer.x).toBeGreaterThan(0);
+    expect(game.board.inbound.touch(jammer.x, jammer.y, 0)).toBe(false);
+    game.board.inbound.update(0.1, maze, game.board.pac.x, game.board.pac.y, 6.4, false);
+    expect(jammer.phase).toBe('live');
   });
 
   it('ignores Pac during the spawn fade, slows on a white hit, and dies on a red hit', () => {

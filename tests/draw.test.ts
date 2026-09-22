@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { TILE } from '../src/config';
 import { Maze, Tile } from '../src/gameplay/maze';
-import { SPRITE_SCALE, wallFill } from '../src/render/draw';
+import { jammerSpawnScale, SPRITE_SCALE, wallFill } from '../src/render/draw';
 
 describe('maze wall paint', () => {
   const maze = new Maze();
@@ -36,5 +36,15 @@ describe('maze wall paint', () => {
     }
     expect(half).toBeGreaterThan(40);
     expect(full).toBeGreaterThan(10);
+  });
+
+  it('starts a jammer spawn large and pulses before settling at normal size', () => {
+    expect(jammerSpawnScale(0)).toBeGreaterThan(1.4);
+    expect(jammerSpawnScale(1)).toBeCloseTo(1, 5);
+    const high = jammerSpawnScale(1 / 24);
+    const low = jammerSpawnScale(3 / 24);
+    expect(high).toBeGreaterThan(1.2);
+    expect(low).toBeGreaterThan(1);
+    expect(high - low).toBeGreaterThan(0.3);
   });
 });

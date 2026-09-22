@@ -77,9 +77,9 @@ describe('board pace', () => {
     expect(game.board.boardIndex).toBe(0);
     expect(game.board.clearBoost).toBe(1);
     expect(game.board.pacSpeed()).toBeCloseTo(before + CLEAR_SPEED_BONUS);
-    expect(game.board.displayedSpeed).toBe(0);
+    expect(game.board.displayedSpeed).toBe(1);
     expect(game.hud().board).toBe(1);
-    expect(game.hud().speed).toBe(0);
+    expect(game.hud().speed).toBe(1);
     expect(maze.remaining()).toBe(0);
     expect(game.board.fruit).toEqual(FRUIT_TILE);
 
@@ -93,6 +93,7 @@ describe('board pace', () => {
     expect(game.board.boardIndex).toBe(1);
     expect(maze.remaining()).toBeGreaterThan(1);
     expect(game.board.clearBoost).toBe(1);
+    expect(game.board.displayedSpeed).toBe(1);
     expect(game.board.fruit).toBeNull();
   });
 

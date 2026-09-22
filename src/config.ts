@@ -90,6 +90,40 @@ export interface BoardSpeeds {
   fright: number;
 }
 
+/**
+ * Pellets still on the board (dots and power pellets) when Blinky becomes Cruise Elroy.
+ * Counts drop as the board is eaten and reset when the fruit refills the maze.
+ * Later boards trip sooner. Board 5 and after stay at 60 / 20.
+ *
+ * | Board | Elroy 1 | Elroy 2 |
+ * | --- | --- | --- |
+ * | 1 | 20 | 10 |
+ * | 2 | 30 | 15 |
+ * | 3 | 40 | 20 |
+ * | 4 | 50 | 20 |
+ * | 5+ | 60 | 20 |
+ */
+const ELROY_TABLE: readonly { elroy1: number; elroy2: number }[] = [
+  { elroy1: 20, elroy2: 10 },
+  { elroy1: 30, elroy2: 15 },
+  { elroy1: 40, elroy2: 20 },
+  { elroy1: 50, elroy2: 20 },
+  { elroy1: 60, elroy2: 20 },
+];
+
+export function elroyThresholds(boardIndex: number): { elroy1: number; elroy2: number } {
+  const index = Math.max(0, Math.min(Math.floor(boardIndex), ELROY_TABLE.length - 1));
+  return ELROY_TABLE[index] ?? { elroy1: 20, elroy2: 10 };
+}
+
+/** 0 off, 1 when pellets are at or under the first threshold, 2 under the second. */
+export function elroyLevel(boardIndex: number, pelletsRemaining: number): 0 | 1 | 2 {
+  const { elroy1, elroy2 } = elroyThresholds(boardIndex);
+  if (pelletsRemaining <= elroy2) return 2;
+  if (pelletsRemaining <= elroy1) return 1;
+  return 0;
+}
+
 export function speedsForBoard(boardIndex: number): BoardSpeeds {
   const index = Math.max(0, Math.min(Math.floor(boardIndex), BOARD_PACE.length - 1));
   const row = BOARD_PACE[index] ?? BOARD_PACE[0];
@@ -117,8 +151,13 @@ export const SIM_INCOMING_CHANCE = 0.1;
 
 /** Most inbound sprites that can sit on the maze at once, including ones still fading in or dying. */
 export const JAMMER_CAP = 16;
-/** Seconds a jammer spends scaling in. It cannot touch Pac during this window. */
-export const JAMMER_SPAWN_SECONDS = 0.7;
+/**
+ * Seconds a jammer spends pulsing in. It cannot touch Pac during this window.
+ * Longer than the old 0.7s fade so there is time to react.
+ */
+export const JAMMER_SPAWN_SECONDS = 1.6;
+/** Elroy 2 tiles/sec as a multiple of Pac's current unslowed pace. Elroy 1 matches that pace. */
+export const ELROY2_MULT = 1.1;
 export const JAMMER_DEATH_SECONDS = 0.38;
 /**
  * Center distance that counts as a hit. Matches the drawn bodies:

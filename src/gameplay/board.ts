@@ -2,6 +2,7 @@ import {
   CLEAR_SPEED_BONUS,
   COLLIDE_DISTANCE,
   DOT_SCORE,
+  elroyLevel,
   DOT_STOP_FRAMES,
   EAT_GHOST_PAUSE,
   FRIGHT_SECONDS,
@@ -65,8 +66,8 @@ export class Board {
   /** Zero-based. Eating the fruit advances it and raises the pace. */
   boardIndex = 0;
   /**
-   * Player-facing Speed. Starts at 0 and increases by 1 when fruit advances off an even board (2, 4, 6…).
-   * The full-clear movement bonus is separate and does not change this number.
+   * Player-facing Speed. Starts at 0. Goes up by 1 on every full pellet clear,
+   * and by 1 again when fruit advances off an even board (2, 4, 6…).
    */
   displayedSpeed = 0;
   /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
@@ -287,12 +288,13 @@ export class Board {
   }
 
   /**
-   * Full clear permanently speeds Pac and sends a jammer. It does not advance
-   * the board or reload dots. The fruit, if it is already out, stays until eaten.
+   * Full clear adds 1 to the Speed readout, permanently speeds Pac, and sends a jammer.
+   * It does not advance the board or reload dots. The fruit, if it is already out, stays until eaten.
    */
   private onPelletsCleared(): void {
     this.bus.emit({ type: 'boardCleared' });
     this.clearBoost += 1;
+    this.displayedSpeed += 1;
     this.clearPause = 0.7;
   }
 
@@ -339,6 +341,8 @@ export class Board {
   }
 
   private moveGhosts(dt: number, idle: boolean): void {
+    const elroy = elroyLevel(this.boardIndex, this.maze.remaining());
+    const pacPace = this.chaseSpeed();
     for (const ghost of this.ghosts) {
       if (idle && ghost.mode !== 'house') continue;
       const blinky = this.ghosts[0];
@@ -356,6 +360,8 @@ export class Board {
         blinkyX: blinky?.x ?? this.pac.x,
         blinkyY: blinky?.y ?? this.pac.y,
         rng: this.rng,
+        elroy,
+        pacPace,
       });
     }
   }
