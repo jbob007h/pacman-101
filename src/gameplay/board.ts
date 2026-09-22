@@ -82,6 +82,16 @@ export class Board {
    * and ticked even while the clear pause holds Pac still.
    */
   speedPopup = 0;
+  /**
+   * Seconds left on the ghost-eat count. One slot only: a new eat restarts it
+   * and moves {@link eatPopupX}/{@link eatPopupY}. Ticked like the Speed Up callout,
+   * including during the eat pause.
+   */
+  eatPopup = 0;
+  /** Ghosts eaten in the current pellet. 0 once fright has fully ended. */
+  eatPopupCount = 0;
+  eatPopupX = 0;
+  eatPopupY = 0;
   /** Awakened sleepers lined up behind one main ghost. */
   readonly train = new GhostTrain();
   /** Ghost eats since the last 2s gap. Drives the shrinking eat pause. */
@@ -169,6 +179,7 @@ export class Board {
       return;
     }
     if (this.speedPopup > 0) this.speedPopup = Math.max(0, this.speedPopup - step);
+    if (this.eatPopup > 0) this.eatPopup = Math.max(0, this.eatPopup - step);
     if (this.eatPause > 0) {
       this.eatPause = Math.max(0, this.eatPause - step);
       this.spendBite(step);
@@ -221,6 +232,8 @@ export class Board {
     this.displayedSpeed = 0;
     this.clearBoost = 0;
     this.speedPopup = 0;
+    this.eatPopup = 0;
+    this.eatPopupCount = 0;
     this.eatChain = 0;
     this.sinceGhostEat = 0;
     this.train.reset();
@@ -482,6 +495,10 @@ export class Board {
     this.eatChain += 1;
     this.sinceGhostEat = 0;
     this.eatPause = eatPauseForChain(this.eatChain);
+    this.eatPopup = SPEED_POPUP_SECONDS;
+    this.eatPopupCount = this.combo;
+    this.eatPopupX = this.pac.x;
+    this.eatPopupY = this.pac.y;
     if (this.frightened > 0 && this.frightened < PELLET_EXTEND_THRESHOLD) {
       this.frightened += PELLET_EXTEND_SECONDS;
     }

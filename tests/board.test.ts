@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SPEED_POPUP_SECONDS } from '../src/config';
 import { Game } from '../src/game';
 import { ghostDrawMode } from '../src/render/draw';
 import type { Dir } from '../src/shared/types';
@@ -154,6 +155,94 @@ describe('main board', () => {
     expect(blinky.mode).toBe('house');
     expect(game.board.pac.alive).toBe(true);
     expect(game.board.score).toBe(score);
+  });
+
+  it('replaces one eat-count popup and starts the next pellet at 1', () => {
+    const game = new Game(() => 0.5);
+    const blinky = game.board.ghosts[0];
+    const pinky = game.board.ghosts[1];
+    const clyde = game.board.ghosts[3];
+    if (!blinky || !pinky || !clyde) throw new Error('missing ghosts');
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.board.frightened = 9;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    blinky.mode = 'frightened';
+    blinky.x = 5;
+    blinky.y = 5;
+    game.update(0);
+    expect(game.board.eatPopupCount).toBe(1);
+    expect(game.board.eatPopup).toBe(SPEED_POPUP_SECONDS);
+    expect(game.board.eatPopupX).toBe(5);
+    expect(game.board.eatPopupY).toBe(5);
+
+    while (game.board.eatPause > 0) game.update(0.05);
+    expect(game.board.eatPopup).toBeGreaterThan(0);
+    expect(game.board.eatPopup).toBeLessThan(SPEED_POPUP_SECONDS);
+    const stillShowing = game.board.eatPopup;
+    game.board.pac.x = 8;
+    game.board.pac.y = 5;
+    pinky.mode = 'frightened';
+    pinky.x = 8;
+    pinky.y = 5;
+    game.update(0);
+    expect(game.board.eatPopupCount).toBe(2);
+    expect(game.board.eatPopup).toBe(SPEED_POPUP_SECONDS);
+    expect(game.board.eatPopup).toBeGreaterThan(stillShowing);
+    expect(game.board.eatPopupX).toBe(8);
+    expect(game.board.eatPopupY).toBe(5);
+
+    while (game.board.eatPause > 0) game.update(0.05);
+    blinky.mode = 'frightened';
+    blinky.x = 20;
+    blinky.y = 5;
+    game.board.train.leaderId = 'blinky';
+    game.board.train.followers = [
+      {
+        id: 1,
+        x: 8,
+        y: 6,
+        dir: { x: -1, y: 0 },
+        queued: null,
+        centerKey: -1,
+        reversePending: false,
+        joined: true,
+        wakeX: 8,
+        wakeY: 6,
+      },
+    ];
+    game.board.pac.x = 8;
+    game.board.pac.y = 6;
+    game.update(0);
+    expect(game.board.eatPopupCount).toBe(3);
+    expect(game.board.train.followers).toHaveLength(0);
+    expect(game.board.eatPopupX).toBe(8);
+    expect(game.board.eatPopupY).toBe(6);
+
+    while (game.board.eatPause > 0) game.update(0.05);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.x = 14;
+      ghost.y = 14;
+    }
+    game.board.frightened = 0.04;
+    game.board.pac.x = 8;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { x: 1, y: 0 };
+    game.update(0.05);
+    expect(game.board.frightened).toBe(0);
+    expect(game.board.combo).toBe(0);
+
+    game.board.pac.dir = { x: 0, y: 0 };
+    game.board.frightened = 9;
+    clyde.mode = 'frightened';
+    clyde.x = 8;
+    clyde.y = 5;
+    game.board.pac.x = 8;
+    game.board.pac.y = 5;
+    game.update(0);
+    expect(game.board.eatPopupCount).toBe(1);
+    expect(game.board.combo).toBe(1);
   });
 });
 

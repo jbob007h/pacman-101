@@ -44,6 +44,11 @@ export interface DrawInput {
   eatPoints: number;
   /** Seconds remaining on the full-clear "Speed Up!" callout. 0 hides it. */
   speedPopup: number;
+  /** Seconds remaining on the single ghost-eat count. 0 hides it. */
+  eatPopup: number;
+  eatPopupCount: number;
+  eatPopupX: number;
+  eatPopupY: number;
   /** Tile-center sleepers that have not woken. */
   sleepers: readonly { x: number; y: number }[];
   /** Awakened followers. The leader is one of {@link ghosts}. */
@@ -167,6 +172,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   drawEatScore(ctx, input, board.x, board.y);
   drawSpeedPopup(ctx, input, board.x, board.y);
+  drawEatCountPopup(ctx, input, board.x, board.y);
   ctx.restore();
 
   ctx.strokeStyle = input.slow > 0 ? 'rgba(140, 190, 255, 0.9)' : '#243058';
@@ -362,11 +368,38 @@ export function speedPopupPose(remaining: number, duration = SPEED_POPUP_SECONDS
 
 function drawSpeedPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy: number): void {
   if (input.speedPopup <= 0) return;
-  const pose = speedPopupPose(input.speedPopup);
-  if (pose.alpha <= 0.02) return;
   const pac = input.pac;
-  const sx = ox + pac.x * TILE + TILE / 2;
-  const sy = oy + pac.y * TILE + TILE / 2;
+  drawBouncingCallout(
+    ctx,
+    SPEED_POPUP_TEXT,
+    ox + pac.x * TILE + TILE / 2,
+    oy + pac.y * TILE + TILE / 2,
+    speedPopupPose(input.speedPopup),
+    '#ffe14a',
+  );
+}
+
+function drawEatCountPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy: number): void {
+  if (input.eatPopup <= 0 || input.eatPopupCount <= 0) return;
+  drawBouncingCallout(
+    ctx,
+    String(input.eatPopupCount),
+    ox + input.eatPopupX * TILE + TILE / 2,
+    oy + input.eatPopupY * TILE + TILE / 2,
+    speedPopupPose(input.eatPopup),
+    '#ffe14a',
+  );
+}
+
+function drawBouncingCallout(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  sx: number,
+  sy: number,
+  pose: SpeedPopupPose,
+  fill: string,
+): void {
+  if (pose.alpha <= 0.02) return;
   ctx.save();
   ctx.translate(sx, sy - 32 + pose.dy);
   ctx.scale(pose.scaleX, pose.scaleY);
@@ -378,9 +411,9 @@ function drawSpeedPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: num
   ctx.miterLimit = 2;
   ctx.lineWidth = 5;
   ctx.strokeStyle = '#1a0c00';
-  ctx.strokeText(SPEED_POPUP_TEXT, 0, 0);
-  ctx.fillStyle = '#ffe14a';
-  ctx.fillText(SPEED_POPUP_TEXT, 0, 0);
+  ctx.strokeText(text, 0, 0);
+  ctx.fillStyle = fill;
+  ctx.fillText(text, 0, 0);
   ctx.restore();
 }
 

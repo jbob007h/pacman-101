@@ -99,6 +99,8 @@ pause(n) = max(0.08s, 0.5s × 0.55^(n-1))
 
 `n` is the eat number in the current chain. After 0.75 seconds of active time with no ghost eat, `n` goes back to 1. Time spent inside the eat pause does not count toward those 0.75 seconds.
 
+Each ghost Pac eats, main or train, pops a single bouncing number: how many ghosts have been eaten during this pellet. A second eat while it is still on screen replaces that same popup and moves it to the new bite. When the pellet timer hits zero the count goes back to 0, so the next pellet starts at 1. The hop matches the "Speed Up!" callout and lasts 1.35 seconds.
+
 A main ghost that is eaten and sent home sets `skipFright`. That ghost ignores the pellet already running: they keep their normal colors in the house and come back out in chase or scatter, able to kill Pac while the ring is still draining. A ghost waiting in the house, walking in, or walking out is painted blue while a pellet is active and `skipFright` is clear, but the mode stays house, entering, or leaving, so Pac still cannot eat them there. Eyes stay eyes. The next power pellet clears `skipFright` on every ghost. A ghost still in the house can turn blue on that new pellet without becoming edible, and they come out frightened if that pellet is still active when they leave. Ghosts still on the way home stay eyes. A leader handoff does not set the flag, because that ghost never goes home.
 
 A power pellet lasts 9 seconds on every board. A thick open ring sits on the ghost house, with a clear center so the house stays visible. It starts full and drains to empty over that time; it has no digits. Eating any ghost while less than 1.5 seconds remain adds 1.5 seconds, and the ring refills to match the new remaining time.
