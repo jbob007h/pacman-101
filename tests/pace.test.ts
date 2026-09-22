@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { CLEAR_SPEED_BONUS, DOT_SCORE, EAT_GHOST_PAUSE, FRUIT_TILE, speedsForBoard, TUNNEL_GHOST_MULT } from '../src/config';
+import {
+  CLEAR_SPEED_BONUS,
+  DOT_SCORE,
+  EAT_GHOST_PAUSE,
+  FRUIT_TILE,
+  GHOST_DOOR_SPEED,
+  GHOST_LEAVE_SPEED,
+  speedsForBoard,
+  TUNNEL_GHOST_MULT,
+} from '../src/config';
 import { Game } from '../src/game';
 import { ghostMoveSpeed, ghostSpeed } from '../src/gameplay/ghosts';
 import { Tile } from '../src/gameplay/maze';
@@ -23,6 +32,43 @@ describe('board pace', () => {
     expect(ghostSpeed('frightened', true, first)).toBe(first.fright);
     expect(ghostSpeed('chase', false, first)).toBe(first.ghost);
     expect(ghostSpeed('chase', false, first)).toBeLessThan(first.pac);
+    expect(ghostSpeed('leaving', false, first)).toBe(GHOST_LEAVE_SPEED);
+    expect(ghostSpeed('entering', false, first)).toBe(GHOST_DOOR_SPEED);
+    expect(GHOST_LEAVE_SPEED).toBeLessThan(first.ghost);
+    expect(GHOST_LEAVE_SPEED).toBeLessThan(GHOST_DOOR_SPEED);
+  });
+
+  it('walks out of the house slower than chase, then uses board speed once out', () => {
+    const game = new Game(() => 0.5);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'leaving';
+    blinky.x = 14;
+    blinky.y = 13;
+    blinky.dir = { x: 0, y: -1 };
+    game.board.pac.x = 20;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: -1, y: 0 };
+    const before = blinky.y;
+    game.update(1 / 60);
+    expect(blinky.mode).toBe('leaving');
+    expect(before - blinky.y).toBeCloseTo(GHOST_LEAVE_SPEED / 60, 5);
+
+    blinky.y = 11.02;
+    game.update(1 / 60);
+    expect(blinky.mode).toBe('chase');
+    expect(blinky.y).toBe(11);
+    const x0 = blinky.x;
+    const y0 = blinky.y;
+    game.update(1 / 60);
+    const stepped = Math.hypot(blinky.x - x0, blinky.y - y0);
+    expect(blinky.mode).toBe('chase');
+    expect(stepped).toBeCloseTo(speedsForBoard(0).ghost / 60, 2);
+    expect(stepped).toBeGreaterThan(GHOST_LEAVE_SPEED / 60);
   });
 
   it('freezes the maze briefly after a ghost is eaten, then lets an eaten ghost move', () => {

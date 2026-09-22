@@ -26,7 +26,15 @@ export const VIEW_W = SIDE_W + GUTTER + BOARD_W + GUTTER + SIDE_W;
 export const VIEW_H = BOARD_H;
 
 export const GHOST_EATEN_SPEED = 16.2;
+/** Bobbing inside the house while waiting to leave. */
 export const GHOST_HOUSE_SPEED = 4.32;
+/**
+ * Walking out of the house, across the door, and onto the maze.
+ * Slower than every board's chase speed (the slowest chase is 6.075) so the
+ * exit is deliberate. Eyes still come home at {@link GHOST_DOOR_SPEED}.
+ */
+export const GHOST_LEAVE_SPEED = 3.24;
+/** Eyes dropping back into the house. Not used for the exit. */
 export const GHOST_DOOR_SPEED = 7.02;
 export const FRIGHT_SECONDS = 9;
 /** Classic-style freeze after eating a frightened ghost, in seconds. The first eat in a chain. */

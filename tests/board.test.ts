@@ -67,7 +67,7 @@ describe('main board', () => {
     game.board.pac.y = 23;
     game.board.pac.dir = { x: -1, y: 0 };
     let mode: string = blinky.mode;
-    for (let i = 0; i < 80 && mode !== 'chase'; i++) {
+    for (let i = 0; i < 160 && mode !== 'chase'; i++) {
       game.update(1 / 60);
       mode = blinky.mode;
     }

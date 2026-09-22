@@ -3,6 +3,7 @@ import {
   GHOST_DOOR_SPEED,
   GHOST_EATEN_SPEED,
   GHOST_HOUSE_SPEED,
+  GHOST_LEAVE_SPEED,
   INCOMING_GHOST_MULT,
   TUNNEL_GHOST_MULT,
   type BoardSpeeds,
@@ -107,6 +108,7 @@ export function ghostSpeed(mode: GhostMode, incoming: boolean, speeds: BoardSpee
     case 'house':
       return GHOST_HOUSE_SPEED;
     case 'leaving':
+      return GHOST_LEAVE_SPEED;
     case 'entering':
       return GHOST_DOOR_SPEED;
     default:
@@ -216,7 +218,7 @@ function bounceInHouse(ghostActor: Ghost, dt: number): void {
 }
 
 function leaveHouse(ghostActor: Ghost, world: GhostWorld): void {
-  const speed = GHOST_DOOR_SPEED * world.dt;
+  const speed = GHOST_LEAVE_SPEED * world.dt;
   const doorX = ghostActor.x >= 14 ? 14 : 13;
   if (ghostActor.y > 12.05) {
     if (Math.abs(ghostActor.x - doorX) > 0.04) {

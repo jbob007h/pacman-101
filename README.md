@@ -63,7 +63,7 @@ Tiles per second, before the clear bonus:
 | 5 | 12.6225 | 10.8675 | 4.59 |
 | 6+ | 13.5 | 12.015 | 5.0625 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.6875 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. It does not add anything to ghost chase, fright, or Elroy. These paces are 90% of the previous 1.5× table (eyes 16.2, house 4.32, door 7.02), so the relationships stay the same. Elroy 1 matches the `Pac` column. Elroy 2 is 1.1× that column. Neither uses Pac's accumulated clear bonus.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.6875 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. It does not add anything to ghost chase, fright, or Elroy. These paces are 90% of the previous 1.5× table (eyes 16.2, house bob 4.32, eyes entering the door 7.02). Leaving the house is slower still, 3.24 tiles/sec, until the ghost is fully out. Chase and scatter after that stay on the table. Elroy 1 matches the `Pac` column. Elroy 2 is 1.1× that column. Neither uses Pac's accumulated clear bonus.
 
 ## Cruise Elroy
 
