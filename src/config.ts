@@ -25,9 +25,9 @@ export const BOARD_Y = 0;
 export const VIEW_W = SIDE_W + GUTTER + BOARD_W + GUTTER + SIDE_W;
 export const VIEW_H = BOARD_H;
 
-export const GHOST_EATEN_SPEED = 18;
-export const GHOST_HOUSE_SPEED = 4.8;
-export const GHOST_DOOR_SPEED = 7.8;
+export const GHOST_EATEN_SPEED = 16.2;
+export const GHOST_HOUSE_SPEED = 4.32;
+export const GHOST_DOOR_SPEED = 7.02;
 export const FRIGHT_SECONDS = 9;
 /** Classic-style freeze after eating a frightened ghost, in seconds. The first eat in a chain. */
 export const EAT_GHOST_PAUSE = 0.5;
@@ -93,13 +93,12 @@ export const FRUIT_SCORE = 100;
 
 /**
  * Tiles per second added to Pac for each full pellet clear this match.
- * The Speed readout also goes up by 1 on that same clear. 1.875 is on the
- * order of a board-to-board pace step, so the empty maze actually feels
- * faster. The old 0.35 step was about 5% and read as no change.
- * Scaled with the 1.5× pace bump so a clear is still about a fifth of board-1 speed.
- * Even-board fruit still adds a readout point without adding this bonus.
+ * The Speed readout also goes up by 1 on that same clear. 1.6875 is Pac only:
+ * ghost chase, fright, and Elroy do not add this. Elroy uses the board Pac
+ * pace below, before this bonus. Even-board fruit still adds a readout point
+ * without adding this bonus.
  */
-export const CLEAR_SPEED_BONUS = 1.875;
+export const CLEAR_SPEED_BONUS = 1.6875;
 /** How long the "Speed Up!" callout stays on Pac after a full clear. */
 export const SPEED_POPUP_SECONDS = 1.35;
 
@@ -107,19 +106,20 @@ export const SPEED_POPUP_SECONDS = 1.35;
 export const TUNNEL_GHOST_MULT = 0.55;
 
 /**
- * Tiles per second. Every row is 1.5× the previous pace so Pac, chase, and
- * fright stay in the same ratio. Board 1 is the slow end of that table.
- * Eating the fruit advances one row. Past the last row the pace stays capped.
- * Frightened speed stays under half of that board's chase speed.
- * Elroy is a multiple of Pac's pace, so it picks up the same 1.5×.
+ * Tiles per second. Each row is 90% of the previous 1.5× pace (about 1.35×
+ * the original table). Pac, chase, and fright stay in the same ratio.
+ * Board 1 is the slow end. Eating the fruit advances one row. Past the last
+ * row the pace stays capped. Frightened speed stays under half of that board's
+ * chase speed. These columns do not include {@link CLEAR_SPEED_BONUS}.
+ * Elroy is a multiple of the `pac` column, not of Pac's accumulated clears.
  */
 const BOARD_PACE: readonly { pac: number; ghost: number; fright: number }[] = [
-  { pac: 9.6, ghost: 6.75, fright: 3.075 },
-  { pac: 10.725, ghost: 8.025, fright: 3.525 },
-  { pac: 11.85, ghost: 9.375, fright: 4.05 },
-  { pac: 12.975, ghost: 10.725, fright: 4.575 },
-  { pac: 14.025, ghost: 12.075, fright: 5.1 },
-  { pac: 15, ghost: 13.35, fright: 5.625 },
+  { pac: 8.64, ghost: 6.075, fright: 2.7675 },
+  { pac: 9.6525, ghost: 7.2225, fright: 3.1725 },
+  { pac: 10.665, ghost: 8.4375, fright: 3.645 },
+  { pac: 11.6775, ghost: 9.6525, fright: 4.1175 },
+  { pac: 12.6225, ghost: 10.8675, fright: 4.59 },
+  { pac: 13.5, ghost: 12.015, fright: 5.0625 },
 ];
 
 export interface BoardSpeeds {
@@ -169,9 +169,9 @@ export function speedsForBoard(boardIndex: number): BoardSpeeds {
   const row = BOARD_PACE[index] ?? BOARD_PACE[0];
   return {
     board: index + 1,
-    pac: row?.pac ?? 9.6,
-    ghost: row?.ghost ?? 6.75,
-    fright: row?.fright ?? 3.075,
+    pac: row?.pac ?? 8.64,
+    ghost: row?.ghost ?? 6.075,
+    fright: row?.fright ?? 2.7675,
   };
 }
 export const INCOMING_GHOST_MULT = 1.28;

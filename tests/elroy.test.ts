@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ELROY2_MULT, elroyLevel, elroyThresholds, FRUIT_TILE, speedsForBoard } from '../src/config';
+import { CLEAR_SPEED_BONUS, ELROY2_MULT, elroyLevel, elroyThresholds, FRUIT_TILE, speedsForBoard } from '../src/config';
 import { Game } from '../src/game';
 import { ghostMoveSpeed, updateGhost, type Ghost } from '../src/gameplay/ghosts';
 import { Tile, type Maze } from '../src/gameplay/maze';
@@ -62,6 +62,44 @@ describe('Cruise Elroy', () => {
     expect(game.board.boardIndex).toBe(3);
     expect(game.board.maze.remaining()).toBeGreaterThan(60);
     expect(elroyLevel(game.board.boardIndex, game.board.maze.remaining())).toBe(0);
+  });
+
+  it('keeps Elroy and the other ghosts on the board pace when Pac has a clear bonus', () => {
+    const game = new Game(() => 0.5);
+    const blinky = game.board.ghosts[0];
+    const pinky = game.board.ghosts[1];
+    if (!blinky || !pinky) throw new Error('missing ghosts');
+    while (game.board.maze.remaining() > 20) {
+      const spot = firstPellet(game.board.maze);
+      if (!spot) break;
+      game.board.maze.consume(spot.x, spot.y);
+    }
+    expect(elroyLevel(0, game.board.maze.remaining())).toBe(1);
+    game.board.clearBoost = 4;
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'chase';
+      ghost.releaseAt = 1e9;
+    }
+    blinky.x = 8;
+    blinky.y = 5;
+    blinky.dir = { x: 1, y: 0 };
+    blinky.centerKey = -1;
+    pinky.x = 12;
+    pinky.y = 5;
+    pinky.dir = { x: 1, y: 0 };
+    pinky.centerKey = -1;
+    game.board.pac.x = 14;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: -1, y: 0 };
+    const blinkyX = blinky.x;
+    const pinkyX = pinky.x;
+    game.update(1 / 60);
+    const base = speedsForBoard(0).pac;
+    const boosted = base + 4 * CLEAR_SPEED_BONUS;
+    expect(blinky.x - blinkyX).toBeCloseTo(base / 60);
+    expect(Math.abs(blinky.x - blinkyX - boosted / 60)).toBeGreaterThan(0.05);
+    expect(pinky.x - pinkyX).toBeCloseTo(speedsForBoard(0).ghost / 60);
+    expect(game.board.pacSpeed()).toBeCloseTo(boosted);
   });
 });
 

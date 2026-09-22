@@ -151,6 +151,35 @@ export class GhostTrain {
     return woke;
   }
 
+  /**
+   * Pac ate the train leader. That main ghost does not become eyes.
+   * The next follower's body becomes that ghost: same id, color, scatter corner,
+   * and home, now standing where the follower was, still frightened. The rest of
+   * the train stays behind that same leader and closes the gap on the next step.
+   * Returns false when `leader` is not the train leader or the train has no
+   * follower. The caller then sends that ghost home as eyes, the usual respawn.
+   */
+  handoffLeader(leader: Ghost): boolean {
+    if (this.leaderId !== leader.id) return false;
+    const next = this.followers[0];
+    if (!next) return false;
+    leader.x = next.x;
+    leader.y = next.y;
+    leader.dir = { ...next.dir };
+    leader.queued = next.queued ? { ...next.queued } : null;
+    leader.mode = 'frightened';
+    leader.reversePending = false;
+    leader.centerKey = -1;
+    leader.stuck = 0;
+    this.followers.shift();
+    this.path = [];
+    this.pathSource = '';
+    if (this.followers.length === 0) {
+      this.leaderId = null;
+    }
+    return true;
+  }
+
   /** Remove a follower Pac just ate. The ones behind keep their positions and slide up next update. */
   removeFollower(id: number): void {
     this.followers = this.followers.filter((follower) => follower.id !== id);

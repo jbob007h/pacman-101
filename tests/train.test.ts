@@ -12,7 +12,6 @@ import { Game } from '../src/game';
 import { Maze } from '../src/gameplay/maze';
 import {
   glideToward,
-  leaderYields,
   SLEEPER_LEFT_X,
   SLEEPER_RIGHT_X,
   SLEEPER_ROWS,
@@ -246,10 +245,40 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.pac.alive).toBe(true);
   });
 
-  it('eats the main leader with the usual rules and promotes the next follower', () => {
+  it('hands the eaten leader identity to the next train ghost instead of sending eyes home', () => {
     const game = new Game(() => 0.5);
     const events: string[] = [];
     game.bus.on('ghostEaten', () => events.push('main'));
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    const color = blinky.color;
+    blinky.mode = 'frightened';
+    blinky.x = 5;
+    blinky.y = 5;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.board.frightened = 4;
+    game.board.train.leaderId = 'blinky';
+    const next = follower(4, 8, 5);
+    next.dir = { x: 1, y: 0 };
+    game.board.train.followers = [next, follower(5, 9, 5)];
+    game.update(0);
+    expect(events).toEqual(['main']);
+    expect(blinky.id).toBe('blinky');
+    expect(blinky.color).toBe(color);
+    expect(blinky.mode).toBe('frightened');
+    expect(blinky.x).toBe(8);
+    expect(blinky.y).toBe(5);
+    expect(blinky.dir).toEqual({ x: 1, y: 0 });
+    expect(game.board.train.leaderId).toBe('blinky');
+    expect(game.board.train.followers.map((item) => item.id)).toEqual([5]);
+    expect(game.board.train.headKind(game.board.ghosts)).toBe('main');
+    expect(game.board.ghosts.filter((ghost) => ghost.id === 'blinky')).toHaveLength(1);
+  });
+
+  it('sends the leader home as eyes only when the train has no next ghost', () => {
+    const game = new Game(() => 0.5);
     const blinky = game.board.ghosts[0];
     if (!blinky) throw new Error('missing blinky');
     blinky.mode = 'frightened';
@@ -260,15 +289,51 @@ describe('sleeping ghosts and the train', () => {
     game.board.pac.dir = { ...DIR_NONE };
     game.board.frightened = 4;
     game.board.train.leaderId = 'blinky';
-    game.board.train.followers = [follower(4, 8, 5)];
     game.update(0);
-    expect(events).toEqual(['main']);
     expect(blinky.mode).toBe('eaten');
+    expect(blinky.x).toBe(5);
+    expect(blinky.y).toBe(5);
+  });
+
+  it('hands off whichever main ghost is leading, and still eyes a ghost who is not the leader', () => {
+    const game = new Game(() => 0.5);
+    const blinky = game.board.ghosts[0];
+    const pinky = game.board.ghosts[1];
+    if (!blinky || !pinky) throw new Error('missing ghosts');
+    const pink = pinky.color;
+    pinky.mode = 'frightened';
+    pinky.x = 5;
+    pinky.y = 5;
+    blinky.mode = 'frightened';
+    blinky.x = 20;
+    blinky.y = 5;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.board.frightened = 4;
+    game.board.train.leaderId = 'pinky';
+    game.board.train.followers = [follower(7, 11, 5)];
+    game.update(0);
+    expect(pinky.id).toBe('pinky');
+    expect(pinky.color).toBe(pink);
+    expect(pinky.mode).toBe('frightened');
+    expect(pinky.x).toBe(11);
+    expect(pinky.y).toBe(5);
+    expect(blinky.mode).toBe('frightened');
+    expect(blinky.x).toBe(20);
+
+    game.board.eatPause = 0;
+    game.board.train.leaderId = 'pinky';
+    game.board.train.followers = [follower(8, 3, 5)];
+    blinky.x = 5;
+    blinky.y = 5;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.update(0);
+    expect(blinky.mode).toBe('eaten');
+    expect(pinky.x).toBe(11);
     expect(game.board.train.followers).toHaveLength(1);
-    expect(game.board.train.headKind(game.board.ghosts)).toBe('temporary');
-    expect(leaderYields('eaten')).toBe(true);
-    expect(leaderYields('house')).toBe(true);
-    expect(leaderYields('chase')).toBe(false);
+    expect(game.board.train.leaderId).toBe('pinky');
   });
 
   it('shortens each successive eat pause and resets after two active seconds', () => {

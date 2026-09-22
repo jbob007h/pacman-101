@@ -44,7 +44,10 @@ export interface GhostWorld {
   rng: Rng;
   /** Blinky's Cruise Elroy stage for the pellets still on this board. */
   elroy: 0 | 1 | 2;
-  /** Pac's unslowed tiles/sec. Elroy 1 matches it; Elroy 2 is faster. */
+  /**
+   * Board Pac pace before any full-clear Speed bonus.
+   * Elroy 1 matches this base. Elroy 2 is faster. A Speed Up does not change it.
+   */
   pacPace: number;
 }
 
@@ -103,8 +106,9 @@ export function ghostSpeed(mode: GhostMode, incoming: boolean, speeds: BoardSpee
 }
 
 /**
- * Chase/scatter speed for Blinky once Elroy is on. Elroy 1 matches Pac's unslowed pace.
- * Elroy 2 is {@link ELROY2_MULT} times that. Other modes keep the normal ghost speed.
+ * Chase/scatter speed for Blinky once Elroy is on.
+ * `pacPace` is the board's Pac pace with no clear bonus. Elroy 1 matches that base.
+ * Elroy 2 is {@link ELROY2_MULT} times it. Other modes keep the normal ghost speed.
  */
 export function elroyMoveSpeed(level: 0 | 1 | 2, pacPace: number, fallback: number): number {
   if (level === 2) return pacPace * ELROY2_MULT;

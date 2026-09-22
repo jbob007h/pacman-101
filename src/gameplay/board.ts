@@ -131,9 +131,21 @@ export class Board {
     return base * this.inbound.slowFactor;
   }
 
-  /** Unslowed pace. White and red chasers scale off this, not off a slowed Pac. */
+  /**
+   * Pac's board pace plus full-clear bonuses, before the white-jammer slow.
+   * Jammers scale off this. Ghosts and Elroy do not — they use {@link basePacPace}.
+   */
   chaseSpeed(): number {
     return this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
+  }
+
+  /**
+   * Pac's board pace with no full-clear Speed bonus.
+   * Elroy 1 matches this number. Elroy 2 is 1.1× it. Ghost chase and fright
+   * come from the board table alone, so a Speed Up never speeds the ghosts.
+   */
+  basePacPace(): number {
+    return this.speeds().pac;
   }
 
   setDirection(dir: Dir | null): void {
@@ -368,7 +380,7 @@ export class Board {
 
   private moveGhosts(dt: number, idle: boolean): void {
     const elroy = elroyLevel(this.boardIndex, this.maze.remaining());
-    const pacPace = this.chaseSpeed();
+    const pacPace = this.basePacPace();
     for (const ghost of this.ghosts) {
       if (idle && ghost.mode !== 'house') continue;
       const blinky = this.ghosts[0];
@@ -438,9 +450,12 @@ export class Board {
     const strength = this.combo;
     const points = Math.min(1600, GHOST_SCORE_BASE * 2 ** (strength - 1));
     this.score += points;
-    ghost.mode = 'eaten';
-    ghost.reversePending = true;
-    ghost.centerKey = -1;
+    const handed = this.train.handoffLeader(ghost);
+    if (!handed) {
+      ghost.mode = 'eaten';
+      ghost.reversePending = true;
+      ghost.centerKey = -1;
+    }
     this.lastEatPoints = points;
     this.beginEatPause();
     this.bus.emit({ type: 'ghostEaten', ghostId: ghost.id, strength, combo: this.combo });
