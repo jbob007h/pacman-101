@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>101</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <script type="module" crossorigin src="/pacman-101/assets/index-DRRV6Q3z.js"></script>
+    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-Ctay4A8-.css">
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud">
+        <div class="brand">
+          <h1>101</h1>
+          <p>local battle maze</p>
+        </div>
+        <div class="stat alive-stat">
+          <span>Alive</span>
+          <strong id="alive">101</strong>
+        </div>
+        <div class="stat score-stat">
+          <span>Score</span>
+          <strong id="score">0</strong>
+        </div>
+        <p id="status">Large dots frighten ghosts. Eating them sends jammers sideways.</p>
+        <button id="restart" type="button">Restart</button>
+      </header>
+      <div id="stage">
+        <canvas id="view" width="1028" height="496" aria-label="101 playfield"></canvas>
+        <div id="overlay" hidden>
+          <div class="card">
+            <h2 id="overlay-title"></h2>
+            <p id="overlay-body"></p>
+            <button id="overlay-restart" type="button">Restart match</button>
+          </div>
+        </div>
+      </div>
+      <p id="help">
+        Arrows or WASD to move. Eat a large dot, then a blue ghost, to throw jammers at the side boards.
+        Red fill is pressure. An X means that opponent is out. R restarts.
+      </p>
+    </div>
+  </body>
+</html>
