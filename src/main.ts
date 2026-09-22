@@ -15,11 +15,12 @@ const overlayEl = document.querySelector<HTMLElement>('#overlay');
 const overlayTitle = document.querySelector<HTMLElement>('#overlay-title');
 const overlayBody = document.querySelector<HTMLElement>('#overlay-body');
 const titleEl = document.querySelector<HTMLElement>('#title');
+const countdownEl = document.querySelector<HTMLElement>('#countdown');
 const startButton = document.querySelector<HTMLButtonElement>('#start');
 const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #overlay-restart');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody || !titleEl || !startButton || muteButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayTitle || !overlayBody || !titleEl || !countdownEl || !startButton || muteButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -48,6 +49,8 @@ function syncHud(): void {
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
   titleEl!.hidden = game.inMatch;
+  countdownEl!.hidden = !hud.countdown;
+  countdownEl!.textContent = hud.countdown ?? '';
   if (hud.overlay) {
     overlayTitle!.textContent = hud.overlay.title;
     overlayBody!.textContent = hud.overlay.body;
@@ -73,11 +76,7 @@ function begin(): void {
 
 function restart(): void {
   direction = null;
-  if (!game.inMatch) begin();
-  else {
-    game.restart();
-    syncHud();
-  }
+  begin();
 }
 
 function onKeyDown(event: KeyboardEvent): void {
@@ -97,7 +96,7 @@ function onKeyDown(event: KeyboardEvent): void {
   const next = dirFromKey(event.key);
   if (next) {
     event.preventDefault();
-    direction = next;
+    if (game.acceptsInput) direction = next;
     return;
   }
   if (event.key === 'r' || event.key === 'R') {

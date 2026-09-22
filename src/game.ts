@@ -1,10 +1,12 @@
 import { Sfx } from './audio/sfx';
+import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, PAC_LAUNCH_DIR } from './config';
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField } from './render/fx';
 import { boardRect, panelCenter } from './render/layout';
 import type { Dir } from './shared/types';
+import { DIR_NONE } from './shared/types';
 import { EventBus } from './shared/events';
 import type { JamReason } from './shared/events';
 import type { Rng } from './shared/rng';
@@ -19,6 +21,8 @@ export interface HudState {
   time: string;
   phase: MatchPhase;
   status: string;
+  /** Big start callout, or null once the countdown is over. */
+  countdown: string | null;
   overlay: { title: string; body: string } | null;
 }
 
@@ -40,6 +44,11 @@ export class Game {
   private playStarted = false;
   /** False on the title screen. Tests start in a match. */
   inMatch = true;
+  /** Index into {@link COUNTDOWN_BEATS}, or -1 when the opener is not running. */
+  private beatIndex = -1;
+  /** Frames already spent on the current beat. One {@link Game.update} call is one frame. */
+  private beatFrame = 0;
+  private beatSound = -1;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -70,8 +79,13 @@ export class Game {
     this.bus.on('matchWon', () => this.sfx.win());
   }
 
+  /** False while Ready / 3 / 2 / 1 own the start. True once Hit it! has released Pac. */
+  get acceptsInput(): boolean {
+    return this.inMatch && this.match.phase === 'playing' && !this.countdownHolding;
+  }
+
   setDirection(dir: Dir | null): void {
-    if (!this.inMatch || this.match.phase !== 'playing') return;
+    if (!this.acceptsInput) return;
     this.board.setDirection(dir);
   }
 
@@ -85,7 +99,7 @@ export class Game {
     this.restart();
     this.inMatch = true;
     this.sfx.unlock();
-    this.sfx.start();
+    this.armCountdown();
   }
 
   toggleMute(): boolean {
@@ -98,6 +112,12 @@ export class Game {
     this.elapsed += step;
     if (this.bannerT > 0) this.bannerT = Math.max(0, this.bannerT - step);
     if (!this.inMatch) return;
+    if (this.beatIndex >= 0) this.advanceCountdown(step);
+    if (this.countdownHolding) {
+      this.fx.update(step);
+      this.sfx.tick(step);
+      return;
+    }
     if (this.match.phase !== 'won') {
       this.board.matchTime = this.matchTime;
       this.board.update(step);
@@ -129,6 +149,9 @@ export class Game {
     this.elapsed = 0;
     this.matchTime = 0;
     this.playStarted = false;
+    this.beatIndex = -1;
+    this.beatFrame = 0;
+    this.beatSound = -1;
     this.sfx.resetWatch();
   }
 
@@ -142,6 +165,7 @@ export class Game {
       time: formatMatchTime(this.matchTime),
       phase,
       status: this.statusLine(),
+      countdown: this.countdownLabel(),
       overlay: this.overlay(),
     };
   }
@@ -165,8 +189,54 @@ export class Game {
     drawFrame(ctx, input);
   }
 
+  private get countdownHolding(): boolean {
+    return this.beatIndex >= 0 && this.beatIndex < COUNTDOWN_BEATS.length - 1;
+  }
+
+  private countdownLabel(): string | null {
+    if (this.beatIndex < 0 || this.beatIndex >= COUNTDOWN_BEATS.length) return null;
+    return COUNTDOWN_BEATS[this.beatIndex] ?? null;
+  }
+
+  /** Ready through Hit it!, one second (60 frames) each. Hit it! is the frame Pac starts left. */
+  private armCountdown(): void {
+    this.beatIndex = 0;
+    this.beatFrame = 0;
+    this.beatSound = -1;
+    this.board.pac.dir = { ...DIR_NONE };
+    this.board.pac.queued = null;
+    this.markBeat();
+  }
+
+  private advanceCountdown(step: number): void {
+    if (this.beatIndex < 0 || step <= 0) return;
+    this.beatFrame += 1;
+    if (this.beatFrame <= COUNTDOWN_BEAT_FRAMES) return;
+    this.beatIndex += 1;
+    this.beatFrame = 1;
+    if (this.beatIndex >= COUNTDOWN_BEATS.length) {
+      this.beatIndex = -1;
+      this.beatFrame = 0;
+      return;
+    }
+    this.markBeat();
+  }
+
+  private markBeat(): void {
+    if (this.beatIndex === this.beatSound) return;
+    this.beatSound = this.beatIndex;
+    const go = this.beatIndex === COUNTDOWN_BEATS.length - 1;
+    if (this.beatIndex >= 0) this.sfx.countdown(this.beatIndex, go);
+    if (go) {
+      this.board.pac.dir = { ...PAC_LAUNCH_DIR };
+      this.board.pac.queued = null;
+    }
+  }
+
   private statusLine(): string {
     if (!this.inMatch) return 'Start match to play';
+    const countdown = this.countdownLabel();
+    if (countdown) return countdown;
     if (this.bannerT > 0) return this.banner;
     if (this.match.phase === 'playing' && this.board.pac.dir.x === 0 && this.board.pac.dir.y === 0) {
       return 'Press an arrow key or WASD to start';

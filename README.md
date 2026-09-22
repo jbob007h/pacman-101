@@ -29,7 +29,7 @@ Other scripts:
 ## Controls
 
 - The game opens on a title screen. Start match, Enter, or Space begins a match. Arrow keys do nothing until then.
-- Arrow keys or WASD to move. The maze waits until the first key. Reversing is instant; other turns happen at intersections.
+- The match then counts Ready…, 3…, 2…, 1…, Hit it! Each beat is 60 simulation frames, one second at the locked 60Hz step. Pac stays put, and arrows are ignored, until Hit it! On that beat he moves left (the way he is facing) on his own. Arrows and WASD work after that. Reversing is instant; other turns happen at intersections. Each beat plays a short generated blip, and Hit it! plays a brighter go cue.
 - Eat the large dots to frighten ghosts, then run into them to send jammers. Dot eats alternate a higher and a lower wakawaka tone.
 - `R` or Restart starts a new match. On the title screen, Restart starts the match. The restart prompt also shows when you die or win.
 - Sound is generated in the browser (no sound files). `M`, or the Sound button on the title screen and in the header, mutes it. The choice is remembered in this browser. The button reads Muted while sound is off.

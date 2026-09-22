@@ -1,5 +1,7 @@
 /** Shared tunables. Gameplay and systems both read this leaf module. */
 
+import type { Dir } from './shared/types';
+
 export const MAZE_COLS = 28;
 export const MAZE_ROWS = 31;
 export const TUNNEL_ROW = 14;
@@ -39,6 +41,16 @@ export const MAX_SIM_STEPS = 5;
 export const DOT_STOP_FRAMES = 1;
 /** Frames Pac stands still after eating a power pellet. */
 export const POWER_STOP_FRAMES = 3;
+
+/**
+ * Opening beats, in order. Each one lasts {@link COUNTDOWN_BEAT_FRAMES}
+ * simulation frames, which is one second when the loop steps at 60Hz.
+ * The last beat releases Pac; the earlier beats hold him still.
+ */
+export const COUNTDOWN_BEATS = ['Ready…', '3…', '2…', '1…', 'Hit it!'] as const;
+export const COUNTDOWN_BEAT_FRAMES = SIM_FPS;
+/** Spawn facing. A still Pac is drawn facing left, and this is the way he leaves the start tile. */
+export const PAC_LAUNCH_DIR: Dir = { x: -1, y: 0 };
 
 /**
  * Tile directly under the ghost house. Fruit appears here once half the pellets are gone.

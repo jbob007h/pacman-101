@@ -132,6 +132,29 @@ button.ghost:hover {
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.35);
 }
 
+#countdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 46%;
+  margin: 0;
+  transform: translateY(-50%);
+  pointer-events: none;
+  text-align: center;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 72px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #ffe14a;
+  text-shadow:
+    0 3px 0 #000,
+    0 0 18px rgba(0, 0, 0, 0.85);
+}
+
+#countdown[hidden] {
+  display: none;
+}
+
 #title,
 #overlay {
   position: absolute;
@@ -190,6 +213,10 @@ button.ghost:hover {
 }
 
 @media (max-width: 800px) {
+  #countdown {
+    font-size: 48px;
+  }
+
   #hud {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:

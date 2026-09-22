@@ -100,6 +100,19 @@ export class Sfx {
     });
   }
 
+  /** One short blip per countdown beat. `go` is the Hit it! cue. */
+  countdown(beat: number, go: boolean): void {
+    this.play(go ? 'countdown-go' : 'countdown', () => {
+      if (go) {
+        this.tone(523, 0.07, 'square', 0.05);
+        this.tone(784, 0.16, 'square', 0.06, 0.07);
+        return;
+      }
+      const freq = [330, 392, 440, 494][beat] ?? 440;
+      this.tone(freq, 0.08, 'square', 0.045);
+    });
+  }
+
   /**
    * Alternating high / low wakawaka. Throttled so a corridor of dots stays
    * musical instead of a machine-gun.
