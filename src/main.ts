@@ -1,5 +1,6 @@
-import { VIEW_H, VIEW_W } from './config';
+import { SIM_FRAME_SEC, VIEW_H, VIEW_W } from './config';
 import { Game } from './game';
+import { planSimSteps } from './loop';
 import { dirFromKey, type Dir } from './shared/types';
 import './style.css';
 
@@ -120,11 +121,16 @@ syncHud();
 syncMute();
 
 let last = performance.now();
+let lag = 0;
 function frame(now: number): void {
-  const dt = document.hidden ? 0 : Math.min(0.05, (now - last) / 1000);
+  const dt = document.hidden ? 0 : (now - last) / 1000;
   last = now;
-  game.setDirection(direction);
-  game.update(dt);
+  const plan = planSimSteps(lag, dt);
+  lag = plan.lag;
+  for (let step = 0; step < plan.frames; step++) {
+    game.setDirection(direction);
+    game.update(SIM_FRAME_SEC);
+  }
   game.draw(ctx!);
   syncHud();
   requestAnimationFrame(frame);

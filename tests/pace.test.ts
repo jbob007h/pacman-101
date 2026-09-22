@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLEAR_SPEED_BONUS, EAT_GHOST_PAUSE, FRUIT_TILE, speedsForBoard, TUNNEL_GHOST_MULT } from '../src/config';
+import { CLEAR_SPEED_BONUS, DOT_SCORE, EAT_GHOST_PAUSE, FRUIT_TILE, speedsForBoard, TUNNEL_GHOST_MULT } from '../src/config';
 import { Game } from '../src/game';
 import { ghostMoveSpeed, ghostSpeed } from '../src/gameplay/ghosts';
 import { Tile } from '../src/gameplay/maze';
@@ -164,7 +164,58 @@ describe('board pace', () => {
     expect(tunnelTravel).toBeGreaterThan(0);
     expect(tunnelTravel).toBeLessThan(openTravel * 0.75);
   });
+
+  it('stops Pac for one frame after a dot and three frames after a power pellet', () => {
+    const dot = new Game(() => 0);
+    parkGhosts(dot);
+    dot.board.pac.x = 5;
+    dot.board.pac.y = 5;
+    dot.board.pac.dir = { x: 1, y: 0 };
+    const blinky = dot.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    blinky.mode = 'chase';
+    blinky.x = 10;
+    blinky.y = 8;
+    blinky.dir = { x: 1, y: 0 };
+
+    dot.update(1 / 60);
+    const eatenX = dot.board.pac.x;
+    expect(eatenX).toBeGreaterThan(5);
+    expect(dot.board.score).toBe(DOT_SCORE);
+    const ghostX = blinky.x;
+
+    dot.update(1 / 60);
+    expect(dot.board.pac.x).toBe(eatenX);
+    expect(dot.board.score).toBe(DOT_SCORE);
+    expect(blinky.x).not.toBe(ghostX);
+
+    dot.update(1 / 60);
+    expect(dot.board.pac.x).toBeGreaterThan(eatenX);
+
+    const power = new Game(() => 0);
+    parkGhosts(power);
+    power.board.pac.x = 1;
+    power.board.pac.y = 23;
+    power.board.pac.dir = { x: 1, y: 0 };
+    power.update(1 / 60);
+    const held = power.board.pac.x;
+    expect(held).toBeGreaterThan(1);
+    expect(power.board.frightened).toBeGreaterThan(0);
+    for (let frame = 0; frame < 3; frame++) {
+      power.update(1 / 60);
+      expect(power.board.pac.x).toBe(held);
+    }
+    power.update(1 / 60);
+    expect(power.board.pac.x).toBeGreaterThan(held);
+  });
 });
+
+function parkGhosts(game: Game): void {
+  for (const ghost of game.board.ghosts) {
+    ghost.mode = 'house';
+    ghost.releaseAt = 1e9;
+  }
+}
 
 function findPellet(
   maze: Game['board']['maze'],

@@ -34,6 +34,7 @@ Other scripts:
 - `R` or Restart starts a new match. On the title screen, Restart starts the match. The restart prompt also shows when you die or win.
 - Sound is generated in the browser (no sound files). `M`, or the Sound button on the title screen and in the header, mutes it. The choice is remembered in this browser. The button reads Muted while sound is off.
 - Eating a frightened ghost freezes the maze for half a second, then play resumes.
+- Eating a normal dot stops Pac for 1 simulation frame. A power pellet stops him for 3. Ghosts and jammers keep moving. The maze steps at a fixed 60Hz; the canvas can still draw on the display refresh, and a stalled tab catches up at most 5 frames.
 
 Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, and an X means they are out. The Alive counter starts at 101 and includes you.
 

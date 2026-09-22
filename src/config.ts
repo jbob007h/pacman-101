@@ -30,6 +30,16 @@ export const FRIGHT_SECONDS = 9;
 /** Classic-style freeze after eating a frightened ghost, in seconds. */
 export const EAT_GHOST_PAUSE = 0.5;
 
+/** Logic rate. Drawing may follow the display; simulation steps are this long. */
+export const SIM_FPS = 60;
+export const SIM_FRAME_SEC = 1 / SIM_FPS;
+/** Catch-up cap so a stalled tab cannot run the maze in a burst. */
+export const MAX_SIM_STEPS = 5;
+/** Frames Pac stands still after eating a normal dot. Counted in simulation steps. */
+export const DOT_STOP_FRAMES = 1;
+/** Frames Pac stands still after eating a power pellet. */
+export const POWER_STOP_FRAMES = 3;
+
 /**
  * Tile directly under the ghost house. Fruit appears here once half the pellets are gone.
  * House interior is rows 13–15, columns 11–16; the open corridor below the house is row 17.

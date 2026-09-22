@@ -2,6 +2,7 @@ import {
   CLEAR_SPEED_BONUS,
   COLLIDE_DISTANCE,
   DOT_SCORE,
+  DOT_STOP_FRAMES,
   EAT_GHOST_PAUSE,
   FRIGHT_SECONDS,
   FRUIT_SCORE,
@@ -9,6 +10,7 @@ import {
   GHOST_SCORE_BASE,
   PAC_START,
   PELLET_SCORE,
+  POWER_STOP_FRAMES,
   speedsForBoard,
   type BoardSpeeds,
 } from '../config';
@@ -75,6 +77,11 @@ export class Board {
   combo = 0;
   /** Edible dots + power pellets at the start of the current pellet set. Fruit is not included. */
   private boardPellets = 0;
+  /**
+   * Simulation frames Pac skips movement after a bite.
+   * One {@link Board.update} call is one frame when the browser steps at 60Hz.
+   */
+  private biteStop = 0;
   private fruitSpawned = false;
   private waveIndex = 0;
   private waveTime: number = WAVES[0]?.duration ?? 18;
@@ -134,6 +141,7 @@ export class Board {
     }
     if (this.eatPause > 0) {
       this.eatPause = Math.max(0, this.eatPause - step);
+      this.spendBite(step);
       return;
     }
     this.time += step;
@@ -142,6 +150,7 @@ export class Board {
     this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed(), this.redsFrozen());
     if (this.clearPause > 0) {
       this.clearPause -= step;
+      this.spendBite(step);
       return;
     }
     this.movePac(step);
@@ -173,6 +182,7 @@ export class Board {
     this.deathTime = 0;
     this.clearPause = 0;
     this.eatPause = 0;
+    this.biteStop = 0;
     this.lastEatPoints = 0;
     this.boardIndex = 0;
     this.displayedSpeed = 0;
@@ -224,6 +234,10 @@ export class Board {
   }
 
   private movePac(dt: number): void {
+    if (this.biteStop > 0) {
+      this.spendBite(dt);
+      return;
+    }
     const traveled = advanceMover(
       this.pac,
       dt,
@@ -242,9 +256,12 @@ export class Board {
     if (Math.hypot(this.pac.x - x, this.pac.y - y) > 0.45) return;
     const kind = this.maze.consume(x, y);
     if (!kind) return;
-    if (kind === 'dot') this.score += DOT_SCORE;
-    else {
+    if (kind === 'dot') {
+      this.score += DOT_SCORE;
+      this.biteStop = DOT_STOP_FRAMES;
+    } else {
       this.score += PELLET_SCORE;
+      this.biteStop = POWER_STOP_FRAMES;
       this.combo = 0;
       this.frighten();
       this.bus.emit({ type: 'powerPelletEaten' });
@@ -298,6 +315,11 @@ export class Board {
     this.boardPellets = this.maze.remaining();
     this.inbound.killReds();
     this.clearPause = 0.7;
+  }
+
+  /** One logic frame of the post-bite hitch. Longer pauses absorb it so it does not stack. */
+  private spendBite(step: number): void {
+    if (step > 0 && this.biteStop > 0) this.biteStop -= 1;
   }
 
   private redsFrozen(): boolean {
