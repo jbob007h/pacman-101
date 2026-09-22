@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EAT_CHAIN_RESET,
   EAT_GHOST_PAUSE,
   EAT_PAUSE_DECAY,
   EAT_PAUSE_FLOOR,
@@ -445,11 +446,13 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.train.leaderId).toBe('pinky');
   });
 
-  it('shortens each successive eat pause and resets after two active seconds', () => {
+  it('shortens each successive eat pause and resets after 0.75 active seconds', () => {
     const game = new Game(() => 0.5);
     const blinky = game.board.ghosts[0];
     const pinky = game.board.ghosts[1];
-    if (!blinky || !pinky) throw new Error('missing ghosts');
+    const inky = game.board.ghosts[2];
+    const clyde = game.board.ghosts[3];
+    if (!blinky || !pinky || !inky || !clyde) throw new Error('missing ghosts');
     game.board.pac.x = 5;
     game.board.pac.y = 5;
     game.board.pac.dir = { ...DIR_NONE };
@@ -472,15 +475,25 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.eatPause).toBeLessThan(EAT_GHOST_PAUSE);
 
     while (game.board.eatPause > 0) game.update(0.05);
-    for (let i = 0; i < 40; i++) game.update(0.05);
-    const clyde = game.board.ghosts[2];
-    if (!clyde) throw new Error('missing clyde');
+    for (let i = 0; i < 14; i++) game.update(0.05);
+    inky.mode = 'frightened';
+    inky.x = 5;
+    inky.y = 5;
+    game.board.pac.x = 5;
+    game.board.pac.y = 5;
+    game.update(0);
+    expect(game.board.eatPause).toBeCloseTo(eatPauseForChain(3));
+    expect(game.board.eatPause).toBeLessThan(EAT_GHOST_PAUSE);
+
+    while (game.board.eatPause > 0) game.update(0.05);
+    for (let i = 0; i < 16; i++) game.update(0.05);
     clyde.mode = 'frightened';
     clyde.x = 5;
     clyde.y = 5;
     game.board.pac.x = 5;
     game.board.pac.y = 5;
     game.update(0);
+    expect(EAT_CHAIN_RESET).toBe(0.75);
     expect(game.board.eatPause).toBeCloseTo(EAT_GHOST_PAUSE);
     expect(eatPauseForChain(8)).toBe(EAT_PAUSE_FLOOR);
   });

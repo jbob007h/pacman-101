@@ -97,7 +97,7 @@ Eating ghosts in a row shortens the freeze:
 pause(n) = max(0.08s, 0.5s × 0.55^(n-1))
 ```
 
-`n` is the eat number in the current chain. After 2 seconds of active time with no ghost eat, `n` goes back to 1. Time spent inside the eat pause does not count toward those 2 seconds.
+`n` is the eat number in the current chain. After 0.75 seconds of active time with no ghost eat, `n` goes back to 1. Time spent inside the eat pause does not count toward those 0.75 seconds.
 
 A main ghost that is eaten and sent home sets `skipFright`. That ghost ignores the pellet already running: they keep their normal colors in the house and come back out in chase or scatter, able to kill Pac while the ring is still draining. A ghost waiting in the house, walking in, or walking out is painted blue while a pellet is active and `skipFright` is clear, but the mode stays house, entering, or leaving, so Pac still cannot eat them there. Eyes stay eyes. The next power pellet clears `skipFright` on every ghost. A ghost still in the house can turn blue on that new pellet without becoming edible, and they come out frightened if that pellet is still active when they leave. Ghosts still on the way home stay eyes. A leader handoff does not set the flag, because that ghost never goes home.
 

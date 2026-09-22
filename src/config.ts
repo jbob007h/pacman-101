@@ -42,7 +42,7 @@ export const EAT_PAUSE_FLOOR = 0.08;
  * Active seconds without eating a ghost before the pause chain resets.
  * Time spent inside the eat pause itself does not count.
  */
-export const EAT_CHAIN_RESET = 2;
+export const EAT_CHAIN_RESET = 0.75;
 /** Eating a ghost with strictly less than this much pellet time left adds {@link PELLET_EXTEND_SECONDS}. */
 export const PELLET_EXTEND_THRESHOLD = 1.5;
 export const PELLET_EXTEND_SECONDS = 1.5;
