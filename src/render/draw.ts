@@ -45,9 +45,9 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   ctx.fillRect(board.x, board.y, board.w, board.h);
   drawMaze(ctx, input.maze, board.x, board.y, input.time);
   if (input.fruit) drawFruit(ctx, input.fruit, board.x, board.y);
-  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   drawPac(ctx, input, board.x, board.y);
+  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y);
   drawEatScore(ctx, input, board.x, board.y);
   ctx.restore();
 
@@ -142,21 +142,42 @@ function drawJammer(
   } else if (jammer.immune > 0) {
     alpha = 0.45 + 0.55 * (0.5 + 0.5 * Math.sin(jammer.immune * 18));
   }
-  const color = jammer.kind === 'red' ? '#ff2f3a' : '#f7f8ff';
-  const ring = jammer.kind === 'red' ? '#ffd0d4' : '#9eb0d8';
+  const color = jammer.kind === 'red' ? '#ff2a36' : '#ffffff';
+  const ring = jammer.kind === 'red' ? '#ffd2d6' : '#1a2748';
+  const glow = jammer.kind === 'red' ? 'rgba(255, 40, 54, 0.45)' : 'rgba(255, 255, 255, 0.55)';
   for (const point of spritePoints(jammer.x, jammer.y, maze)) {
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;
     ctx.save();
-    ctx.globalAlpha = alpha;
+    ctx.globalAlpha = Math.max(alpha, jammer.phase === 'spawn' ? 0.35 : 0);
     ctx.translate(sx, sy);
     ctx.scale(scale, scale);
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(0, 0, 5.2, 0, Math.PI * 2);
+    ctx.arc(0, 0, 6.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = ring;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.strokeStyle = jammer.kind === 'red' ? '#fff' : '#ff2a36';
     ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    if (jammer.kind === 'red') {
+      ctx.moveTo(-3.2, -3.2);
+      ctx.lineTo(3.2, 3.2);
+      ctx.moveTo(3.2, -3.2);
+      ctx.lineTo(-3.2, 3.2);
+    } else {
+      ctx.moveTo(-3.4, 0);
+      ctx.lineTo(3.4, 0);
+      ctx.moveTo(0, -3.4);
+      ctx.lineTo(0, 3.4);
+    }
     ctx.stroke();
     ctx.restore();
   }
