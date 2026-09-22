@@ -82,6 +82,10 @@ export function applyQueuedTurn(mover: Mover, blocked: (x: number, y: number) =>
     mover.dir = { x: queued.x, y: queued.y };
     return;
   }
+  if (mover.dir.x === 0 && mover.dir.y === 0) {
+    mover.dir = { x: queued.x, y: queued.y };
+    return;
+  }
   if (!nearCenter(mover)) return;
   const cx = Math.round(mover.x);
   const cy = Math.round(mover.y);

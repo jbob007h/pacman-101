@@ -124,7 +124,7 @@ export class Board {
     this.maze = maze;
     this.pac = spawnPac();
     this.ghosts = createGhosts();
-    this.maze.consume(PAC_START.x, PAC_START.y);
+    clearSpawnTile(this.maze);
     this.boardPellets = this.maze.remaining();
   }
 
@@ -247,7 +247,7 @@ export class Board {
     this.waveIndex = 0;
     this.wave = WAVES[0]?.mode ?? 'chase';
     this.waveTime = WAVES[0]?.duration ?? 18;
-    this.maze.consume(PAC_START.x, PAC_START.y);
+    clearSpawnTile(this.maze);
     this.boardPellets = this.maze.remaining();
     this.matchTime = 0;
     this.inbound.reset();
@@ -515,6 +515,19 @@ export class Board {
     this.deathTime = 0;
     this.bus.emit({ type: 'playerDied' });
   }
+}
+
+/**
+ * Clear the dots on the two tiles the opening pose straddles.
+ * Pac sits on the boundary, so leaving either dot would put a pellet under him
+ * and hitch the first step.
+ */
+function clearSpawnTile(maze: Maze): void {
+  const y = Math.round(PAC_START.y);
+  const left = Math.floor(PAC_START.x);
+  const right = Math.ceil(PAC_START.x);
+  maze.consume(left, y);
+  if (right !== left) maze.consume(right, y);
 }
 
 function spawnPac(): Pac {

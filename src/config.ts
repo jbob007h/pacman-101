@@ -7,7 +7,12 @@ export const MAZE_ROWS = 31;
 export const TUNNEL_ROW = 14;
 export const TILE = 16;
 
-export const PAC_START = { x: 14, y: 23 };
+/**
+ * Opening pose in the bottom start corridor.
+ * x 13.5 is the boundary between columns 13 and 14: the horizontal center of
+ * that corridor (and of the 28-column maze). y 23 is the corridor's row.
+ */
+export const PAC_START = { x: 13.5, y: 23 };
 
 export const SIDE_BOARD_COUNT = 50;
 export const SIDE_COLS = 5;

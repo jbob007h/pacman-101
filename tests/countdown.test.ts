@@ -12,6 +12,8 @@ describe('start countdown', () => {
     expect(game.hud().countdown).toBe('Ready…');
     expect(game.hud().status).toBe('Ready…');
     expect(game.sfx.log).toEqual(['countdown']);
+    expect(game.board.pac.x).toBe(PAC_START.x);
+    expect(game.board.pac.y).toBe(PAC_START.y);
     const startX = game.board.pac.x;
     const blinky = game.board.ghosts[0];
     if (!blinky) throw new Error('missing blinky');
@@ -61,6 +63,8 @@ describe('start countdown', () => {
     game.startMatch();
     game.restart();
     expect(game.hud().countdown).toBeNull();
+    expect(game.board.pac.x).toBe(PAC_START.x);
+    expect(game.board.pac.y).toBe(PAC_START.y);
     game.board.pac.dir = { x: -1, y: 0 };
     const x = game.board.pac.x;
     game.update(1 / 60);

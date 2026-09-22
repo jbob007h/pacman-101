@@ -110,7 +110,7 @@ describe('board pace', () => {
       ghost.releaseAt = 1e9;
     }
     const maze = game.board.maze;
-    const target = { x: 13, y: 23 };
+    const target = { x: 12, y: 23 };
     for (let y = 0; y < maze.rows; y++) {
       for (let x = 0; x < maze.cols; x++) {
         if (x === target.x && y === target.y) continue;

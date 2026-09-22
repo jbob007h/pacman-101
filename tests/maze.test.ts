@@ -31,8 +31,10 @@ describe('maze', () => {
     const counted = new Maze();
     expect(counted.dotCount()).toBe(248);
     expect(counted.pelletCount()).toBe(4);
-    expect(counted.consume(PAC_START.x, PAC_START.y)).toBe('dot');
-    expect(counted.remaining()).toBe(251);
+    const spawnY = Math.round(PAC_START.y);
+    expect(counted.consume(Math.floor(PAC_START.x), spawnY)).toBe('dot');
+    expect(counted.consume(Math.ceil(PAC_START.x), spawnY)).toBe('dot');
+    expect(counted.remaining()).toBe(250);
     counted.resetDots();
     expect(counted.remaining()).toBe(252);
     for (let y = 11; y <= 17; y++) {
