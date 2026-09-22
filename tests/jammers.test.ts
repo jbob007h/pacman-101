@@ -3,6 +3,8 @@ import {
   GHOST_PRESSURE_BASE,
   GHOST_PRESSURE_STEP,
   KILL_PRESSURE,
+  SIM_ATTACK_GRACE,
+  SIM_ATTACK_INTERVAL,
   SIM_CLEAR_RELIEF,
   SIM_PRESSURE,
 } from '../src/config';
@@ -124,6 +126,71 @@ describe('jammers', () => {
     }
     expect(playing.sims.aliveCount()).toBeGreaterThanOrEqual(40);
     expect(playing.match.phase).toBe('playing');
+  });
+
+  it('fires no CPU attacks during the first 10 seconds of match time', () => {
+    const game = new Game(() => 0);
+    let cpuShots = 0;
+    game.bus.on('jammersSent', (event) => {
+      if (event.reason === 'sim') cpuShots += 1;
+    });
+    game.bus.on('incomingJammer', () => {
+      cpuShots += 1;
+    });
+    const pinGhosts = (): void => {
+      for (const ghost of game.board.ghosts) {
+        ghost.mode = 'house';
+        ghost.releaseAt = 1e9;
+        ghost.x = 13;
+        ghost.y = 14;
+      }
+    };
+
+    game.startMatch();
+    let guard = 0;
+    while (game.matchTime === 0 && guard++ < 400) {
+      pinGhosts();
+      game.update(1 / 60);
+    }
+    expect(game.matchTime).toBeGreaterThan(0);
+    expect(game.matchTime).toBeLessThan(SIM_ATTACK_GRACE);
+    expect(game.match.phase).toBe('playing');
+    expect(cpuShots).toBe(0);
+
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+    expect(game.sims.sims.some((sim) => sim.pressure > 0)).toBe(true);
+    expect(cpuShots).toBe(0);
+
+    while (game.matchTime < SIM_ATTACK_GRACE) {
+      pinGhosts();
+      game.update(1 / 60);
+      if (game.matchTime < SIM_ATTACK_GRACE) expect(cpuShots).toBe(0);
+    }
+    expect(cpuShots).toBe(0);
+    expect(game.match.phase).toBe('playing');
+    expect(game.matchTime).toBeGreaterThanOrEqual(SIM_ATTACK_GRACE);
+
+    guard = 0;
+    while (cpuShots === 0 && guard++ < 90) {
+      pinGhosts();
+      game.update(1 / 60);
+    }
+    expect(cpuShots).toBeGreaterThan(0);
+    expect(game.matchTime).toBeLessThan(SIM_ATTACK_GRACE + SIM_ATTACK_INTERVAL + 0.15);
+
+    game.startMatch();
+    const marked = cpuShots;
+    guard = 0;
+    while (game.matchTime === 0 && guard++ < 400) {
+      pinGhosts();
+      game.update(1 / 60);
+    }
+    while (game.matchTime < SIM_ATTACK_GRACE) {
+      pinGhosts();
+      game.update(1 / 60);
+    }
+    expect(cpuShots).toBe(marked);
+    expect(game.match.phase).toBe('playing');
   });
 
   it('wins when the last sim is eliminated and loses when pac dies', () => {

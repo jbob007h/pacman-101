@@ -2,6 +2,7 @@ import {
   KILL_PRESSURE,
   PRESSURE_LOCK,
   PRESSURE_RECOVERY,
+  SIM_ATTACK_GRACE,
   SIM_ATTACK_INTERVAL,
   SIM_ATTACKS_PER_TICK,
   SIM_CLEAR_RELIEF,
@@ -41,6 +42,12 @@ export class SimWorld {
   readonly sims: Sim[];
   private attackAcc = 0;
   private reliefAcc = 0;
+  /**
+   * Match seconds the CPU ticker follows. A fresh world is already past the
+   * grace so a direct {@link update} models a battle in progress. {@link reset}
+   * puts a new match back at 0, and {@link syncMatchClock} feeds the live clock.
+   */
+  private attackClock = SIM_ATTACK_GRACE;
 
   constructor(
     private readonly bus: EventBus,
@@ -71,11 +78,17 @@ export class SimWorld {
     }
   }
 
+  /** Live match clock. CPU shots stay off until it reaches {@link SIM_ATTACK_GRACE}. */
+  syncMatchClock(matchTime: number): void {
+    this.attackClock = matchTime;
+  }
+
   reset(): void {
     const fresh = createSims(this.rng);
     this.sims.splice(0, this.sims.length, ...fresh);
     this.attackAcc = 0;
     this.reliefAcc = 0;
+    this.attackClock = 0;
   }
 
   private step(dt: number): void {
@@ -88,11 +101,15 @@ export class SimWorld {
       else if (sim.pressure > 0) sim.pressure = Math.max(0, sim.pressure - PRESSURE_RECOVERY * dt);
     }
 
-    this.attackAcc += dt;
-    let guard = 0;
-    while (this.attackAcc >= SIM_ATTACK_INTERVAL && guard++ < 6) {
-      this.attackAcc -= SIM_ATTACK_INTERVAL;
-      for (let i = 0; i < SIM_ATTACKS_PER_TICK; i++) this.simAttack();
+    if (this.attackClock < SIM_ATTACK_GRACE) {
+      this.attackAcc = 0;
+    } else {
+      this.attackAcc += dt;
+      let guard = 0;
+      while (this.attackAcc >= SIM_ATTACK_INTERVAL && guard++ < 6) {
+        this.attackAcc -= SIM_ATTACK_INTERVAL;
+        for (let i = 0; i < SIM_ATTACKS_PER_TICK; i++) this.simAttack();
+      }
     }
 
     this.reliefAcc += dt;

@@ -1,5 +1,5 @@
 import { Sfx } from './audio/sfx';
-import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, PAC_LAUNCH_DIR } from './config';
+import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, PAC_LAUNCH_DIR, SIM_ATTACK_GRACE } from './config';
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import { drawFrame, type DrawInput } from './render/draw';
@@ -141,6 +141,10 @@ export class Game {
     if (started) this.playStarted = true;
     if (this.playStarted && this.match.phase === 'playing') this.matchTime += step;
     this.board.matchTime = this.matchTime;
+    // Opening grace follows the match clock. Once you are out, the field keeps
+    // attacking so the standings can still move.
+    const attackClock = this.match.phase === 'lost' ? Math.max(this.matchTime, SIM_ATTACK_GRACE) : this.matchTime;
+    this.sims.syncMatchClock(attackClock);
     if (this.match.phase === 'lost' || (this.match.phase === 'playing' && started)) this.sims.update(step);
     this.tickFx(step);
     this.sfx.tick(step);

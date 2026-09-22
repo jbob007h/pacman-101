@@ -206,9 +206,13 @@ export const CLEAR_TARGETS = 8;
  * leave most of the field alive at 4:00. A straight scale of the old 28
  * (about 18) barely eliminates anyone, because the smaller hits stop
  * clustering over the kill line.
+ * The ticker stays quiet for {@link SIM_ATTACK_GRACE} seconds of match time
+ * after the clock starts. Player ghost eats, dots, and clears are not delayed.
  */
 export const SIM_ATTACK_INTERVAL = 0.5;
 export const SIM_ATTACKS_PER_TICK = 2;
+/** Seconds of match time before the first CPU attack. Reset when a match restarts. */
+export const SIM_ATTACK_GRACE = 10;
 export const SIM_PRESSURE = 23;
 export const SIM_RELIEF_INTERVAL = 2.5;
 export const SIM_RELIEFS_PER_TICK = 4;
