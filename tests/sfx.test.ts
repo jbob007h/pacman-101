@@ -31,18 +31,21 @@ function watch(partial: Partial<SfxWatch> = {}): SfxWatch {
 }
 
 describe('generated sound effects', () => {
-  it('thins out dot clicks and does not also click on a power pellet', () => {
+  it('thins out dot clicks and alternates high then low wakawaka', () => {
     const sfx = new Sfx();
     sfx.dot();
     sfx.dot();
-    expect(sfx.log).toEqual(['dot']);
+    expect(sfx.log).toEqual(['dot-hi']);
     sfx.tick(0.1);
     sfx.dot();
-    expect(sfx.log).toEqual(['dot', 'dot']);
+    expect(sfx.log).toEqual(['dot-hi', 'dot-lo']);
+    sfx.tick(0.1);
+    sfx.dot();
+    expect(sfx.log).toEqual(['dot-hi', 'dot-lo', 'dot-hi']);
 
     sfx.pellet();
     sfx.dot();
-    expect(sfx.log).toEqual(['dot', 'dot', 'pellet']);
+    expect(sfx.log).toEqual(['dot-hi', 'dot-lo', 'dot-hi', 'pellet']);
   });
 
   it('plays one red spawn, a fruit pair, a white hit, and a separate wipe', () => {
@@ -93,7 +96,7 @@ describe('generated sound effects', () => {
     game.board.pac.x = 5;
     game.board.pac.y = 5;
     game.update(1 / 60);
-    expect(game.sfx.log).toContain('dot');
+    expect(game.sfx.log.some((name) => name === 'dot-hi' || name === 'dot-lo')).toBe(true);
 
     game.sfx.log.length = 0;
     const pellet = findPellet(game);

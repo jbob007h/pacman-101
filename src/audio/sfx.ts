@@ -4,6 +4,10 @@ const MUTE_KEY = '101-muted';
 /** Overall level. Individual cues stay under this so overlaps do not clip. */
 const MASTER = 0.7;
 const DOT_GAP = 0.09;
+/** Higher wakawaka tone, in Hz. */
+const DOT_HI = 980;
+/** Lower wakawaka tone, in Hz. */
+const DOT_LO = 620;
 
 export interface SfxWatch {
   jammers: readonly InboundJammer[];
@@ -25,7 +29,8 @@ export class Sfx {
   private noiseBuffer: AudioBuffer | null = null;
   private clock = 0;
   private lastDot = -1;
-  private dotFlip = false;
+  /** Next dot cue is the high tone when true. Flips every accepted click. */
+  private nextDotHigh = true;
   private skipDot = false;
   private known = new WeakSet<InboundJammer>();
   private whiteDying = new WeakSet<InboundJammer>();
@@ -95,6 +100,10 @@ export class Sfx {
     });
   }
 
+  /**
+   * Alternating high / low wakawaka. Throttled so a corridor of dots stays
+   * musical instead of a machine-gun.
+   */
   dot(): void {
     if (this.skipDot) {
       this.skipDot = false;
@@ -102,9 +111,10 @@ export class Sfx {
     }
     if (this.now() - this.lastDot < DOT_GAP) return;
     this.lastDot = this.now();
-    this.dotFlip = !this.dotFlip;
-    const freq = this.dotFlip ? 760 : 920;
-    this.play('dot', () => this.tone(freq, 0.03, 'square', 0.03));
+    const high = this.nextDotHigh;
+    this.nextDotHigh = !this.nextDotHigh;
+    const freq = high ? DOT_HI : DOT_LO;
+    this.play(high ? 'dot-hi' : 'dot-lo', () => this.tone(freq, 0.042, 'square', 0.034));
   }
 
   pellet(): void {

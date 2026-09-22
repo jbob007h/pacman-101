@@ -9,6 +9,9 @@ import type { Sim } from '../systems/sims';
 import type { Bolt } from './fx';
 import { boardRect, panelRect } from './layout';
 
+/** Visual size only. Collision and movement stay on the 1× tile logic. */
+export const SPRITE_SCALE = 2;
+
 export interface DrawInput {
   maze: Maze;
   pac: Pac;
@@ -23,6 +26,61 @@ export interface DrawInput {
   fruit: { x: number; y: number } | null;
   jammers: readonly InboundJammer[];
   slow: number;
+}
+
+export interface WallFill {
+  /** Local offset inside the tile, in pixels. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  /** Corridor-facing edges of the filled half (for the light rim). */
+  edge: { left: boolean; right: boolean; top: boolean; bottom: boolean };
+}
+
+/**
+ * Wall paint for one tile. Interior solid blocks stay full. A wall next to a
+ * walkable corridor is inset toward the blocked side so only half the cell is
+ * painted — corridors look wider, collision stays the same.
+ */
+export function wallFill(maze: Maze, x: number, y: number): WallFill {
+  const openL = isWalkable(maze, x - 1, y);
+  const openR = isWalkable(maze, x + 1, y);
+  const openU = isWalkable(maze, x, y - 1);
+  const openD = isWalkable(maze, x, y + 1);
+  if (!openL && !openR && !openU && !openD) {
+    return { x: 0, y: 0, w: TILE, h: TILE, edge: { left: false, right: false, top: false, bottom: false } };
+  }
+  let lx = 0;
+  let ly = 0;
+  let w = TILE;
+  let h = TILE;
+  if (openL) {
+    lx += TILE / 2;
+    w -= TILE / 2;
+  }
+  if (openR) w -= TILE / 2;
+  if (openU) {
+    ly += TILE / 2;
+    h -= TILE / 2;
+  }
+  if (openD) h -= TILE / 2;
+  if (w <= 0 || h <= 0) {
+    return {
+      x: TILE / 4,
+      y: TILE / 4,
+      w: TILE / 2,
+      h: TILE / 2,
+      edge: { left: openL, right: openR, top: openU, bottom: openD },
+    };
+  }
+  return {
+    x: lx,
+    y: ly,
+    w,
+    h,
+    edge: { left: openL, right: openR, top: openU, bottom: openD },
+  };
 }
 
 export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void {
@@ -70,13 +128,16 @@ function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: num
       const px = ox + x * TILE;
       const py = oy + y * TILE;
       if (tile === Tile.Wall) {
-        const open = isOpen(maze, x, y - 1) || isOpen(maze, x, y + 1) || isOpen(maze, x - 1, y) || isOpen(maze, x + 1, y);
-        ctx.fillStyle = open ? '#2c4bff' : '#16267a';
-        ctx.fillRect(px, py, TILE, TILE);
-        if (open) {
+        const fill = wallFill(maze, x, y);
+        const border = fill.w < TILE || fill.h < TILE;
+        ctx.fillStyle = border ? '#2c4bff' : '#16267a';
+        ctx.fillRect(px + fill.x, py + fill.y, fill.w, fill.h);
+        if (border) {
           ctx.fillStyle = '#8eabff';
-          if (isOpen(maze, x, y - 1)) ctx.fillRect(px, py, TILE, 2);
-          if (isOpen(maze, x - 1, y)) ctx.fillRect(px, py, 2, TILE);
+          if (fill.edge.top) ctx.fillRect(px + fill.x, py + fill.y, fill.w, 2);
+          if (fill.edge.bottom) ctx.fillRect(px + fill.x, py + fill.y + fill.h - 2, fill.w, 2);
+          if (fill.edge.left) ctx.fillRect(px + fill.x, py + fill.y, 2, fill.h);
+          if (fill.edge.right) ctx.fillRect(px + fill.x + fill.w - 2, py + fill.y, 2, fill.h);
         }
         continue;
       }
@@ -108,7 +169,7 @@ function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: num
 function drawPac(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy: number): void {
   const pac = input.pac;
   const death = pac.alive ? 0 : Math.min(1, input.deathTime / 0.9);
-  const radius = 7.1 * (1 - death * 0.85);
+  const radius = 7.1 * SPRITE_SCALE * (1 - death * 0.85);
   const mouth = pac.alive ? 0.08 + Math.abs(Math.sin(pac.anim * 2.2)) * 0.42 : 0.9;
   const facing =
     (pac.dir.x === 0 && pac.dir.y === 0 ? Math.PI : Math.atan2(pac.dir.y, pac.dir.x)) + death * Math.PI * 2;
@@ -145,6 +206,7 @@ function drawJammer(
   const color = frozen ? '#8fd0ff' : jammer.kind === 'red' ? '#ff2a36' : '#ffffff';
   const ring = frozen ? '#e8f6ff' : jammer.kind === 'red' ? '#ffd2d6' : '#1a2748';
   const glow = frozen ? 'rgba(140, 210, 255, 0.45)' : jammer.kind === 'red' ? 'rgba(255, 40, 54, 0.45)' : 'rgba(255, 255, 255, 0.55)';
+  const s = SPRITE_SCALE;
   for (const point of spritePoints(jammer.x, jammer.y, maze)) {
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;
@@ -154,29 +216,29 @@ function drawJammer(
     ctx.scale(scale, scale);
     ctx.fillStyle = glow;
     ctx.beginPath();
-    ctx.arc(0, 0, 11, 0, Math.PI * 2);
+    ctx.arc(0, 0, 11 * s, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = alpha;
     ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.arc(0, 0, 6.4, 0, Math.PI * 2);
+    ctx.arc(0, 0, 6.4 * s, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = ring;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 * s;
     ctx.stroke();
     ctx.strokeStyle = jammer.kind === 'red' ? '#fff' : '#ff2a36';
-    ctx.lineWidth = 1.6;
+    ctx.lineWidth = 1.6 * s;
     ctx.beginPath();
     if (jammer.kind === 'red') {
-      ctx.moveTo(-3.2, -3.2);
-      ctx.lineTo(3.2, 3.2);
-      ctx.moveTo(3.2, -3.2);
-      ctx.lineTo(-3.2, 3.2);
+      ctx.moveTo(-3.2 * s, -3.2 * s);
+      ctx.lineTo(3.2 * s, 3.2 * s);
+      ctx.moveTo(3.2 * s, -3.2 * s);
+      ctx.lineTo(-3.2 * s, 3.2 * s);
     } else {
-      ctx.moveTo(-3.4, 0);
-      ctx.lineTo(3.4, 0);
-      ctx.moveTo(0, -3.4);
-      ctx.lineTo(0, 3.4);
+      ctx.moveTo(-3.4 * s, 0);
+      ctx.lineTo(3.4 * s, 0);
+      ctx.moveTo(0, -3.4 * s);
+      ctx.lineTo(0, 3.4 * s);
     }
     ctx.stroke();
     ctx.restore();
@@ -192,7 +254,7 @@ function drawEatScore(ctx: CanvasRenderingContext2D, input: DrawInput, ox: numbe
   ctx.font = 'bold 13px ui-monospace, monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'bottom';
-  ctx.fillText(String(input.eatPoints), sx, sy - 14);
+  ctx.fillText(String(input.eatPoints), sx, sy - 14 * SPRITE_SCALE);
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 }
@@ -201,15 +263,16 @@ function drawGhost(ctx: CanvasRenderingContext2D, ghost: Ghost, input: DrawInput
   const flash = ghost.mode === 'frightened' && frightenedFlash(input.frightened, input.time);
   const body = ghost.mode === 'frightened' ? (flash ? '#f4f6ff' : '#2228e6') : ghost.color;
   const eyesOnly = ghost.mode === 'eaten';
+  const s = SPRITE_SCALE;
   for (const point of spritePoints(ghost.x, ghost.y, input.maze)) {
     const sx = ox + point.x * TILE + TILE / 2;
     const sy = oy + point.y * TILE + TILE / 2;
     if (!eyesOnly) {
-      const r = 7;
+      const r = 7 * s;
       const wobble = Math.sin(input.time * 14 + ghost.homeX) > 0;
       ctx.fillStyle = body;
       ctx.beginPath();
-      ctx.arc(sx, sy - 1, r, Math.PI, 0);
+      ctx.arc(sx, sy - 1 * s, r, Math.PI, 0);
       ctx.lineTo(sx + r, sy + r * 0.75);
       ctx.lineTo(sx + r * 0.45, sy + (wobble ? r * 0.25 : r * 0.8));
       ctx.lineTo(sx, sy + (wobble ? r * 0.8 : r * 0.25));
@@ -230,23 +293,24 @@ function drawEyes(
   eyesOnly: boolean,
   flash: boolean,
 ): void {
-  const dx = ghost.dir.x * 1.6;
-  const dy = ghost.dir.y * 1.6;
-  for (const side of [-2.3, 2.3]) {
+  const s = SPRITE_SCALE;
+  const dx = ghost.dir.x * 1.6 * s;
+  const dy = ghost.dir.y * 1.6 * s;
+  for (const side of [-2.3 * s, 2.3 * s]) {
     const ex = sx + side;
-    const ey = sy - 1.5;
+    const ey = sy - 1.5 * s;
     if (ghost.mode === 'frightened' && !eyesOnly) {
       ctx.fillStyle = flash ? '#222244' : '#f4f6ff';
-      ctx.fillRect(ex - 2, ey - 1, 3, 3);
+      ctx.fillRect(ex - 2 * s, ey - 1 * s, 3 * s, 3 * s);
       continue;
     }
     ctx.fillStyle = eyesOnly ? '#d7e4ff' : '#fff';
     ctx.beginPath();
-    ctx.arc(ex, ey, eyesOnly ? 3.1 : 2.3, 0, Math.PI * 2);
+    ctx.arc(ex, ey, (eyesOnly ? 3.1 : 2.3) * s, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#1a237e';
     ctx.beginPath();
-    ctx.arc(ex + dx, ey + dy, 1.15, 0, Math.PI * 2);
+    ctx.arc(ex + dx, ey + dy, 1.15 * s, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -344,7 +408,7 @@ function spritePoints(x: number, y: number, maze: Maze): { x: number; y: number 
   return points;
 }
 
-function isOpen(maze: Maze, x: number, y: number): boolean {
+function isWalkable(maze: Maze, x: number, y: number): boolean {
   if (x < 0 || y < 0 || x >= maze.cols || y >= maze.rows) return false;
-  return maze.tile(x, y) !== Tile.Wall;
+  return !maze.blocks(x, y, 'pac');
 }
