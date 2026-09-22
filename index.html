@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>101</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <script type="module" crossorigin src="/pacman-101/assets/index-CCAGcmMQ.js"></script>
-    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-BVaACxGh.css">
+    <script type="module" crossorigin src="/pacman-101/assets/index-ByYRfMj2.js"></script>
+    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-PwSL9z4X.css">
   </head>
   <body>
     <div id="app">
@@ -36,7 +36,10 @@
           <strong id="time">0:00</strong>
         </div>
         <p id="status">Large dots frighten ghosts. Eating them sends jammers sideways.</p>
-        <button id="restart" type="button">Restart</button>
+        <div id="hud-actions">
+          <button id="mute" class="ghost" type="button" aria-pressed="false">Sound on</button>
+          <button id="restart" type="button">Restart</button>
+        </div>
       </header>
       <div id="stage">
         <canvas id="view" width="1028" height="496" aria-label="101 playfield"></canvas>
@@ -45,7 +48,10 @@
             <p class="eyebrow">local battle maze</p>
             <h2>101</h2>
             <p>You, plus one hundred opponents. Eat the fruit to advance. White jammers slow you. Red ones kill.</p>
-            <button id="start" type="button">Start match</button>
+            <div class="menu-actions">
+              <button id="start" type="button">Start match</button>
+              <button id="mute-menu" class="ghost" type="button" aria-pressed="false">Sound on</button>
+            </div>
           </div>
         </div>
         <div id="overlay" hidden>
@@ -61,7 +67,7 @@
         The fruit under the ghost house advances the board. Clearing every pellet speeds you up instead.
         White jammers slow you down and die if they touch you; a power pellet wipes them.
         Red jammers kill on contact, freeze while a power pellet is active, and vanish when you eat the fruit.
-        Red fill is pressure. An X means that opponent is out. R restarts.
+        Red fill is pressure. An X means that opponent is out. R restarts. M or Sound on mutes the effects.
       </p>
     </div>
   </body>
