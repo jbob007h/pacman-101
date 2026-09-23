@@ -40,7 +40,7 @@ npm run dev
 
 Open two tabs at `http://localhost:5173/pacman-101/?online=1`, or click **Online (dev)** on the title screen. Each client joins and readies. When both are in, the match starts. Ghost eats (including the train) batch for 2 seconds into one attack, one jammer per ghost. A dot milestone or a board clear still sends immediately. The server picks the other player. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
 
-The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. A later free Render deploy can run the same process; N1 does not need it. Details: [docs/networking-n1.md](docs/networking-n1.md).
+The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. When the match ends, both tabs show the same standings: the names entered before the match, in the server's finish order. A later free Render deploy can run the same process; N1 does not need it. Details: [docs/networking-n1.md](docs/networking-n1.md).
 
 ## Controls
 

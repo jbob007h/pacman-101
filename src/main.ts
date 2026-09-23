@@ -303,6 +303,7 @@ const session = new NetSession({
     const other = message.placements.find((row) => row.seat !== session.seat);
     if (mine && mine.place !== 1) game.applyServerElimination();
     else if (other && other.place !== 1) game.eliminateOnlineOpponent();
+    game.setOnlineStandings(message.placements);
     syncHud();
   },
 });

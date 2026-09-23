@@ -86,10 +86,39 @@ describe('match room', () => {
     room.handle(ada.seat, { type: 'deathReport' });
     const endings = logs.filter((message) => message.type === 'matchEnd');
     expect(endings).toHaveLength(1);
-    expect(endings[0]).toMatchObject({ type: 'matchEnd', winnerSeat: bea.seat });
+    expect(endings[0]).toMatchObject({
+      type: 'matchEnd',
+      winnerSeat: bea.seat,
+      placements: [
+        { seat: ada.seat, name: 'Ada', place: 2 },
+        { seat: bea.seat, name: 'Bea', place: 1 },
+      ],
+    });
 
     const third = room.join({ send() {} }, 'Cam');
     expect(third).toEqual({ ok: false, text: 'Match is full' });
+  });
+
+  it('sends both seats the same finish names and places', () => {
+    const adaLog: ServerMessage[] = [];
+    const beaLog: ServerMessage[] = [];
+    const room = new MatchRoom(() => 0, () => 0);
+    const ada = room.join(sink(adaLog), '  Ada  ');
+    const bea = room.join(sink(beaLog), 'Bea');
+    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
+    room.handle(ada.seat, { type: 'ready' });
+    room.handle(bea.seat, { type: 'ready' });
+    room.handle(ada.seat, { type: 'deathReport' });
+    const adaEnd = adaLog.find((message) => message.type === 'matchEnd');
+    const beaEnd = beaLog.find((message) => message.type === 'matchEnd');
+    expect(adaEnd).toEqual(beaEnd);
+    expect(adaEnd).toMatchObject({
+      type: 'matchEnd',
+      placements: [
+        { seat: ada.seat, name: 'Ada', place: 2 },
+        { seat: bea.seat, name: 'Bea', place: 1 },
+      ],
+    });
   });
 
   it('frees a disconnected seat so the other player is not stuck', () => {
@@ -260,6 +289,52 @@ describe('online game path', () => {
     expect(deaths).toBe(1);
     expect(other.match.phase).toBe('lost');
     expect(other.board.pac.alive).toBe(false);
+  });
+
+  it('renders the same server standings on a win and a loss', () => {
+    const placements = [
+      { seat: 1, name: 'Ada', place: 2 },
+      { seat: 2, name: 'Bea', place: 1 },
+    ];
+    const names = [
+      [1, 'Bea'],
+      [2, 'Ada'],
+    ];
+
+    const loser = new Game(() => 0);
+    loser.startMatch();
+    loser.armOnline(1, 'Bea');
+    loser.setPlayerName('Local only');
+    loser.applyServerElimination();
+    loser.setOnlineStandings(placements);
+    loser.board.deathTime = 0.5;
+    expect(loser.hud().standings).toBeNull();
+    loser.board.deathTime = 1;
+    const lost = loser.hud().standings;
+    expect(lost?.yourPlace).toBe(2);
+    expect(lost?.stillIn).toBe(0);
+    expect(lost?.rows.map((row) => [row.place, row.name, row.you])).toEqual([
+      [1, 'Bea', false],
+      [2, 'Ada', true],
+    ]);
+
+    const winner = new Game(() => 0);
+    winner.startMatch();
+    winner.armOnline(2, 'Ada');
+    winner.eliminateOnlineOpponent();
+    winner.setOnlineStandings(placements);
+    expect(winner.hud().overlay?.title).toBe('Congratulations!');
+    expect(winner.hud().standings).toBeNull();
+    winner.acknowledgeWin();
+    const won = winner.hud().standings;
+    expect(won?.rows.map((row) => [row.place, row.name])).toEqual(names);
+    expect(won?.rows.find((row) => row.you)).toMatchObject({ name: 'Bea', place: 1 });
+    expect(won?.yourPlace).toBe(1);
+    expect(won?.stillIn).toBe(0);
+
+    winner.startMatch();
+    expect(winner.online).toBe(false);
+    expect(winner.hud().standings).toBeNull();
   });
 
   it('keeps the CPU ticker frozen while local battle is off', () => {

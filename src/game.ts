@@ -3,7 +3,7 @@ import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, KILL_PRESSURE, PAC_LAUNCH_DIR, 
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import { earnFromEvent } from './net/earn';
-import type { AttackKind, RosterSeat } from './net/protocol';
+import type { AttackKind, Placement, RosterSeat } from './net/protocol';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField } from './render/fx';
 import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
@@ -70,6 +70,8 @@ export class Game {
   /** Live online match. Local sim targeting stays off until the next reset. */
   online = false;
   private onlineSeat = 0;
+  /** Server finish list for this online match. Offline standings stay on {@link ranking}. */
+  private onlineStandings: StandingSnapshot | null = null;
   private earnSink: OnlineHandlers['earn'] | null = null;
   private deathSink: OnlineHandlers['death'] | null = null;
   private suppressDeathReport = false;
@@ -201,6 +203,26 @@ export class Game {
     this.bus.emit({ type: 'playerDied' });
   }
 
+  /**
+   * Final standings from `matchEnd`. Both clients render this list: the same
+   * names and places, with `you` marked on the local seat only.
+   */
+  setOnlineStandings(placements: readonly Placement[]): void {
+    const rows = [...placements]
+      .sort((a, b) => a.place - b.place || a.seat - b.seat)
+      .map((row) => ({
+        place: row.place,
+        name: row.name,
+        you: row.seat === this.onlineSeat,
+        state: 'out' as const,
+      }));
+    this.onlineStandings = {
+      rows,
+      yourPlace: rows.find((row) => row.you)?.place ?? null,
+      stillIn: 0,
+    };
+  }
+
   /** Server confirmed the other human is out. The last local seat wins. */
   eliminateOnlineOpponent(): void {
     if (!this.online) return;
@@ -282,6 +304,7 @@ export class Game {
     this.winAcknowledged = false;
     this.online = false;
     this.onlineSeat = 0;
+    this.onlineStandings = null;
     this.suppressDeathReport = false;
     this.sfx.resetWatch();
     this.ranking.reset(this.playerName);
@@ -420,8 +443,14 @@ export class Game {
 
   /** Death rankings wait out the collapse. A win shows them after the congratulations card. */
   private standingsOverlay(): StandingSnapshot | null {
-    if (this.match.phase === 'won' && this.winAcknowledged) return this.ranking.snapshot();
+    if (this.match.phase === 'won' && this.winAcknowledged) return this.finalStandings();
     if (this.match.phase !== 'lost' || this.board.deathTime <= 0.85) return null;
+    return this.finalStandings();
+  }
+
+  /** Online matches wait for the server list. Offline keeps the local 101. */
+  private finalStandings(): StandingSnapshot | null {
+    if (this.online) return this.onlineStandings;
     return this.ranking.snapshot();
   }
 

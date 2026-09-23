@@ -11,6 +11,7 @@ Implemented. Local single-player is still the default. This phase is a dev loop:
 - The server picks the other living seat, adds pressure, and sends `jammerInbound` only to that seat. The victim plays the existing inbound jammer (panel flight into the ghost house, then local chasers).
 - `rosterDelta` updates side-panel 1 (pressure, hit flash, busy). The other 99 panels are parked out so the alive counter reads 2.
 - A local maze death sends `deathReport`. The server confirms with `playerEliminated`. Pressure at 100, or a disconnect during play, eliminates that seat and `matchEnd` names the other seat. The client then uses the existing win congratulations or death standings.
+- `join` stores each typed name (trimmed, 16 characters, blank becomes Pac). `matchEnd.placements` is the same list on every client: seat, that name, and place. The loser is 2nd; the winner is 1st. Online standings render that list. They do not invent CPU names for the human seats. A win still shows congratulations first. A loss still waits out the death pause. Offline standings stay the local 101.
 - Offline **Start match** never opens a socket. Online is **Online (dev)** on the title screen, or `?online=1`. `?ws=` overrides the socket URL.
 
 ## Ghost attack window
@@ -45,4 +46,4 @@ A Render free deploy can wait. The process already honors `PORT`. Do not point t
 
 ## Not in N1
 
-Lobby fill to 101, server bots, streamed mazes, client-chosen targets, reconnect, and server-authored rankings. Those stay N2–N4 in [networking-n0.md](networking-n0.md).
+Lobby fill to 101, server bots, streamed mazes, client-chosen targets, and reconnect. Those stay N2–N4 in [networking-n0.md](networking-n0.md). The two-seat finish order is already the server's `matchEnd` list.
