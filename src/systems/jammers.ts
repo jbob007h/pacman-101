@@ -1,4 +1,4 @@
-import { KILL_PRESSURE, SIM_PRESSURE } from '../config';
+import { KILL_PRESSURE, SIM_ATTACK_MAX, SIM_ATTACK_MIN, SIM_JAMMER_MAX, SIM_JAMMER_MIN } from '../config';
 import type { JamReason } from '../shared/events';
 import type { Rng } from '../shared/rng';
 
@@ -54,8 +54,20 @@ export function ghostVolley(count: number, sims: readonly JammerSim[], rng: Rng)
   return mapTargets(pickSimIds(sims, 1, rng), count, 'ghost');
 }
 
-export function simVsSimAction(targetId: number): JammerAction {
-  return { targetId, strength: SIM_PRESSURE, reason: 'sim' };
+/** Seconds until this CPU shoots again. Uniform on [{@link SIM_ATTACK_MIN}, {@link SIM_ATTACK_MAX}]. */
+export function rollAttackDelay(rng: Rng): number {
+  return SIM_ATTACK_MIN + rng() * (SIM_ATTACK_MAX - SIM_ATTACK_MIN);
+}
+
+/** Jammers in one CPU shot. Uniform integer on [{@link SIM_JAMMER_MIN}, {@link SIM_JAMMER_MAX}]. */
+export function rollJammerCount(rng: Rng): number {
+  const span = SIM_JAMMER_MAX - SIM_JAMMER_MIN + 1;
+  const index = Math.min(span - 1, Math.floor(Math.max(0, rng()) * span));
+  return SIM_JAMMER_MIN + index;
+}
+
+export function simVsSimAction(targetId: number, jammers: number): JammerAction {
+  return { targetId, strength: jammers, reason: 'sim' };
 }
 
 function mapTargets(ids: number[], strength: number, reason: JamReason): JammerAction[] {

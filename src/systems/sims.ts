@@ -2,9 +2,6 @@ import {
   KILL_PRESSURE,
   PRESSURE_LOCK,
   PRESSURE_RECOVERY,
-  SIM_ATTACK_GRACE,
-  SIM_ATTACK_INTERVAL,
-  SIM_ATTACKS_PER_TICK,
   SIM_CLEAR_RELIEF,
   SIM_CLEAR_RELIEF_CHANCE,
   SIM_COUNT,
@@ -15,7 +12,15 @@ import {
 import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
 import { GhostAttackWindow } from './ghostWindow';
-import { ghostVolley, pickCpuTarget, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
+import {
+  ghostVolley,
+  pickCpuTarget,
+  rollAttackDelay,
+  rollJammerCount,
+  simVsSimAction,
+  type JammerAction,
+  type JammerSim,
+} from './jammers';
 import { cpuName } from './names';
 
 export interface Sim {
@@ -33,15 +38,16 @@ export interface Sim {
   /** Seconds before pressure starts recovering. */
   lock: number;
   phase: number;
+  /** Seconds until this CPU's next attack. Each sim rolls its own. */
+  attackIn: number;
 }
 
 /**
  * One hundred lightweight opponents. No maze AI — just pressure, a mood, and
- * a slow sim-vs-sim attack so the field thins out during a match.
+ * a private attack timer so the field thins out during a match.
  */
 export class SimWorld {
   readonly sims: Sim[];
-  private attackAcc = 0;
   private reliefAcc = 0;
   /**
    * Offline battle. Online matches turn this off so the server picks targets
@@ -49,12 +55,6 @@ export class SimWorld {
    */
   private localBattle = true;
   private readonly ghostWindow = new GhostAttackWindow();
-  /**
-   * Match seconds the CPU ticker follows. A fresh world is already past the
-   * grace so a direct {@link update} models a battle in progress. {@link reset}
-   * puts a new match back at 0, and {@link syncMatchClock} feeds the live clock.
-   */
-  private attackClock = SIM_ATTACK_GRACE;
 
   constructor(
     private readonly bus: EventBus,
@@ -84,29 +84,19 @@ export class SimWorld {
     }
   }
 
-  /** Live match clock. CPU shots stay off until it reaches {@link SIM_ATTACK_GRACE}. */
-  syncMatchClock(matchTime: number): void {
-    this.attackClock = matchTime;
-  }
-
   /**
-   * When false, local ghost eats do not pick targets, and the CPU attack and
-   * relief clocks stay frozen. Panel flashes still decay. Dots and clears never attack.
+   * When false, local ghost eats do not pick targets, and CPU timers and
+   * relief stay frozen. Panel flashes still decay. Dots and clears never attack.
    */
   setLocalBattle(enabled: boolean): void {
     this.localBattle = enabled;
-    if (!enabled) {
-      this.attackAcc = 0;
-      this.reliefAcc = 0;
-    }
+    if (!enabled) this.reliefAcc = 0;
   }
 
   reset(): void {
     const fresh = createSims(this.rng);
     this.sims.splice(0, this.sims.length, ...fresh);
-    this.attackAcc = 0;
     this.reliefAcc = 0;
-    this.attackClock = 0;
     this.localBattle = true;
     this.ghostWindow.reset();
   }
@@ -133,20 +123,16 @@ export class SimWorld {
     }
 
     if (!this.localBattle) {
-      this.attackAcc = 0;
       this.reliefAcc = 0;
       return;
     }
 
-    if (this.attackClock < SIM_ATTACK_GRACE) {
-      this.attackAcc = 0;
-    } else {
-      this.attackAcc += dt;
-      let guard = 0;
-      while (this.attackAcc >= SIM_ATTACK_INTERVAL && guard++ < 6) {
-        this.attackAcc -= SIM_ATTACK_INTERVAL;
-        for (let i = 0; i < SIM_ATTACKS_PER_TICK; i++) this.simAttack();
-      }
+    for (const sim of this.sims) {
+      if (!sim.alive) continue;
+      sim.attackIn -= dt;
+      if (sim.attackIn > 0) continue;
+      this.fire(sim);
+      sim.attackIn = rollAttackDelay(this.rng);
     }
 
     this.reliefAcc += dt;
@@ -164,20 +150,19 @@ export class SimWorld {
     this.bus.emit({ type: 'ghostVolley', count });
   }
 
-  private simAttack(): void {
-    const alive = this.sims.filter((sim) => sim.alive && sim.pressure < KILL_PRESSURE);
-    if (alive.length === 0) return;
-    const attacker = alive[Math.floor(this.rng() * alive.length)];
-    if (!attacker) return;
+  private fire(attacker: Sim): void {
+    if (!attacker.alive || attacker.pressure >= KILL_PRESSURE) return;
     attacker.busy = 1;
-    const others = alive.filter((sim) => sim.id !== attacker.id).map((sim) => sim.id);
+    const jammers = rollJammerCount(this.rng);
+    const others = this.sims
+      .filter((sim) => sim.alive && sim.pressure < KILL_PRESSURE && sim.id !== attacker.id)
+      .map((sim) => sim.id);
     const targetId = pickCpuTarget(others, this.rng);
     if (targetId === null) {
-      // One ghost eaten: one jammer. Not the old pressure curve, and not a dot or clear.
-      this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength: 1, exact: true });
+      this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength: jammers, exact: true });
       return;
     }
-    this.apply([simVsSimAction(targetId)]);
+    this.apply([simVsSimAction(targetId, jammers)]);
   }
 
   /** A few living sims eat a pellet or clear a board and lose pressure. */
@@ -239,5 +224,6 @@ function createSims(rng: Rng): Sim[] {
     relief: 0,
     lock: 0,
     phase: rng() * Math.PI * 2,
+    attackIn: rollAttackDelay(rng),
   }));
 }

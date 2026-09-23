@@ -206,29 +206,32 @@ export const DOT_PRESSURE = 22;
 export const CLEAR_PRESSURE = 42;
 export const CLEAR_TARGETS = 8;
 /**
- * CPU battle clock. Two attacks every 0.5s is 4 attacks per second.
- * Each attack picks one seat uniformly from the other living sims plus the
- * human, so the chance it hits the player is 1 / aliveCount (about 1/100 at
- * the open), not a fixed share of the shots.
- * A sim-versus-sim hit adds {@link SIM_PRESSURE}. A shot that picks the human
- * is one ghost jammer, not that pressure curve and not a dot or clear.
- * Passive recovery is
- * {@link PRESSURE_RECOVERY} per second after {@link PRESSURE_LOCK}.
+ * Each living CPU attacks on its own clock. The first shot is
+ * {@link SIM_ATTACK_MIN}–{@link SIM_ATTACK_MAX} seconds after the match clock
+ * starts, and each later shot rolls that same range again. There is no shared
+ * ticker and no multi-shot burst.
+ * One shot is {@link SIM_JAMMER_MIN}–{@link SIM_JAMMER_MAX} jammers, picked
+ * uniformly. The target is one living seat (every other living sim, plus the
+ * human) with equal odds. A hit on the human spawns that many inbound sprites.
+ * A hit on a sim adds that much pressure.
+ * Player attacks are still ghost eats only, batched for {@link GHOST_ATTACK_WINDOW}.
+ * Dots and clears never attack.
+ * Passive recovery is {@link PRESSURE_RECOVERY} per second after {@link PRESSURE_LOCK}.
  * Every {@link SIM_RELIEF_INTERVAL}, {@link SIM_RELIEFS_PER_TICK} living sims
  * shed pressure: usually a pellet ({@link SIM_PELLET_RELIEF}), sometimes a
  * board clear ({@link SIM_CLEAR_RELIEF} when the roll is under
- * {@link SIM_CLEAR_RELIEF_CHANCE}). Hits are 23 so four attacks a second still
- * leave most of the field alive at 4:00. A straight scale of the old 28
- * (about 18) barely eliminates anyone, because the smaller hits stop
- * clustering over the kill line.
- * The ticker stays quiet for {@link SIM_ATTACK_GRACE} seconds of match time
- * after the clock starts. Player ghost eats are not delayed. Dots and clears never attack.
+ * {@link SIM_CLEAR_RELIEF_CHANCE}).
  */
-export const SIM_ATTACK_INTERVAL = 0.5;
-export const SIM_ATTACKS_PER_TICK = 2;
-/** Seconds of match time before the first CPU attack. Reset when a match restarts. */
+export const SIM_ATTACK_MIN = 8;
+export const SIM_ATTACK_MAX = 12;
+export const SIM_JAMMER_MIN = 1;
+export const SIM_JAMMER_MAX = 16;
+/**
+ * Opening quiet carried on `matchStart` for a later bot phase.
+ * Local CPUs do not use this as a shared gate. Their own 8–12s timer is the wait.
+ * N2 bots should copy that per-seat cadence, not a fast global clock after this grace.
+ */
 export const SIM_ATTACK_GRACE = 10;
-export const SIM_PRESSURE = 23;
 export const SIM_RELIEF_INTERVAL = 2.5;
 export const SIM_RELIEFS_PER_TICK = 4;
 export const SIM_PELLET_RELIEF = 34;

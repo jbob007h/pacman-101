@@ -384,17 +384,21 @@ describe('online game path', () => {
     expect(winner.hud().standings).toBeNull();
   });
 
-  it('keeps the CPU ticker frozen while local battle is off', () => {
+  it('keeps CPU timers frozen while local battle is off', () => {
     const game = new Game(() => 0);
-    let incoming = 0;
+    let shots = 0;
     game.bus.on('incomingJammer', () => {
-      incoming += 1;
+      shots += 1;
     });
+    game.bus.on('jammersSent', (event) => {
+      if (event.reason === 'sim') shots += 1;
+    });
+    const pending = game.sims.sims.map((sim) => sim.attackIn);
     game.sims.setLocalBattle(false);
-    game.sims.syncMatchClock(30);
-    game.sims.update(3);
-    expect(incoming).toBe(0);
+    game.sims.update(30);
+    expect(shots).toBe(0);
     expect(game.sims.aliveCount()).toBe(100);
+    expect(game.sims.sims.map((sim) => sim.attackIn)).toEqual(pending);
   });
 });
 
