@@ -25,8 +25,8 @@ export interface HudState {
   status: string;
   /** Big start callout, or null once the countdown is over. */
   countdown: string | null;
-  overlay: { title: string; body: string } | null;
-  /** Set once the death pause has played. Null during play and on a win. */
+  overlay: { title: string; body: string; hint: string | null } | null;
+  /** Death rankings after the collapse, or the win rankings after congratulations. */
   standings: StandingSnapshot | null;
 }
 
@@ -56,6 +56,8 @@ export class Game {
   /** Frames already spent on the current beat. One {@link Game.update} call is one frame. */
   private beatFrame = 0;
   private beatSound = -1;
+  /** True after the player clicks through the win congratulations card. */
+  private winAcknowledged = false;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -171,6 +173,7 @@ export class Game {
     this.beatIndex = -1;
     this.beatFrame = 0;
     this.beatSound = -1;
+    this.winAcknowledged = false;
     this.sfx.resetWatch();
     this.ranking.reset(this.playerName);
   }
@@ -278,29 +281,37 @@ export class Game {
     if (!this.inMatch) return 'Start match to play';
     const countdown = this.countdownLabel();
     if (countdown) return countdown;
-    if (this.bannerT > 0) return this.banner;
+    if (this.bannerT > 0 && this.match.phase !== 'won') return this.banner;
     if (this.match.phase === 'playing' && this.board.pac.dir.x === 0 && this.board.pac.dir.y === 0) {
       return 'Press an arrow key or WASD to start';
     }
-    if (this.match.phase === 'won') return 'You are the last one standing';
+    if (this.match.phase === 'won') return this.winAcknowledged ? 'Final standings' : 'Congratulations';
     if (this.match.phase === 'lost') return 'Eliminated';
     if (this.board.inbound.slow > 0) return 'Slowed by a jammer';
     if (this.board.frightened > 0) return 'Ghosts are frightened and slow — eat them to jam opponents';
     return 'Large dots frighten ghosts. Eating them sends jammers sideways.';
   }
 
+  /** Leave the congratulations card and open the final standings. */
+  acknowledgeWin(): void {
+    if (this.match.phase !== 'won' || this.winAcknowledged) return;
+    this.winAcknowledged = true;
+  }
+
   private overlay(): HudState['overlay'] {
-    if (this.match.phase === 'won') {
+    if (this.match.phase === 'won' && !this.winAcknowledged) {
       return {
-        title: 'You win',
-        body: `Last player standing. Score ${this.board.score}.`,
+        title: 'Congratulations!',
+        body: `Last one standing. Score ${this.board.score}.`,
+        hint: 'Click, tap, Space, or Enter',
       };
     }
     return null;
   }
 
-  /** Ranking replaces the old death card once the collapse animation has played. */
+  /** Death rankings wait out the collapse. A win shows them after the congratulations card. */
   private standingsOverlay(): StandingSnapshot | null {
+    if (this.match.phase === 'won' && this.winAcknowledged) return this.ranking.snapshot();
     if (this.match.phase !== 'lost' || this.board.deathTime <= 0.85) return null;
     return this.ranking.snapshot();
   }

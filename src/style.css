@@ -200,6 +200,24 @@ button.ghost:hover {
   color: #ffe14a;
 }
 
+#overlay-card.win-card h2 {
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 36px;
+  letter-spacing: 0.03em;
+}
+
+#overlay-hint {
+  margin: 0 0 16px;
+  color: #8ea0c8;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+#overlay-hint[hidden] {
+  display: none;
+}
+
 .card p {
   margin: 0 0 16px;
   color: #d5def2;

@@ -17,6 +17,9 @@ const overlayEl = document.querySelector<HTMLElement>('#overlay');
 const overlayCard = document.querySelector<HTMLElement>('#overlay-card');
 const overlayTitle = document.querySelector<HTMLElement>('#overlay-title');
 const overlayBody = document.querySelector<HTMLElement>('#overlay-body');
+const overlayHint = document.querySelector<HTMLElement>('#overlay-hint');
+const overlayContinue = document.querySelector<HTMLButtonElement>('#overlay-continue');
+const overlayRestart = document.querySelector<HTMLButtonElement>('#overlay-restart');
 const rankingEl = document.querySelector<HTMLElement>('#ranking');
 const rankingBlurb = document.querySelector<HTMLElement>('#ranking-blurb');
 const rankingList = document.querySelector<HTMLOListElement>('#ranking-list');
@@ -29,7 +32,7 @@ const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -78,22 +81,44 @@ function syncHud(): void {
   } else if (hud.overlay) {
     rankingEl!.hidden = true;
     overlayCard!.hidden = false;
+    overlayCard!.classList.toggle('win-card', hud.phase === 'won');
     overlayTitle!.textContent = hud.overlay.title;
     overlayBody!.textContent = hud.overlay.body;
+    overlayHint!.hidden = hud.overlay.hint == null;
+    overlayHint!.textContent = hud.overlay.hint ?? '';
+    overlayContinue!.hidden = hud.phase !== 'won';
+    overlayRestart!.hidden = hud.phase === 'won';
     overlayEl!.hidden = false;
     standingsSig = '';
     scrolledToYou = false;
   } else {
+    overlayCard!.classList.remove('win-card');
+    overlayHint!.hidden = true;
+    overlayContinue!.hidden = true;
+    overlayRestart!.hidden = false;
     overlayEl!.hidden = true;
     standingsSig = '';
     scrolledToYou = false;
   }
 }
 
+function winCardUp(): boolean {
+  const hud = game.hud();
+  return hud.phase === 'won' && hud.overlay != null;
+}
+
+function advanceWin(): void {
+  if (!winCardUp()) return;
+  game.acknowledgeWin();
+  syncHud();
+}
+
 function renderStandings(rows: readonly StandingRow[], yourPlace: number | null, stillIn: number): void {
   const sig = `${stillIn}|${yourPlace ?? ''}|${rows.map((row) => `${row.place ?? ''}:${row.name}:${row.state}`).join(';')}`;
   rankingBlurb!.textContent = yourPlace
-    ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
+    ? stillIn > 0
+      ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
+      : `You placed ${yourPlace}.`
     : `${stillIn} still in.`;
   if (sig === standingsSig) return;
   const top = rankingList!.scrollTop;
@@ -176,6 +201,11 @@ function onKeyDown(event: KeyboardEvent): void {
     }
     return;
   }
+  if ((event.key === 'Enter' || event.key === ' ') && winCardUp()) {
+    event.preventDefault();
+    advanceWin();
+    return;
+  }
   const next = dirFromKey(event.key);
   if (next) {
     event.preventDefault();
@@ -198,6 +228,14 @@ nameInput.addEventListener('blur', commitName);
 
 window.addEventListener('keydown', onKeyDown);
 startButton.addEventListener('click', begin);
+overlayContinue.addEventListener('click', (event) => {
+  event.stopPropagation();
+  advanceWin();
+});
+overlayEl.addEventListener('click', (event) => {
+  if (event.target instanceof HTMLButtonElement) return;
+  advanceWin();
+});
 for (const button of restartButtons) button.addEventListener('click', restart);
 for (const button of menuButtons) button.addEventListener('click', menu);
 for (const button of muteButtons) {

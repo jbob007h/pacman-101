@@ -60,7 +60,9 @@
           <div class="card" id="overlay-card">
             <h2 id="overlay-title"></h2>
             <p id="overlay-body"></p>
+            <p id="overlay-hint" hidden></p>
             <div class="menu-actions">
+              <button id="overlay-continue" type="button" hidden>See standings</button>
               <button id="overlay-restart" type="button">Restart match</button>
               <button id="overlay-menu" class="ghost" type="button">Menu</button>
             </div>
@@ -84,7 +86,7 @@
         The fruit under the ghost house reloads the dots and advances the board. Clearing every pellet raises Speed by 1, pops "Speed Up!" on Pac, and leaves the maze empty until the fruit.
         White jammers slow you down and die if they touch you; a power pellet wipes them.
         Red jammers kill on contact, freeze while a power pellet is active, and vanish when you eat the fruit.
-        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. R restarts. M or Sound on mutes the effects.
+        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. When you win, a congratulations screen comes up first; click, tap, Space, or Enter opens the standings. R restarts. M or Sound on mutes the effects.
       </p>
     </div>
     <script type="module" src="/src/main.ts"></script>

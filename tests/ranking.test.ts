@@ -54,6 +54,48 @@ describe('names and standings', () => {
     expect(game.match.phase).toBe('lost');
   });
 
+  it('shows congratulations on a win, then standings with 1st place', () => {
+    const game = new Game(() => 0);
+    game.setPlayerName('Jason');
+    game.board.score = 4200;
+    for (const sim of game.sims.sims) {
+      sim.alive = false;
+      game.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 });
+    }
+
+    expect(game.match.phase).toBe('won');
+    const congrats = game.hud();
+    expect(congrats.overlay).toMatchObject({
+      title: 'Congratulations!',
+      body: 'Last one standing. Score 4200.',
+      hint: 'Click, tap, Space, or Enter',
+    });
+    expect(congrats.standings).toBeNull();
+    expect(congrats.status).toBe('Congratulations');
+
+    game.acknowledgeWin();
+    const board = game.hud();
+    expect(board.overlay).toBeNull();
+    expect(board.status).toBe('Final standings');
+    expect(board.standings?.yourPlace).toBe(1);
+    expect(board.standings?.stillIn).toBe(0);
+    expect(board.standings?.rows).toHaveLength(101);
+    expect(board.standings?.rows.find((row) => row.you)).toMatchObject({
+      name: 'Jason',
+      place: 1,
+      state: 'out',
+    });
+    expect(board.standings?.rows.filter((row) => !row.you).every((row) => (row.place ?? 0) > 1)).toBe(true);
+
+    game.acknowledgeWin();
+    expect(game.hud().standings?.yourPlace).toBe(1);
+
+    game.restart();
+    expect(game.match.phase).toBe('playing');
+    expect(game.hud().overlay).toBeNull();
+    expect(game.hud().standings).toBeNull();
+  });
+
   it('keeps eliminating cpus after the human is out and shows the list once the death pause ends', () => {
     const game = new Game(() => 0.5);
     const blinky = game.board.ghosts[0];

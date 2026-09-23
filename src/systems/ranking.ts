@@ -24,7 +24,8 @@ export interface StandingSnapshot {
  *
  * A death locks `place = survivors + 1`, where survivors are the players still
  * alive after that death. The first one out is 101st. The last one standing,
- * when they finally fall, is 1st. Living players keep `place === null` — the
+ * when they finally fall, is 1st. If the human is the one left, that win locks
+ * them in 1st immediately. Living players keep `place === null` — the
  * standings show them as still active with a blank placement. When a sim dies
  * later, that blank closes and their name appears on the newly locked place.
  * Earlier finishes do not move.
@@ -89,6 +90,7 @@ export class Ranking {
       you,
       state: 'out',
     });
+    if (this.alive.size === 1 && this.alive.has(YOU)) this.eliminate(YOU, this.playerName, true);
   }
 }
 
