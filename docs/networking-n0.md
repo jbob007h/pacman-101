@@ -1,6 +1,6 @@
 # N0 — networking design
 
-This note locks the authority model. N1 is implemented: a two-player jammer loop on a local WebSocket server. See [networking-n1.md](networking-n1.md). The default game is still the local 101-sim battle.
+This note locks the authority model. N1 is implemented: a two-player jammer loop on a WebSocket server. Local `npm run server` is the dev path. The same process can run on Render so GitHub Pages connects with `wss://`. See [networking-n1.md](networking-n1.md). The default game is still the local 101-sim battle.
 
 The local client is an HTML/TypeScript canvas app. Online play adds a small **authoritative match server**. The first wire protocol is **WebSocket**. There is no peer-to-peer match truth.
 

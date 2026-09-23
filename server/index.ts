@@ -1,3 +1,4 @@
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { DEFAULT_PORT } from '../src/net/protocol';
 import { MatchRoom, type SeatLink } from './match';
@@ -7,10 +8,15 @@ export interface MatchServer {
   close(): Promise<void>;
 }
 
-/** One room on `ws://localhost:<port>`. `port` 0 asks the OS for a free port. */
+/**
+ * One room, bound on `0.0.0.0`. `port` 0 asks the OS for a free port.
+ * Plain HTTP (including GET /) returns 200 so a host health check can pass.
+ * WebSocket upgrades on the same port are the match.
+ */
 export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
   const room = new MatchRoom();
-  const wss = new WebSocketServer({ port, host: '0.0.0.0' });
+  const httpServer = createServer(answerHttp);
+  const wss = new WebSocketServer({ server: httpServer });
 
   wss.on('connection', (socket) => {
     let seat: number | null = null;
@@ -41,19 +47,31 @@ export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
   });
 
   return new Promise((resolve, reject) => {
-    wss.once('error', reject);
-    wss.once('listening', () => {
-      const address = wss.address();
+    const onError = (error: Error) => reject(error);
+    httpServer.once('error', onError);
+    httpServer.listen(port, '0.0.0.0', () => {
+      httpServer.off('error', onError);
+      const address = httpServer.address();
       const bound = typeof address === 'object' && address ? address.port : port;
       resolve({
         port: bound,
         close: () =>
           new Promise((done, fail) => {
-            wss.close((error) => (error ? fail(error) : done()));
+            for (const client of wss.clients) client.terminate();
+            wss.close();
+            httpServer.close((error) => (error ? fail(error) : done()));
           }),
       });
     });
   });
+}
+
+function answerHttp(_req: IncomingMessage, res: ServerResponse): void {
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-store',
+  });
+  res.end('101 match server\n');
 }
 
 function parseRaw(data: WebSocket.RawData): { type?: unknown; name?: unknown } | null {

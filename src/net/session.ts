@@ -47,7 +47,7 @@ export class NetSession {
     try {
       socket = new WebSocket(url);
     } catch {
-      this.fail(generation, 'Could not connect. Start the server with npm run server.');
+      this.fail(generation, connectionFailureNote(url));
       return;
     }
     this.socket = socket;
@@ -66,7 +66,7 @@ export class NetSession {
     });
     socket.addEventListener('error', () => {
       if (this.phase !== 'connecting') return;
-      this.fail(generation, 'Could not connect. Start the server with npm run server.');
+      this.fail(generation, connectionFailureNote(this.url));
     });
     socket.addEventListener('close', () => {
       if (generation !== this.generation || this.intentional || this.failed) return;
@@ -165,4 +165,16 @@ export class NetSession {
       this.handlers.onMatchEnd(message);
     }
   }
+}
+
+function connectionFailureNote(url: string): string {
+  try {
+    const host = new URL(url).hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+      return 'Could not connect. Start the server with npm run server.';
+    }
+  } catch {
+    // A bad ?ws= value still needs a visible failure.
+  }
+  return 'Could not connect. A free Render server sleeps after idle time and can take a minute to wake. Try Online again.';
 }

@@ -142,6 +142,16 @@ describe('match room', () => {
 });
 
 describe('match server', () => {
+  it('answers HTTP GET / and still accepts a socket on the same port', async () => {
+    const server = await startMatchServer(0);
+    servers.push(server);
+    const response = await fetch(`http://127.0.0.1:${server.port}/`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toContain('101 match server');
+    const seat = await openSeat(server.port, 'Ada');
+    expect(seat.readyState).toBe(WebSocket.OPEN);
+  });
+
   it('plays an earn from one socket into the other client jammer', async () => {
     const server = await startMatchServer(0);
     servers.push(server);

@@ -29,7 +29,11 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci
+      # Vite inlines VITE_WS_URL at build time. An empty repo variable leaves
+      # the Pages client with no socket, so Online does not fall back to localhost.
       - name: Build
+        env:
+          VITE_WS_URL: ${{ vars.VITE_WS_URL }}
         run: npm run build
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

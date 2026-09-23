@@ -2,7 +2,7 @@ import { SIM_FRAME_SEC, VIEW_H, VIEW_W } from './config';
 import { Game } from './game';
 import { planSimSteps } from './loop';
 import { NetSession } from './net/session';
-import { DEFAULT_WS_URL } from './net/protocol';
+import { resolveSocketUrl } from './net/socketUrl';
 import { dirFromKey, type Dir } from './shared/types';
 import type { StandingRow } from './systems/ranking';
 import { loadPlayerName, savePlayerName } from './systems/names';
@@ -164,11 +164,6 @@ function syncMute(): void {
   }
 }
 
-function socketUrl(): string {
-  const requested = new URLSearchParams(window.location.search).get('ws');
-  return requested && requested.length > 0 ? requested : DEFAULT_WS_URL;
-}
-
 function begin(): void {
   direction = null;
   session.stop();
@@ -187,11 +182,23 @@ function beginOnline(): void {
   standingsSig = '';
   scrolledToYou = false;
   game.showTitle();
+  const resolved = resolveSocketUrl({
+    query: new URLSearchParams(window.location.search).get('ws'),
+    dev: import.meta.env.DEV,
+    configured: import.meta.env.VITE_WS_URL,
+  });
+  if (!resolved.ok) {
+    session.stop();
+    game.bindOnline(null);
+    game.setOnlineNote(resolved.reason);
+    syncHud();
+    return;
+  }
   game.bindOnline({
     earn: (attack, strength) => session.sendEarn(attack, strength),
     death: () => session.sendDeath(),
   });
-  session.connect(socketUrl(), game.playerName);
+  session.connect(resolved.url, game.playerName);
   syncHud();
 }
 
@@ -309,6 +316,7 @@ const session = new NetSession({
 });
 
 window.addEventListener('keydown', onKeyDown);
+if (!import.meta.env.DEV) onlineButton.textContent = 'Online';
 startButton.addEventListener('click', begin);
 onlineButton.addEventListener('click', beginOnline);
 overlayContinue.addEventListener('click', (event) => {

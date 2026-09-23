@@ -27,7 +27,7 @@ Other scripts:
 - `npm run typecheck`
 - `npm run build` — typecheck and production bundle
 - `npm run preview` — serve the production bundle
-- `npm run server` — N1 match server on `ws://localhost:8787`
+- `npm run server` — N1 match server on `ws://localhost:8787` (`PORT` overrides it; `render.yaml` starts this on Render)
 
 ## Two-player online (dev)
 
@@ -40,7 +40,9 @@ npm run dev
 
 Open two tabs at `http://localhost:5173/pacman-101/?online=1`, or click **Online (dev)** on the title screen. Each client joins and readies. When both are in, the match starts. Ghost eats (including the train) batch for 2 seconds into one attack, one jammer per ghost. No attack is sent unless that batch ate at least one ghost. Dots and a full clear do not send jammers. The server picks the other player. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
 
-The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. When the match ends, both tabs show the same standings: the names entered before the match, in the server's finish order. A later free Render deploy can run the same process; N1 does not need it. Details: [docs/networking-n1.md](docs/networking-n1.md).
+The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. When the match ends, both tabs show the same standings: the names entered before the match, in the server's finish order.
+
+Friends on the public site use that same two-seat room after a Render service is up and the Pages build has `VITE_WS_URL` set to its `wss://` URL. Until then, Online on GitHub Pages says the build has no match server and does not connect to localhost. Local two-tab play stays `ws://localhost:8787`. Steps, including the free-tier cold start: [docs/networking-n1.md](docs/networking-n1.md).
 
 ## Controls
 
@@ -183,7 +185,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 
 ## Known gaps
 
-- The build you can play by default is local. Accounts and a ranked ladder are not built. N1 is a two-browser dev loop ([docs/networking-n1.md](docs/networking-n1.md)); a 101-seat online match is still N2+.
+- The build you can play by default is local. A public two-player match needs a Render service and a Pages rebuild with `VITE_WS_URL` ([docs/networking-n1.md](docs/networking-n1.md)). Accounts, a ranked ladder, and a 101-seat lobby are not built.
 - Side boards are status panels, not live mazes or ghost AIs
 - Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life. Blinky speeds up as Cruise Elroy; the other ghosts do not

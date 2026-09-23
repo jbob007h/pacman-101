@@ -5,6 +5,7 @@
 
 export const MATCH_SEATS = 2;
 export const DEFAULT_PORT = 8787;
+/** Dev client default. Production builds use `VITE_WS_URL` via `resolveSocketUrl`. */
 export const DEFAULT_WS_URL = 'ws://localhost:8787';
 export const STRENGTH_MIN = 1;
 export const STRENGTH_MAX = 200;
