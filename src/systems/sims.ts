@@ -43,6 +43,11 @@ export class SimWorld {
   private attackAcc = 0;
   private reliefAcc = 0;
   /**
+   * Offline battle. Online matches turn this off so the server picks targets
+   * and the CPU ticker does not also hit the player. {@link reset} turns it back on.
+   */
+  private localBattle = true;
+  /**
    * Match seconds the CPU ticker follows. A fresh world is already past the
    * grace so a direct {@link update} models a battle in progress. {@link reset}
    * puts a new match back at 0, and {@link syncMatchClock} feeds the live clock.
@@ -54,9 +59,18 @@ export class SimWorld {
     private readonly rng: Rng,
   ) {
     this.sims = createSims(rng);
-    bus.on('ghostEaten', (event) => this.apply(jammersFromEvent(event, this.snapshot(), rng)));
-    bus.on('dotEaten', (event) => this.apply(jammersFromEvent(event, this.snapshot(), rng)));
-    bus.on('boardCleared', (event) => this.apply(jammersFromEvent(event, this.snapshot(), rng)));
+    bus.on('ghostEaten', (event) => {
+      if (!this.localBattle) return;
+      this.apply(jammersFromEvent(event, this.snapshot(), rng));
+    });
+    bus.on('dotEaten', (event) => {
+      if (!this.localBattle) return;
+      this.apply(jammersFromEvent(event, this.snapshot(), rng));
+    });
+    bus.on('boardCleared', (event) => {
+      if (!this.localBattle) return;
+      this.apply(jammersFromEvent(event, this.snapshot(), rng));
+    });
   }
 
   snapshot(): JammerSim[] {
@@ -83,12 +97,25 @@ export class SimWorld {
     this.attackClock = matchTime;
   }
 
+  /**
+   * When false, local ghost / dot / clear events do not pick targets, and the
+   * CPU attack and relief clocks stay frozen. Panel flashes still decay.
+   */
+  setLocalBattle(enabled: boolean): void {
+    this.localBattle = enabled;
+    if (!enabled) {
+      this.attackAcc = 0;
+      this.reliefAcc = 0;
+    }
+  }
+
   reset(): void {
     const fresh = createSims(this.rng);
     this.sims.splice(0, this.sims.length, ...fresh);
     this.attackAcc = 0;
     this.reliefAcc = 0;
     this.attackClock = 0;
+    this.localBattle = true;
   }
 
   private step(dt: number): void {
@@ -96,9 +123,15 @@ export class SimWorld {
       if (sim.heat > 0) sim.heat = Math.max(0, sim.heat - dt / 0.45);
       if (sim.busy > 0) sim.busy = Math.max(0, sim.busy - dt / 0.7);
       if (sim.relief > 0) sim.relief = Math.max(0, sim.relief - dt / 0.55);
-      if (!sim.alive) continue;
+      if (!this.localBattle || !sim.alive) continue;
       if (sim.lock > 0) sim.lock -= dt;
       else if (sim.pressure > 0) sim.pressure = Math.max(0, sim.pressure - PRESSURE_RECOVERY * dt);
+    }
+
+    if (!this.localBattle) {
+      this.attackAcc = 0;
+      this.reliefAcc = 0;
+      return;
     }
 
     if (this.attackClock < SIM_ATTACK_GRACE) {

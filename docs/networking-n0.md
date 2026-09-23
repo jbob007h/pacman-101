@@ -1,6 +1,6 @@
 # N0 — networking design
 
-Design only. The game is still local. This note locks the shape of a later online match so N1 does not invent a different authority model.
+This note locks the authority model. N1 is implemented: a two-player jammer loop on a local WebSocket server. See [networking-n1.md](networking-n1.md). The default game is still the local 101-sim battle.
 
 The local client is an HTML/TypeScript canvas app. Online play adds a small **authoritative match server**. The first wire protocol is **WebSocket**. There is no peer-to-peer match truth.
 
@@ -102,8 +102,8 @@ Names and purpose only. Not a schema.
 
 | Phase | What it is |
 | --- | --- |
-| **N0** | This note. Message sketch, authority, non-goals. No netcode. |
-| **N1** | Two-player jammer loop over the wire. One earn-attack leaves one client, the server picks the other player, and that client plays `jammerInbound`. No lobby fill and no bots required. |
+| **N0** | This note. Message sketch, authority, non-goals. |
+| **N1** | **Implemented.** Two-player jammer loop. See [networking-n1.md](networking-n1.md). |
 | **N2** | Lobby, bot fill to 101, and roster sync for the side panels. |
 | **N3** | Full match end online: server `matchEnd`, then the local congratulations screen, then rankings from server placements. |
 | **N4** | Reconnect, late-join rules, and stronger validation than the N1 rate limits. |

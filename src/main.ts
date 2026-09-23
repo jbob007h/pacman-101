@@ -1,6 +1,8 @@
 import { SIM_FRAME_SEC, VIEW_H, VIEW_W } from './config';
 import { Game } from './game';
 import { planSimSteps } from './loop';
+import { NetSession } from './net/session';
+import { DEFAULT_WS_URL } from './net/protocol';
 import { dirFromKey, type Dir } from './shared/types';
 import type { StandingRow } from './systems/ranking';
 import { loadPlayerName, savePlayerName } from './systems/names';
@@ -26,13 +28,15 @@ const rankingList = document.querySelector<HTMLOListElement>('#ranking-list');
 const titleEl = document.querySelector<HTMLElement>('#title');
 const countdownEl = document.querySelector<HTMLElement>('#countdown');
 const startButton = document.querySelector<HTMLButtonElement>('#start');
+const onlineButton = document.querySelector<HTMLButtonElement>('#online');
+const onlineNoteEl = document.querySelector<HTMLElement>('#online-note');
 const nameInput = document.querySelector<HTMLInputElement>('#player-name-input');
 const hudName = document.querySelector<HTMLElement>('#hud-name');
 const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #overlay-restart, #ranking-restart');
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !onlineButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -67,6 +71,8 @@ function syncHud(): void {
   speedEl!.textContent = String(hud.speed);
   timeEl!.textContent = hud.time;
   statusEl!.textContent = hud.status;
+  onlineNoteEl!.hidden = game.onlineNote.length === 0;
+  onlineNoteEl!.textContent = game.onlineNote;
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
   titleEl!.hidden = game.inMatch;
@@ -158,8 +164,16 @@ function syncMute(): void {
   }
 }
 
+function socketUrl(): string {
+  const requested = new URLSearchParams(window.location.search).get('ws');
+  return requested && requested.length > 0 ? requested : DEFAULT_WS_URL;
+}
+
 function begin(): void {
   direction = null;
+  session.stop();
+  game.bindOnline(null);
+  game.setOnlineNote('');
   commitName();
   standingsSig = '';
   scrolledToYou = false;
@@ -167,8 +181,25 @@ function begin(): void {
   syncHud();
 }
 
+function beginOnline(): void {
+  direction = null;
+  commitName();
+  standingsSig = '';
+  scrolledToYou = false;
+  game.showTitle();
+  game.bindOnline({
+    earn: (attack, strength) => session.sendEarn(attack, strength),
+    death: () => session.sendDeath(),
+  });
+  session.connect(socketUrl(), game.playerName);
+  syncHud();
+}
+
 function menu(): void {
   direction = null;
+  session.stop();
+  game.bindOnline(null);
+  game.setOnlineNote('');
   standingsSig = '';
   scrolledToYou = false;
   game.showTitle();
@@ -177,6 +208,14 @@ function menu(): void {
 
 function restart(): void {
   direction = null;
+  if (session.active || game.online) {
+    standingsSig = '';
+    scrolledToYou = false;
+    game.showTitle();
+    session.rejoin();
+    syncHud();
+    return;
+  }
   begin();
 }
 
@@ -226,8 +265,51 @@ nameInput.addEventListener('input', () => {
 });
 nameInput.addEventListener('blur', commitName);
 
+const session = new NetSession({
+  onNote: (text) => {
+    game.setOnlineNote(text);
+    syncHud();
+  },
+  onLobby: () => {
+    if (!game.inMatch) return;
+    direction = null;
+    standingsSig = '';
+    scrolledToYou = false;
+    game.showTitle();
+    syncHud();
+  },
+  onMatchStart: (message) => {
+    direction = null;
+    standingsSig = '';
+    scrolledToYou = false;
+    const other = message.roster.find((seat) => seat.seat !== message.you);
+    game.startMatch();
+    game.armOnline(message.you, other?.name ?? 'Opponent');
+    game.applyOnlineRoster(message.roster);
+    syncHud();
+  },
+  onJammer: (message) => {
+    game.receiveOnlineJammer(message.strength, message.fromName);
+  },
+  onRoster: (message) => {
+    game.applyOnlineRoster(message.seats);
+  },
+  onEliminated: (message) => {
+    if (message.seat === session.seat) game.applyServerElimination();
+    else game.eliminateOnlineOpponent();
+  },
+  onMatchEnd: (message) => {
+    const mine = message.placements.find((row) => row.seat === session.seat);
+    const other = message.placements.find((row) => row.seat !== session.seat);
+    if (mine && mine.place !== 1) game.applyServerElimination();
+    else if (other && other.place !== 1) game.eliminateOnlineOpponent();
+    syncHud();
+  },
+});
+
 window.addEventListener('keydown', onKeyDown);
 startButton.addEventListener('click', begin);
+onlineButton.addEventListener('click', beginOnline);
 overlayContinue.addEventListener('click', (event) => {
   event.stopPropagation();
   advanceWin();
@@ -248,6 +330,7 @@ window.addEventListener('resize', resize);
 resize();
 syncHud();
 syncMute();
+if (new URLSearchParams(window.location.search).get('online') === '1') beginOnline();
 
 let last = performance.now();
 let lag = 0;

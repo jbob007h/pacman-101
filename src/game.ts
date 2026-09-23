@@ -1,19 +1,26 @@
 import { Sfx } from './audio/sfx';
-import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, PAC_LAUNCH_DIR, SIM_ATTACK_GRACE } from './config';
+import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, KILL_PRESSURE, PAC_LAUNCH_DIR, SIM_ATTACK_GRACE } from './config';
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
+import { earnFromEvent } from './net/earn';
+import type { AttackKind, RosterSeat } from './net/protocol';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField } from './render/fx';
 import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
 import type { Dir } from './shared/types';
 import { DIR_NONE } from './shared/types';
-import { EventBus } from './shared/events';
+import { EventBus, type GameplayEvent } from './shared/events';
 import type { JamReason } from './shared/events';
 import type { Rng } from './shared/rng';
 import { Match, type MatchPhase } from './systems/match';
 import { DEFAULT_PLAYER_NAME } from './systems/names';
 import { Ranking, type StandingSnapshot } from './systems/ranking';
 import { SimWorld } from './systems/sims';
+
+export interface OnlineHandlers {
+  earn(attack: AttackKind, strength: number): void;
+  death(): void;
+}
 
 export interface HudState {
   score: number;
@@ -58,6 +65,15 @@ export class Game {
   private beatSound = -1;
   /** True after the player clicks through the win congratulations card. */
   private winAcknowledged = false;
+  /** Title-screen status while connecting or waiting for the other seat. */
+  onlineNote = '';
+  /** Live online match. Local sim targeting stays off until the next reset. */
+  online = false;
+  private onlineSeat = 0;
+  private earnSink: OnlineHandlers['earn'] | null = null;
+  private deathSink: OnlineHandlers['death'] | null = null;
+  private suppressDeathReport = false;
+  private muteEliminations = false;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -75,7 +91,12 @@ export class Game {
       this.setBanner(`${reasonLabel(event.reason)} ${event.strength} → ${formatTargets(event.targets)}`);
     });
     this.bus.on('simEliminated', (event) => {
-      this.setBanner(`Eliminated ${this.ranking.nameForSim(event.simId)}`);
+      if (this.muteEliminations) return;
+      const name =
+        this.online && event.simId === 1
+          ? (this.sims.sims[0]?.name ?? this.ranking.nameForSim(event.simId))
+          : this.ranking.nameForSim(event.simId);
+      this.setBanner(`Eliminated ${name}`);
     });
     this.bus.on('incomingJammer', (event) => {
       this.fx.queueIncoming(panelCenter(event.fromSimId), ghostHouseCenter(), event.strength);
@@ -87,7 +108,13 @@ export class Game {
     this.bus.on('sleeperWoken', () => this.sfx.wake());
     this.bus.on('trainGhostEaten', (event) => this.sfx.trainEat(event.combo));
     this.bus.on('boardCleared', () => this.sfx.boardClear());
-    this.bus.on('playerDied', () => this.sfx.death());
+    this.bus.on('playerDied', () => {
+      this.sfx.death();
+      this.forwardDeath();
+    });
+    this.bus.on('ghostEaten', (event) => this.forwardEarn(event));
+    this.bus.on('dotEaten', (event) => this.forwardEarn(event));
+    this.bus.on('boardCleared', (event) => this.forwardEarn(event));
     this.bus.on('matchWon', () => this.sfx.win());
   }
 
@@ -105,6 +132,77 @@ export class Game {
   showTitle(): void {
     this.restart();
     this.inMatch = false;
+  }
+
+  setOnlineNote(text: string): void {
+    this.onlineNote = text;
+  }
+
+  /** Where local earns and maze deaths go while this client is connected. */
+  bindOnline(handlers: OnlineHandlers | null): void {
+    this.earnSink = handlers?.earn ?? null;
+    this.deathSink = handlers?.death ?? null;
+  }
+
+  /**
+   * Two-seat match. Call after {@link startMatch}: reset turns local battle
+   * back on, and this parks every sim except the one remote human.
+   */
+  armOnline(you: number, opponentName: string): void {
+    this.online = true;
+    this.onlineSeat = you;
+    this.sims.setLocalBattle(false);
+    const opponent = this.sims.sims[0];
+    if (opponent) {
+      opponent.name = opponentName || 'Opponent';
+      opponent.alive = true;
+      opponent.pressure = 0;
+      opponent.heat = 0;
+      opponent.busy = 0;
+    }
+    this.muteEliminations = true;
+    for (const sim of this.sims.sims) {
+      if (sim.id === 1 || !sim.alive) continue;
+      sim.alive = false;
+      this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 2 });
+    }
+    this.muteEliminations = false;
+  }
+
+  applyOnlineRoster(seats: readonly RosterSeat[]): void {
+    if (!this.online) return;
+    const other = seats.find((seat) => seat.seat !== this.onlineSeat);
+    const sim = this.sims.sims[0];
+    if (!other || !sim || !sim.alive || !other.alive) return;
+    sim.name = other.name;
+    sim.pressure = other.pressure;
+    if (other.hit) sim.heat = 1;
+    if (other.busy) sim.busy = 1;
+  }
+
+  /** Inbound jammer chosen by the server. Panel 1 is the other human. */
+  receiveOnlineJammer(strength: number, fromName: string): void {
+    this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength);
+    this.setBanner(`Jammer from ${fromName}`);
+  }
+
+  /** Server confirmed this maze is out. Does not echo a death report. */
+  applyServerElimination(): void {
+    if (this.match.phase !== 'playing' || !this.board.pac.alive) return;
+    this.suppressDeathReport = true;
+    this.board.pac.alive = false;
+    this.bus.emit({ type: 'playerDied' });
+  }
+
+  /** Server confirmed the other human is out. The last local seat wins. */
+  eliminateOnlineOpponent(): void {
+    if (!this.online) return;
+    const sim = this.sims.sims[0];
+    if (!sim?.alive) return;
+    sim.alive = false;
+    sim.pressure = KILL_PRESSURE;
+    sim.busy = 0;
+    this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 });
   }
 
   startMatch(): void {
@@ -147,7 +245,8 @@ export class Game {
     // attacking so the standings can still move.
     const attackClock = this.match.phase === 'lost' ? Math.max(this.matchTime, SIM_ATTACK_GRACE) : this.matchTime;
     this.sims.syncMatchClock(attackClock);
-    if (this.match.phase === 'lost' || (this.match.phase === 'playing' && started)) this.sims.update(step);
+    const runSims = this.online || this.match.phase === 'lost' || (this.match.phase === 'playing' && started);
+    if (runSims) this.sims.update(step);
     this.tickFx(step);
     this.sfx.tick(step);
     if (this.inMatch) {
@@ -174,6 +273,9 @@ export class Game {
     this.beatFrame = 0;
     this.beatSound = -1;
     this.winAcknowledged = false;
+    this.online = false;
+    this.onlineSeat = 0;
+    this.suppressDeathReport = false;
     this.sfx.resetWatch();
     this.ranking.reset(this.playerName);
   }
@@ -278,7 +380,7 @@ export class Game {
   }
 
   private statusLine(): string {
-    if (!this.inMatch) return 'Start match to play';
+    if (!this.inMatch) return this.onlineNote || 'Start match to play';
     const countdown = this.countdownLabel();
     if (countdown) return countdown;
     if (this.bannerT > 0 && this.match.phase !== 'won') return this.banner;
@@ -319,6 +421,21 @@ export class Game {
   private setBanner(text: string): void {
     this.banner = text;
     this.bannerT = 2.2;
+  }
+
+  private forwardEarn(event: GameplayEvent): void {
+    if (!this.online || !this.earnSink) return;
+    const earned = earnFromEvent(event);
+    if (earned) this.earnSink(earned.attack, earned.strength);
+  }
+
+  private forwardDeath(): void {
+    if (this.suppressDeathReport) {
+      this.suppressDeathReport = false;
+      return;
+    }
+    if (!this.online || !this.deathSink) return;
+    this.deathSink();
   }
 }
 

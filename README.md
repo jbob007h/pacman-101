@@ -2,7 +2,7 @@
 
 Local battle maze inspired by Pac-Man 99. You play the center board. One hundred simulated opponents sit on mini-boards — fifty on the left, fifty on the right. Eating a frightened ghost (or clearing dots) throws jammers at them. Stack enough pressure and they are eliminated. Last one standing wins.
 
-Play here is local. The online plan is [docs/networking-n0.md](docs/networking-n0.md) (N0): a later authoritative match server, syncing the battle layer only.
+Play here is local by default. The battle-layer plan is [docs/networking-n0.md](docs/networking-n0.md). N1 is a two-browser jammer loop against a local server: [docs/networking-n1.md](docs/networking-n1.md).
 
 ## Play online
 
@@ -23,17 +23,31 @@ Open the URL Vite prints. With the GitHub Pages base path, that is usually `http
 
 Other scripts:
 
-- `npm test` — maze, movement, and jammer tests
+- `npm test` — maze, movement, jammer, and match-server tests
 - `npm run typecheck`
 - `npm run build` — typecheck and production bundle
 - `npm run preview` — serve the production bundle
+- `npm run server` — N1 match server on `ws://localhost:8787`
+
+## Two-player online (dev)
+
+Local **Start match** does not open a socket. For the N1 loop, run the server, then the client:
+
+```bash
+npm run server
+npm run dev
+```
+
+Open two tabs at `http://localhost:5173/pacman-101/?online=1`, or click **Online (dev)** on the title screen. Each client joins and readies. When both are in, the match starts. Eating a frightened ghost, crossing a dot milestone, or clearing the board sends an earn-attack. The server picks the other player, and that browser plays the inbound jammer. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
+
+The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. A later free Render deploy can run the same process; N1 does not need it. Details: [docs/networking-n1.md](docs/networking-n1.md).
 
 ## Controls
 
 - The game opens on a title screen. Type a name (it is remembered in this browser; a blank name becomes Pac), then Start match, Enter, or Space begins a match. Arrow keys do nothing until then.
 - The match then counts Ready…, 3…, 2…, 1…, Hit it! Each beat is 60 simulation frames, one second at the locked 60Hz step. Pac stays put, and arrows are ignored, until Hit it! On that beat he moves left (the way he is facing) on his own. Arrows and WASD work after that. Reversing is instant; other turns happen at intersections. Each beat plays a short generated blip, and Hit it! plays a brighter go cue.
 - Eat the large dots to frighten ghosts, then run into them to send jammers. Dot eats alternate a higher and a lower wakawaka tone.
-- `R` or Restart starts a new match. On the title screen, Restart starts the match. When you win, a congratulations screen comes up first. Click, tap, Space, or Enter opens the standings. After you are eliminated, a standings list shows all 101 players. People still alive have a blank place and stay marked in. Each later elimination locks the next place from the bottom and the blank closes. Menu returns to the title. Restart starts another match.
+- `R` or Restart starts a new match. On the title screen, Restart starts the match. In an online match, `R` leaves and rejoins the room, and Menu disconnects. When you win, a congratulations screen comes up first. Click, tap, Space, or Enter opens the standings. After you are eliminated, a standings list shows all 101 players. People still alive have a blank place and stay marked in. Each later elimination locks the next place from the bottom and the blank closes. Menu returns to the title. Restart starts another match.
 - Sound is generated in the browser (no sound files). `M`, or the Sound button on the title screen and in the header, mutes it. The choice is remembered in this browser. The button reads Muted while sound is off.
 - Eating a frightened ghost freezes the maze for half a second, then play resumes.
 - Eating a normal dot stops Pac for 1 simulation frame. A power pellet stops him for 3. Ghosts and jammers keep moving. The maze steps at a fixed 60Hz; the canvas can still draw on the display refresh, and a stalled tab catches up at most 5 frames.
@@ -169,7 +183,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 
 ## Known gaps
 
-- The build you can play is local. Accounts and a ranked ladder are not built. Online matches are specified in [docs/networking-n0.md](docs/networking-n0.md), not implemented yet.
+- The build you can play by default is local. Accounts and a ranked ladder are not built. N1 is a two-browser dev loop ([docs/networking-n1.md](docs/networking-n1.md)); a 101-seat online match is still N2+.
 - Side boards are status panels, not live mazes or ghost AIs
 - Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life. Blinky speeds up as Cruise Elroy; the other ghosts do not

@@ -114,9 +114,16 @@ button.ghost:hover {
 .menu-actions,
 #hud-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   justify-content: center;
+}
+
+#online-note {
+  margin: 10px 0 0;
+  color: #8cf0ff;
+  font-size: 14px;
 }
 
 #stage {
