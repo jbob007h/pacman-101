@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>101</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml" />
-    <script type="module" crossorigin src="/pacman-101/assets/index-C86tjOYG.js"></script>
-    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-BbFs7GV-.css">
+    <script type="module" crossorigin src="/pacman-101/assets/index-D5iPK5A0.js"></script>
+    <link rel="stylesheet" crossorigin href="/pacman-101/assets/index-NYj6s5gl.css">
   </head>
   <body>
     <div id="app">
@@ -62,7 +62,9 @@
           <div class="card" id="overlay-card">
             <h2 id="overlay-title"></h2>
             <p id="overlay-body"></p>
+            <p id="overlay-hint" hidden></p>
             <div class="menu-actions">
+              <button id="overlay-continue" type="button" hidden>See standings</button>
               <button id="overlay-restart" type="button">Restart match</button>
               <button id="overlay-menu" class="ghost" type="button">Menu</button>
             </div>
@@ -86,7 +88,7 @@
         The fruit under the ghost house reloads the dots and advances the board. Clearing every pellet raises Speed by 1, pops "Speed Up!" on Pac, and leaves the maze empty until the fruit.
         White jammers slow you down and die if they touch you; a power pellet wipes them.
         Red jammers kill on contact, freeze while a power pellet is active, and vanish when you eat the fruit.
-        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. R restarts. M or Sound on mutes the effects.
+        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. When you win, a congratulations screen comes up first; click, tap, Space, or Enter opens the standings. R restarts. M or Sound on mutes the effects.
       </p>
     </div>
   </body>
