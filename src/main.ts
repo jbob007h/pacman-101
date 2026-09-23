@@ -29,6 +29,7 @@ const titleEl = document.querySelector<HTMLElement>('#title');
 const countdownEl = document.querySelector<HTMLElement>('#countdown');
 const startButton = document.querySelector<HTMLButtonElement>('#start');
 const onlineButton = document.querySelector<HTMLButtonElement>('#online');
+const readyButton = document.querySelector<HTMLButtonElement>('#ready');
 const onlineNoteEl = document.querySelector<HTMLElement>('#online-note');
 const nameInput = document.querySelector<HTMLInputElement>('#player-name-input');
 const hudName = document.querySelector<HTMLElement>('#hud-name');
@@ -36,7 +37,7 @@ const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !onlineButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -73,6 +74,9 @@ function syncHud(): void {
   statusEl!.textContent = hud.status;
   onlineNoteEl!.hidden = game.onlineNote.length === 0;
   onlineNoteEl!.textContent = game.onlineNote;
+  readyButton!.hidden = session.phase !== 'lobby';
+  readyButton!.disabled = session.hasReadied;
+  readyButton!.textContent = session.hasReadied ? 'Waiting…' : 'Ready';
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
   titleEl!.hidden = game.inMatch;
@@ -278,38 +282,37 @@ const session = new NetSession({
     syncHud();
   },
   onLobby: () => {
-    if (!game.inMatch) return;
-    direction = null;
-    standingsSig = '';
-    scrolledToYou = false;
-    game.showTitle();
+    if (game.inMatch) {
+      direction = null;
+      standingsSig = '';
+      scrolledToYou = false;
+      game.showTitle();
+    }
     syncHud();
   },
   onMatchStart: (message) => {
     direction = null;
     standingsSig = '';
     scrolledToYou = false;
-    const other = message.roster.find((seat) => seat.seat !== message.you);
     game.startMatch();
-    game.armOnline(message.you, other?.name ?? 'Opponent');
+    game.armOnline(message.you, message.roster);
     game.applyOnlineRoster(message.roster);
     syncHud();
   },
   onJammer: (message) => {
-    game.receiveOnlineJammer(message.strength, message.fromName, message.attack);
+    game.receiveOnlineJammer(message.strength, message.fromName, message.attack, message.fromSeat);
   },
   onRoster: (message) => {
     game.applyOnlineRoster(message.seats);
   },
   onEliminated: (message) => {
     if (message.seat === session.seat) game.applyServerElimination();
-    else game.eliminateOnlineOpponent();
+    else game.eliminateOnlineSeat(message.seat);
   },
   onMatchEnd: (message) => {
     const mine = message.placements.find((row) => row.seat === session.seat);
-    const other = message.placements.find((row) => row.seat !== session.seat);
     if (mine && mine.place !== 1) game.applyServerElimination();
-    else if (other && other.place !== 1) game.eliminateOnlineOpponent();
+    else game.eliminateOnlineOpponent();
     game.setOnlineStandings(message.placements);
     syncHud();
   },
@@ -319,6 +322,10 @@ window.addEventListener('keydown', onKeyDown);
 if (!import.meta.env.DEV) onlineButton.textContent = 'Online';
 startButton.addEventListener('click', begin);
 onlineButton.addEventListener('click', beginOnline);
+readyButton.addEventListener('click', () => {
+  session.sendReady();
+  syncHud();
+});
 overlayContinue.addEventListener('click', (event) => {
   event.stopPropagation();
   advanceWin();

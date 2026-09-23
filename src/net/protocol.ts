@@ -1,9 +1,19 @@
 /**
- * N1 wire messages. The server owns targets, pressure, and eliminations.
+ * Wire messages. The server owns targets, pressure, and eliminations.
  * `earnAttack` never carries a target. Only `ghost` is applied. `dots` and `clear` are ignored.
+ *
+ * N2a room: up to {@link MAX_HUMANS} humans. A started match always has
+ * {@link ROOM_SIZE} seats; empty ones are server-side CPU bots.
+ * N2b raises {@link ROOM_SIZE} toward 101. Leave {@link MAX_HUMANS} alone unless the join cap changes too.
  */
 
-export const MATCH_SEATS = 2;
+/** Humans allowed in the lobby. The next join is rejected with "Match is full". */
+export const MAX_HUMANS = 8;
+/**
+ * Seats once the match starts, humans and CPU fillers together.
+ * Raise this for N2b. Do not hardcode 8 at call sites.
+ */
+export const ROOM_SIZE = 8;
 export const DEFAULT_PORT = 8787;
 /** Dev client default. Production builds use `VITE_WS_URL` via `resolveSocketUrl`. */
 export const DEFAULT_WS_URL = 'ws://localhost:8787';
@@ -24,6 +34,10 @@ export interface RosterSeat {
   hit: boolean;
   /** This seat just fired. */
   busy: boolean;
+  /** Server-side CPU filler. Humans are false. */
+  bot: boolean;
+  /** Lobby ready flag. Bots are ready once the match starts. */
+  ready: boolean;
 }
 
 export interface Placement {

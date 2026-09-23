@@ -8,14 +8,28 @@ export interface MatchServer {
   close(): Promise<void>;
 }
 
+export interface MatchServerOptions {
+  /** Victim picks and bot dice. Tests pass a fixed roll. */
+  rng?: () => number;
+  now?: () => number;
+}
+
 /**
  * One room, bound on `0.0.0.0`. `port` 0 asks the OS for a free port.
  * Plain HTTP (including GET /) returns 200 so a host health check can pass.
  * WebSocket upgrades on the same port are the match.
+ * A 250ms clock advances server-side CPU bots. It is cleared on close.
  */
-export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
-  const room = new MatchRoom();
+export function startMatchServer(port = DEFAULT_PORT, options: MatchServerOptions = {}): Promise<MatchServer> {
+  const room = new MatchRoom(options.now ?? Date.now, options.rng ?? Math.random);
   const httpServer = createServer(answerHttp);
+  let lastTick = Date.now();
+  const timer = setInterval(() => {
+    const now = Date.now();
+    const dt = Math.min(1, (now - lastTick) / 1000);
+    lastTick = now;
+    room.tick(dt);
+  }, 250);
   const wss = new WebSocketServer({ server: httpServer });
 
   wss.on('connection', (socket) => {
@@ -57,6 +71,7 @@ export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
         port: bound,
         close: () =>
           new Promise((done, fail) => {
+            clearInterval(timer);
             for (const client of wss.clients) client.terminate();
             wss.close();
             httpServer.close((error) => (error ? fail(error) : done()));

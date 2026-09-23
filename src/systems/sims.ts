@@ -40,6 +40,13 @@ export interface Sim {
   phase: number;
   /** Seconds until this CPU's next attack. Each sim rolls its own. */
   attackIn: number;
+  /**
+   * Online matches hide the offline field so the alive count is the server room
+   * (8 in N2a), not 101. Parked panels are not drawn and are not alive.
+   */
+  parked: boolean;
+  /** Draw the roster name on this panel. Offline panels keep the numeric id. */
+  showName: boolean;
 }
 
 /**
@@ -225,5 +232,7 @@ function createSims(rng: Rng): Sim[] {
     lock: 0,
     phase: rng() * Math.PI * 2,
     attackIn: rollAttackDelay(rng),
+    parked: false,
+    showName: false,
   }));
 }
