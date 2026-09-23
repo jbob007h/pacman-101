@@ -18,6 +18,8 @@ describe('start countdown', () => {
     const blinky = game.board.ghosts[0];
     if (!blinky) throw new Error('missing blinky');
     const ghostX = blinky.x;
+    expect(blinky.mode).toBe('scatter');
+    expect(game.board.wave).toBe('scatter');
 
     for (let frame = 0; frame < COUNTDOWN_BEAT_FRAMES; frame++) {
       game.setDirection(DIR_RIGHT);
@@ -27,6 +29,8 @@ describe('start countdown', () => {
       expect(game.board.pac.dir).toEqual({ x: 0, y: 0 });
     }
     expect(blinky.x).toBe(ghostX);
+    expect(blinky.mode).toBe('scatter');
+    expect(game.board.wave).toBe('scatter');
     expect(game.hud().time).toBe('0:00');
     expect(game.acceptsInput).toBe(false);
 
@@ -45,6 +49,8 @@ describe('start countdown', () => {
     game.setDirection(DIR_RIGHT);
     game.update(1 / 60);
     expect(game.hud().countdown).toBe('Hit it!');
+    expect(game.board.wave).toBe('scatter');
+    expect(blinky.mode).toBe('scatter');
     expect(game.acceptsInput).toBe(true);
     expect(game.board.pac.dir.x).toBe(-1);
     expect(game.board.pac.x).toBeLessThan(PAC_START.x);

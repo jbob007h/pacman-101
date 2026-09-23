@@ -175,7 +175,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 ## Milestone 1
 
 - Playable tile maze with dots, power pellets, walls, and a wrap tunnel
-- Ghosts chase (with a short scatter cycle), turn frightened on a power pellet, and can be eaten
+- Ghosts open in scatter, then follow the chase and scatter waves, turn frightened on a power pellet, and can be eaten
 - Eaten ghosts and dot milestones send pressure at simulated opponents; a full clear hits several at once
 - Opponents die when pressure reaches 100; panels show alive, pressured, busy, and dead
 - Sims attack a random living seat, including you at 1/alive odds, and sometimes throw white or red jammers onto your maze. Pellet and clear relief pulls their pressure back down

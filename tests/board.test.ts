@@ -68,11 +68,11 @@ describe('main board', () => {
     game.board.pac.y = 23;
     game.board.pac.dir = { x: -1, y: 0 };
     let mode: string = blinky.mode;
-    for (let i = 0; i < 160 && mode !== 'chase'; i++) {
+    for (let i = 0; i < 160 && mode !== 'scatter'; i++) {
       game.update(1 / 60);
       mode = blinky.mode;
     }
-    expect(blinky.mode).toBe('chase');
+    expect(blinky.mode).toBe('scatter');
     expect(blinky.skipFright).toBe(true);
     expect(game.board.frightened).toBeGreaterThan(1);
     expect(game.board.pac.alive).toBe(true);
@@ -288,6 +288,39 @@ describe('main board', () => {
     game.update(0);
     expect(game.board.eatPopupCount).toBe(3);
     expect(game.board.eatPopupX).toBe(8);
+  });
+
+  it('opens the match in scatter and switches to chase after that wave', () => {
+    const game = new Game(() => 0);
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    expect(game.board.wave).toBe('scatter');
+    expect(blinky.mode).toBe('scatter');
+
+    for (const ghost of game.board.ghosts) {
+      ghost.releaseAt = 1e9;
+      if (ghost.id !== 'blinky') ghost.mode = 'house';
+    }
+    blinky.x = 22;
+    blinky.y = 5;
+    blinky.dir = { x: 1, y: 0 };
+    blinky.mode = 'scatter';
+    game.board.pac.dir = { x: -1, y: 0 };
+
+    let frames = 0;
+    while (game.board.wave === 'scatter' && frames < 500) {
+      game.update(1 / 60);
+      frames += 1;
+    }
+    expect(game.board.pac.alive).toBe(true);
+    expect(frames).toBeGreaterThan(300);
+    expect(frames).toBeLessThan(420);
+    expect(game.board.wave).toBe('chase');
+    expect(blinky.mode).toBe('chase');
+
+    game.restart();
+    expect(game.board.wave).toBe('scatter');
+    expect(game.board.ghosts[0]?.mode).toBe('scatter');
   });
 });
 

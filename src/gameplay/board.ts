@@ -39,7 +39,12 @@ interface Wave {
   duration: number;
 }
 
+/**
+ * The match opens in scatter. After that wave the usual pairs run:
+ * chase, scatter, chase, and a last chase that does not end.
+ */
 const WAVES: readonly Wave[] = [
+  { mode: 'scatter', duration: 6 },
   { mode: 'chase', duration: 18 },
   { mode: 'scatter', duration: 6 },
   { mode: 'chase', duration: 18 },
@@ -113,8 +118,8 @@ export class Board {
   private biteStop = 0;
   private fruitSpawned = false;
   private waveIndex = 0;
-  private waveTime: number = WAVES[0]?.duration ?? 18;
-  wave: 'chase' | 'scatter' = WAVES[0]?.mode ?? 'chase';
+  private waveTime: number = WAVES[0]?.duration ?? 6;
+  wave: 'chase' | 'scatter' = WAVES[0]?.mode ?? 'scatter';
 
   constructor(
     private readonly bus: EventBus,
@@ -245,8 +250,8 @@ export class Board {
     this.dotsEaten = 0;
     this.combo = 0;
     this.waveIndex = 0;
-    this.wave = WAVES[0]?.mode ?? 'chase';
-    this.waveTime = WAVES[0]?.duration ?? 18;
+    this.wave = WAVES[0]?.mode ?? 'scatter';
+    this.waveTime = WAVES[0]?.duration ?? 6;
     clearSpawnTile(this.maze);
     this.boardPellets = this.maze.remaining();
     this.matchTime = 0;

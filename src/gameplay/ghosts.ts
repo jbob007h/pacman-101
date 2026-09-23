@@ -62,7 +62,7 @@ export interface GhostWorld {
 
 export function createGhosts(): Ghost[] {
   return [
-    ghost('blinky', '#ff3b30', 14, 11, DIR_LEFT, { x: 25, y: -3 }, 0, 'chase'),
+    ghost('blinky', '#ff3b30', 14, 11, DIR_LEFT, { x: 25, y: -3 }, 0, 'scatter'),
     ghost('pinky', '#ffb8ff', 13, 14, DIR_UP, { x: 2, y: -3 }, 4, 'house'),
     ghost('inky', '#46f0ff', 11, 14, DIR_UP, { x: 27, y: 33 }, 8, 'house'),
     ghost('clyde', '#ffb852', 15, 14, DIR_DOWN, { x: 0, y: 33 }, 12, 'house'),

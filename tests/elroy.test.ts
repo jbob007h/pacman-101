@@ -76,6 +76,7 @@ describe('Cruise Elroy', () => {
     }
     expect(elroyLevel(0, game.board.maze.remaining())).toBe(1);
     game.board.clearBoost = 4;
+    game.board.wave = 'chase';
     for (const ghost of game.board.ghosts) {
       ghost.mode = 'chase';
       ghost.releaseAt = 1e9;

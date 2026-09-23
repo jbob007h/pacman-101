@@ -60,13 +60,13 @@ describe('board pace', () => {
 
     blinky.y = 11.02;
     game.update(1 / 60);
-    expect(blinky.mode).toBe('chase');
+    expect(blinky.mode).toBe('scatter');
     expect(blinky.y).toBe(11);
     const x0 = blinky.x;
     const y0 = blinky.y;
     game.update(1 / 60);
     const stepped = Math.hypot(blinky.x - x0, blinky.y - y0);
-    expect(blinky.mode).toBe('chase');
+    expect(blinky.mode).toBe('scatter');
     expect(stepped).toBeCloseTo(speedsForBoard(0).ghost / 60, 2);
     expect(stepped).toBeGreaterThan(GHOST_LEAVE_SPEED / 60);
   });
