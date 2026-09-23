@@ -22,7 +22,9 @@ When the window ends, the client sends **one** `earnAttack` with type `ghost` an
 
 A single eat used to send strength `48 + chain * 22`. The victim turned that into several sprites (`inboundCount`), so one ghost looked like a handful of jammers. Ghost strength is now the count.
 
-Dot milestones (strength 22) and board clears (strength 42) are still immediate and still use the old sprite curve. Offline play uses the same 2-second window: one living sim takes pressure equal to the ghost count. There is no bot clock in N1, so the 10s grace on `matchStart` is only for later phases.
+An empty window never sends. Time passing, a power pellet, and ordinary dots do not open it. A ghost `earnAttack` with strength below 1 is dropped, so it cannot be clamped up into one jammer.
+
+Dot milestones and board clears are different earns, and they do not require a ghost eat. Every 50 pellets (small dots and power pellets) sends `dots` at strength 22 immediately. Clearing the board sends `clear` at strength 42. Online, those still use the old sprite curve: strength 22 arrives as 3 jammers, strength 42 as 6. The inbound banner names the earn (`Dot pressure from …`, `Board clear from …`, `Ghost jam from …`) so a dot milestone is not a ghost attack. Offline play uses the same 2-second ghost window: one living sim takes pressure equal to the ghost count. There is no bot clock in N1, so the 10s grace on `matchStart` is only for later phases.
 
 ## Run it
 

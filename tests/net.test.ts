@@ -60,6 +60,8 @@ describe('match room', () => {
     room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: 10, target: 2 });
     room.handle(pressure.ada, { type: 'earnAttack', attack: 'nope', strength: 10 });
     room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: Number.NaN });
+    room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: 0 });
+    room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: 0.4 });
     expect(pressure.ofBea()).toBe(0);
 
     for (let i = 0; i < EARN_RATE_LIMIT; i++) {
@@ -235,7 +237,7 @@ describe('online game path', () => {
     expect(game.board.inbound.jammers).toHaveLength(1);
     const banner = new Game(() => 0);
     banner.receiveOnlineJammer(8, 'Ada');
-    expect(banner.hud().status).toBe('Jammer from Ada');
+    expect(banner.hud().status).toBe('Dot pressure from Ada');
     const one = new Game(() => 0);
     one.receiveOnlineJammer(1, 'Ada', 'ghost');
     const three = new Game(() => 0);
@@ -259,6 +261,41 @@ describe('online game path', () => {
     expect(earns).toHaveLength(4);
     expect(game.sims.sims.some((sim) => sim.pressure > 0)).toBe(true);
     expect(game.match.remaining()).toBe(101);
+  });
+
+  it('does not send a ghost earn until a ghost is eaten', () => {
+    const game = new Game(() => 0);
+    const earns: { attack: string; strength: number }[] = [];
+    game.bindOnline({
+      earn: (attack, strength) => earns.push({ attack, strength }),
+      death: () => {},
+    });
+    game.startMatch();
+    game.armOnline(1, 'Ada');
+    game.sims.advanceGhostWindow(10);
+    game.bus.emit({ type: 'powerPelletEaten' });
+    for (let eaten = 1; eaten < 50; eaten++) {
+      game.bus.emit({ type: 'dotEaten', totalEaten: eaten, remaining: 40 });
+    }
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(earns).toEqual([]);
+
+    game.bus.emit({ type: 'dotEaten', totalEaten: 50, remaining: 40 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(earns).toEqual([{ attack: 'dots', strength: DOT_PRESSURE }]);
+
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(earns).toEqual([
+      { attack: 'dots', strength: DOT_PRESSURE },
+      { attack: 'ghost', strength: 1 },
+    ]);
+
+    const victim = new Game(() => 0);
+    victim.receiveOnlineJammer(DOT_PRESSURE, 'Ada', 'dots');
+    expect(victim.hud().status).toBe('Dot pressure from Ada');
+    victim.receiveOnlineJammer(1, 'Ada', 'ghost');
+    expect(victim.hud().status).toBe('Ghost jam from Ada');
   });
 
   it('reports a local maze death and does not echo a server elimination', () => {

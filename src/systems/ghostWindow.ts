@@ -16,7 +16,10 @@ export class GhostAttackWindow {
     this.eaten += 1;
   }
 
-  /** Ghosts in the window that just closed, or null while it is still open. */
+  /**
+   * Ghosts in the window that just closed, or null while it is still open
+   * or the batch is empty. A timer alone never returns a count.
+   */
   tick(dt: number): number | null {
     if (this.remaining <= 0 || dt <= 0) return null;
     this.remaining -= dt;

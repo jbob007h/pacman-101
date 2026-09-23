@@ -192,7 +192,7 @@ export class Game {
    */
   receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'dots'): void {
     this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength, attack === 'ghost');
-    this.setBanner(`Jammer from ${fromName}`);
+    this.setBanner(`${attackLabel(attack)} from ${fromName}`);
   }
 
   /** Server confirmed this maze is out. Does not echo a death report. */
@@ -472,6 +472,17 @@ export class Game {
     }
     if (!this.online || !this.deathSink) return;
     this.deathSink();
+  }
+}
+
+function attackLabel(attack: AttackKind): string {
+  switch (attack) {
+    case 'ghost':
+      return 'Ghost jam';
+    case 'dots':
+      return 'Dot pressure';
+    case 'clear':
+      return 'Board clear';
   }
 }
 

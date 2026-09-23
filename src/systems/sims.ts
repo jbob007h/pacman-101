@@ -167,7 +167,7 @@ export class SimWorld {
 
   private releaseGhostWindow(dt: number): void {
     const count = this.ghostWindow.tick(dt);
-    if (count == null) return;
+    if (count == null || count <= 0) return;
     if (this.localBattle) this.apply(ghostVolley(count, this.snapshot(), this.rng));
     this.bus.emit({ type: 'ghostVolley', count });
   }

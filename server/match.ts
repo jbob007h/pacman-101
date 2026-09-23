@@ -146,7 +146,11 @@ export class MatchRoom {
     if ('target' in raw || 'targetId' in raw || 'targetSeat' in raw) return;
     if (!isAttackKind(raw.attack)) return;
     if (typeof raw.strength !== 'number' || !Number.isFinite(raw.strength)) return;
-    const strength = Math.min(STRENGTH_MAX, Math.max(STRENGTH_MIN, Math.round(raw.strength)));
+    const rounded = Math.round(raw.strength);
+    // A ghost earn is a sprite count. Zero means the batch was empty; do not
+    // clamp that up to one jammer.
+    if (raw.attack === 'ghost' && rounded < 1) return;
+    const strength = Math.min(STRENGTH_MAX, Math.max(STRENGTH_MIN, rounded));
     if (!this.allowEarn(seat)) return;
     const victims = [...this.seats.values()].filter((other) => other.alive && other.id !== seat.id);
     if (victims.length === 0) return;

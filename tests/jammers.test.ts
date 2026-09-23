@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DOT_MILESTONE,
   GHOST_ATTACK_WINDOW,
   KILL_PRESSURE,
   SIM_ATTACK_GRACE,
@@ -8,6 +9,7 @@ import {
   SIM_PRESSURE,
 } from '../src/config';
 import { Game } from '../src/game';
+import { GhostAttackWindow } from '../src/systems/ghostWindow';
 import { ghostVolley, jammersFromEvent, pickCpuTarget, pickSimIds } from '../src/systems/jammers';
 import { mulberry32 } from '../src/shared/rng';
 
@@ -39,6 +41,45 @@ describe('jammers', () => {
       { targets: [1], strength: 1 },
     ]);
     expect(game.sims.sims[0]?.pressure).toBe(4);
+  });
+
+  it('does not fire a ghost attack when no ghost was eaten', () => {
+    const window = new GhostAttackWindow();
+    expect(window.tick(10)).toBeNull();
+    expect(window.tick(0)).toBeNull();
+    window.eat();
+    expect(window.tick(GHOST_ATTACK_WINDOW - 0.05)).toBeNull();
+    expect(window.tick(GHOST_ATTACK_WINDOW)).toBe(1);
+    expect(window.tick(GHOST_ATTACK_WINDOW)).toBeNull();
+
+    const game = new Game(() => 0);
+    const volleys: number[] = [];
+    const reasons: string[] = [];
+    game.bus.on('ghostVolley', (event) => volleys.push(event.count));
+    game.bus.on('jammersSent', (event) => {
+      if (event.reason !== 'sim') reasons.push(event.reason);
+    });
+
+    game.sims.advanceGhostWindow(10);
+    game.bus.emit({ type: 'powerPelletEaten' });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    for (let eaten = 1; eaten < DOT_MILESTONE; eaten++) {
+      game.bus.emit({ type: 'dotEaten', totalEaten: eaten, remaining: 80 });
+    }
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(volleys).toEqual([]);
+    expect(reasons).toEqual([]);
+
+    game.bus.emit({ type: 'dotEaten', totalEaten: DOT_MILESTONE, remaining: 80 });
+    expect(volleys).toEqual([]);
+    expect(reasons).toEqual(['dots']);
+
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW - 0.05);
+    expect(volleys).toEqual([]);
+    game.sims.advanceGhostWindow(0.05);
+    expect(volleys).toEqual([1]);
+    expect(reasons).toEqual(['dots', 'ghost']);
   });
 
   it('does not target eliminated sims', () => {
