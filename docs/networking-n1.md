@@ -67,6 +67,8 @@ This repo cannot create the Render account or the service. Jason does that once 
 1. Push the branch that contains `render.yaml` (this PR) so GitHub has it.
 2. In [Render](https://dashboard.render.com), choose **New → Blueprint**, and connect the `jbob007h/pacman-101` repo. Render reads `render.yaml`.
 3. The blueprint is a free Node web service. Build is `npm ci`. Start is `npm run server`. Health check is GET `/`. Node is 22. `tsx` is a runtime dependency so a production install can still run the TypeScript server. Render sets `PORT`. The process already binds `0.0.0.0`.
+   `npm ci` only works when `package-lock.json` is in the commit Render builds. That file is on this PR branch. It is not on `main` until the PR merges. If the service branch is `main`, the build stops with "The `npm ci` command can only install with an existing package-lock.json". In the Render service, set the branch to `cursor/pacman-101-milestone-1-cf5f` and redeploy.
+   If you create the Web Service by hand and the branch you picked still has no lockfile, set the Build Command to `npm install` for that deploy. Change it back to `npm ci` once `package-lock.json` is on the branch.
 4. If the suggested service name is taken, pick another. Create the service and wait until the first deploy is live.
 5. Copy the host Render shows, such as `https://your-service.onrender.com`. The browser URL is the same host with `wss://` and no path: `wss://your-service.onrender.com`. GitHub Pages is HTTPS, so `ws://` will not connect from that site.
 6. In the GitHub repo, open **Settings → Secrets and variables → Actions → Variables → New repository variable**. Name: `VITE_WS_URL`. Value: that `wss://` URL. This is not a secret. Do not commit the host into the game source.
