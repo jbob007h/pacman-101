@@ -1,6 +1,6 @@
 /**
  * N1 wire messages. The server owns targets, pressure, and eliminations.
- * `earnAttack` never carries a target.
+ * `earnAttack` never carries a target. Only `ghost` is applied. `dots` and `clear` are ignored.
  */
 
 export const MATCH_SEATS = 2;

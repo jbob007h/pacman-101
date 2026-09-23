@@ -2,14 +2,13 @@ import { Sfx } from './audio/sfx';
 import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, KILL_PRESSURE, PAC_LAUNCH_DIR, SIM_ATTACK_GRACE } from './config';
 import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
-import { earnFromEvent } from './net/earn';
 import type { AttackKind, Placement, RosterSeat } from './net/protocol';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField } from './render/fx';
 import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
 import type { Dir } from './shared/types';
 import { DIR_NONE } from './shared/types';
-import { EventBus, type GameplayEvent } from './shared/events';
+import { EventBus } from './shared/events';
 import type { JamReason } from './shared/events';
 import type { Rng } from './shared/rng';
 import { Match, type MatchPhase } from './systems/match';
@@ -101,8 +100,8 @@ export class Game {
       this.setBanner(`Eliminated ${name}`);
     });
     this.bus.on('incomingJammer', (event) => {
-      this.fx.queueIncoming(panelCenter(event.fromSimId), ghostHouseCenter(), event.strength);
-      this.setBanner(`Jammer from ${this.ranking.nameForSim(event.fromSimId)}`);
+      this.fx.queueIncoming(panelCenter(event.fromSimId), ghostHouseCenter(), event.strength, event.exact === true);
+      this.setBanner(`Ghost jam from ${this.ranking.nameForSim(event.fromSimId)}`);
     });
     this.bus.on('dotEaten', () => this.sfx.dot());
     this.bus.on('powerPelletEaten', () => this.sfx.pellet());
@@ -118,8 +117,6 @@ export class Game {
       if (!this.online || !this.earnSink || event.count <= 0) return;
       this.earnSink('ghost', event.count);
     });
-    this.bus.on('dotEaten', (event) => this.forwardEarn(event));
-    this.bus.on('boardCleared', (event) => this.forwardEarn(event));
     this.bus.on('matchWon', () => this.sfx.win());
   }
 
@@ -187,12 +184,13 @@ export class Game {
 
   /**
    * Inbound jammer chosen by the server. Panel 1 is the other human.
-   * A ghost volley spawns one sprite per ghost. Dots and clears keep the
-   * pressure-to-count curve.
+   * Only a ghost earn spawns sprites: one per ghost eaten. Dot and clear
+   * messages are ignored.
    */
-  receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'dots'): void {
-    this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength, attack === 'ghost');
-    this.setBanner(`${attackLabel(attack)} from ${fromName}`);
+  receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'ghost'): void {
+    if (attack !== 'ghost' || !(strength > 0)) return;
+    this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength, true);
+    this.setBanner(`Ghost jam from ${fromName}`);
   }
 
   /** Server confirmed this maze is out. Does not echo a death report. */
@@ -459,12 +457,6 @@ export class Game {
     this.bannerT = 2.2;
   }
 
-  private forwardEarn(event: GameplayEvent): void {
-    if (!this.online || !this.earnSink) return;
-    const earned = earnFromEvent(event);
-    if (earned) this.earnSink(earned.attack, earned.strength);
-  }
-
   private forwardDeath(): void {
     if (this.suppressDeathReport) {
       this.suppressDeathReport = false;
@@ -472,17 +464,6 @@ export class Game {
     }
     if (!this.online || !this.deathSink) return;
     this.deathSink();
-  }
-}
-
-function attackLabel(attack: AttackKind): string {
-  switch (attack) {
-    case 'ghost':
-      return 'Ghost jam';
-    case 'dots':
-      return 'Dot pressure';
-    case 'clear':
-      return 'Board clear';
   }
 }
 

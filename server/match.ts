@@ -144,7 +144,7 @@ export class MatchRoom {
   private earn(seat: Seat, raw: Record<string, unknown>): void {
     if (this.phase !== 'playing' || !seat.alive) return;
     if ('target' in raw || 'targetId' in raw || 'targetSeat' in raw) return;
-    if (!isAttackKind(raw.attack)) return;
+    if (!isAttackKind(raw.attack) || raw.attack !== 'ghost') return;
     if (typeof raw.strength !== 'number' || !Number.isFinite(raw.strength)) return;
     const rounded = Math.round(raw.strength);
     // A ghost earn is a sprite count. Zero means the batch was empty; do not

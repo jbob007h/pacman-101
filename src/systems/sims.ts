@@ -15,7 +15,7 @@ import {
 import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
 import { GhostAttackWindow } from './ghostWindow';
-import { ghostVolley, jammersFromEvent, pickCpuTarget, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
+import { ghostVolley, pickCpuTarget, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
 import { cpuName } from './names';
 
 export interface Sim {
@@ -63,14 +63,6 @@ export class SimWorld {
     this.sims = createSims(rng);
     bus.on('ghostEaten', () => this.ghostWindow.eat());
     bus.on('trainGhostEaten', () => this.ghostWindow.eat());
-    bus.on('dotEaten', (event) => {
-      if (!this.localBattle) return;
-      this.apply(jammersFromEvent(event, this.snapshot(), rng));
-    });
-    bus.on('boardCleared', (event) => {
-      if (!this.localBattle) return;
-      this.apply(jammersFromEvent(event, this.snapshot(), rng));
-    });
   }
 
   snapshot(): JammerSim[] {
@@ -98,8 +90,8 @@ export class SimWorld {
   }
 
   /**
-   * When false, local ghost / dot / clear events do not pick targets, and the
-   * CPU attack and relief clocks stay frozen. Panel flashes still decay.
+   * When false, local ghost eats do not pick targets, and the CPU attack and
+   * relief clocks stay frozen. Panel flashes still decay. Dots and clears never attack.
    */
   setLocalBattle(enabled: boolean): void {
     this.localBattle = enabled;
@@ -181,8 +173,8 @@ export class SimWorld {
     const others = alive.filter((sim) => sim.id !== attacker.id).map((sim) => sim.id);
     const targetId = pickCpuTarget(others, this.rng);
     if (targetId === null) {
-      const strength = 8 + Math.round(attacker.pressure / 4);
-      this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength });
+      // One ghost eaten: one jammer. Not the old pressure curve, and not a dot or clear.
+      this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength: 1, exact: true });
       return;
     }
     this.apply([simVsSimAction(targetId)]);

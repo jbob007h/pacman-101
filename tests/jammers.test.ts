@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DOT_MILESTONE,
   GHOST_ATTACK_WINDOW,
   KILL_PRESSURE,
   SIM_ATTACK_GRACE,
@@ -10,7 +9,7 @@ import {
 } from '../src/config';
 import { Game } from '../src/game';
 import { GhostAttackWindow } from '../src/systems/ghostWindow';
-import { ghostVolley, jammersFromEvent, pickCpuTarget, pickSimIds } from '../src/systems/jammers';
+import { ghostVolley, pickCpuTarget, pickSimIds } from '../src/systems/jammers';
 import { mulberry32 } from '../src/shared/rng';
 
 describe('jammers', () => {
@@ -63,23 +62,20 @@ describe('jammers', () => {
     game.sims.advanceGhostWindow(10);
     game.bus.emit({ type: 'powerPelletEaten' });
     game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
-    for (let eaten = 1; eaten < DOT_MILESTONE; eaten++) {
+    for (let eaten = 1; eaten <= 50; eaten++) {
       game.bus.emit({ type: 'dotEaten', totalEaten: eaten, remaining: 80 });
     }
+    game.bus.emit({ type: 'boardCleared' });
     game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
     expect(volleys).toEqual([]);
     expect(reasons).toEqual([]);
-
-    game.bus.emit({ type: 'dotEaten', totalEaten: DOT_MILESTONE, remaining: 80 });
-    expect(volleys).toEqual([]);
-    expect(reasons).toEqual(['dots']);
 
     game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
     game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW - 0.05);
     expect(volleys).toEqual([]);
     game.sims.advanceGhostWindow(0.05);
     expect(volleys).toEqual([1]);
-    expect(reasons).toEqual(['dots', 'ghost']);
+    expect(reasons).toEqual(['ghost']);
   });
 
   it('does not target eliminated sims', () => {
@@ -89,8 +85,6 @@ describe('jammers', () => {
       { id: 3, alive: true, pressure: 100 },
     ];
     expect(pickSimIds(sims, 4, () => 0)).toEqual([2]);
-    const actions = jammersFromEvent({ type: 'boardCleared' }, sims, () => 0);
-    expect(actions.map((action) => action.targetId)).toEqual([2]);
     const ghost = ghostVolley(4, sims, () => 0);
     expect(ghost).toEqual([{ targetId: 2, strength: 4, reason: 'ghost' }]);
   });
@@ -107,9 +101,11 @@ describe('jammers', () => {
     fallen.alive = false;
     fallen.pressure = KILL_PRESSURE;
 
+    game.bus.emit({ type: 'dotEaten', totalEaten: 50, remaining: 1 });
+    game.bus.emit({ type: 'boardCleared' });
+    expect(sent).toEqual([]);
     game.bus.emit({ type: 'ghostEaten', ghostId: 'inky', strength: 1, combo: 1 });
     game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
-    game.bus.emit({ type: 'boardCleared' });
     expect(fallen.alive).toBe(false);
     expect(fallen.pressure).toBe(KILL_PRESSURE);
     expect(sent.length).toBeGreaterThan(0);
@@ -175,6 +171,15 @@ describe('jammers', () => {
     }
     expect(playing.sims.aliveCount()).toBeGreaterThanOrEqual(40);
     expect(playing.match.phase).toBe('playing');
+  });
+
+  it('hits the player with one ghost jammer when a cpu shot picks them', () => {
+    const game = new Game(() => 0.999);
+    const inbound: { strength: number; exact?: boolean }[] = [];
+    game.bus.on('incomingJammer', (event) => inbound.push({ strength: event.strength, exact: event.exact }));
+    game.sims.update(SIM_ATTACK_INTERVAL);
+    expect(inbound.length).toBeGreaterThan(0);
+    expect(inbound.every((shot) => shot.strength === 1 && shot.exact === true)).toBe(true);
   });
 
   it('fires no CPU attacks during the first 10 seconds of match time', () => {

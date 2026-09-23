@@ -1,6 +1,6 @@
 # 101
 
-Local battle maze inspired by Pac-Man 99. You play the center board. One hundred simulated opponents sit on mini-boards — fifty on the left, fifty on the right. Eating a frightened ghost (or clearing dots) throws jammers at them. Stack enough pressure and they are eliminated. Last one standing wins.
+Local battle maze inspired by Pac-Man 99. You play the center board. One hundred simulated opponents sit on mini-boards — fifty on the left, fifty on the right. Eating frightened ghosts throws jammers at them. Stack enough pressure and they are eliminated. Last one standing wins.
 
 Play here is local by default. The battle-layer plan is [docs/networking-n0.md](docs/networking-n0.md). N1 is a two-browser jammer loop against a local server: [docs/networking-n1.md](docs/networking-n1.md).
 
@@ -38,7 +38,7 @@ npm run server
 npm run dev
 ```
 
-Open two tabs at `http://localhost:5173/pacman-101/?online=1`, or click **Online (dev)** on the title screen. Each client joins and readies. When both are in, the match starts. Ghost eats (including the train) batch for 2 seconds into one attack, one jammer per ghost. No ghost attack is sent unless that batch ate at least one ghost. Every 50 pellets still sends a dot attack immediately, and a full clear sends a clear attack, even when no ghost has been eaten. The server picks the other player. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
+Open two tabs at `http://localhost:5173/pacman-101/?online=1`, or click **Online (dev)** on the title screen. Each client joins and readies. When both are in, the match starts. Ghost eats (including the train) batch for 2 seconds into one attack, one jammer per ghost. No attack is sent unless that batch ate at least one ghost. Dots and a full clear do not send jammers. The server picks the other player. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
 
 The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. When the match ends, both tabs show the same standings: the names entered before the match, in the server's finish order. A later free Render deploy can run the same process; N1 does not need it. Details: [docs/networking-n1.md](docs/networking-n1.md).
 
@@ -54,13 +54,13 @@ The alive counter in that mode is 2 (you and the other seat). The other side pan
 
 Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, a teal flash is a pellet or board clear shedding pressure, and an X means they are out. The Alive counter starts at 101 and includes you.
 
-CPU attacks pick one living seat at random: every other living opponent, plus you. At the start that is about 1 in 100 shots aimed at your maze, and the share only grows as the field shrinks. Your own ghost eats, dot milestones, and clears pick living opponents the same way, with no preference for whoever is already hurt. Every 2.5s, four living opponents shed pressure (34 for a pellet, 68 for a clear, a clear on 1 in 5 of those rolls) so the red bars are not a one-way climb. Two CPU attacks land every 0.5s at 23 pressure each, and passive recovery is 0.6 per second after a 1s lock. They hold still for the first 10 seconds after the match clock starts, then pick up that cadence. Your own attacks are not delayed. That keeps most of the field in the match at the four-minute mark.
+CPU attacks pick one living seat at random: every other living opponent, plus you. At the start that is about 1 in 100 shots aimed at your maze, and the share only grows as the field shrinks. A shot that picks you is one jammer, the same as one ghost eat. Shots that pick another sim still add 23 pressure. Your own attacks are ghost eats only: they batch for 2 seconds, then one living opponent takes pressure equal to the ghosts eaten. Dots and board clears do not send jammers. Every 2.5s, four living opponents shed pressure (34 for a pellet, 68 for a clear, a clear on 1 in 5 of those rolls) so the red bars are not a one-way climb. Two CPU attacks land every 0.5s, and passive recovery is 0.6 per second after a 1s lock. They hold still for the first 10 seconds after the match clock starts, then pick up that cadence. Your ghost eats are not delayed. That keeps most of the field in the match at the four-minute mark.
 
 Walls next to a corridor are drawn as half a tile on the blocked side so the lanes look thin; the collision grid is unchanged. Pac, ghosts, and jammers are drawn at 2× size, still centered on their tile, so they can overhang those half-walls.
 
 ## Board speed
 
-Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, a wide jammer still goes out, and Pac keeps a permanent movement bonus (1.6875 tiles/sec per clear, stacking for the rest of the match). Ghosts do not gain that bonus. Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
+Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, no jammer goes out, and Pac keeps a permanent movement bonus (1.6875 tiles/sec per clear, stacking for the rest of the match). Ghosts do not gain that bonus. Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
 
 The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets, including a clear that happens after the fruit has already been eaten and the dots refilled. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 1.6875 tiles/sec bonus is the movement behind each clear's +1. It is added to Pac only. Ghost chase, fright, and Elroy stay on the board table. The even-board fruit point does not add that bonus; the board pace table is the fruit's speed change.
 
@@ -176,7 +176,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 
 - Playable tile maze with dots, power pellets, walls, and a wrap tunnel
 - Ghosts open in scatter, then follow the chase and scatter waves, turn frightened on a power pellet, and can be eaten
-- Eaten ghosts and dot milestones send pressure at simulated opponents; a full clear hits several at once
+- Eaten ghosts send pressure at one simulated opponent; dots and a full clear do not attack
 - Opponents die when pressure reaches 100; panels show alive, pressured, busy, and dead
 - Sims attack a random living seat, including you at 1/alive odds, and sometimes throw white or red jammers onto your maze. Pellet and clear relief pulls their pressure back down
 - Match starts at 101 alive, counts down, and offers restart on death or victory
@@ -188,5 +188,5 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 - Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life. Blinky speeds up as Cruise Elroy; the other ghosts do not
 - Ghost targeting is a simplified chase / scatter / frightened model
-- Clearing every pellet leaves the maze empty and fires a wide jammer; eating the fruit reloads the dots and advances the board. Neither ends the match
+- Clearing every pellet leaves the maze empty and does not fire a jammer; eating the fruit reloads the dots and advances the board. Neither ends the match
 - Drawn sprites and thin walls; not pixel art

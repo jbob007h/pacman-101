@@ -1,12 +1,5 @@
-import {
-  CLEAR_PRESSURE,
-  CLEAR_TARGETS,
-  DOT_MILESTONE,
-  DOT_PRESSURE,
-  KILL_PRESSURE,
-  SIM_PRESSURE,
-} from '../config';
-import type { GameplayEvent, JamReason } from '../shared/events';
+import { KILL_PRESSURE, SIM_PRESSURE } from '../config';
+import type { JamReason } from '../shared/events';
 import type { Rng } from '../shared/rng';
 
 export interface JammerSim {
@@ -59,16 +52,6 @@ export function pickCpuTarget(otherIds: readonly number[], rng: Rng): number | n
 export function ghostVolley(count: number, sims: readonly JammerSim[], rng: Rng): JammerAction[] {
   if (count <= 0) return [];
   return mapTargets(pickSimIds(sims, 1, rng), count, 'ghost');
-}
-
-export function jammersFromEvent(event: GameplayEvent, sims: readonly JammerSim[], rng: Rng): JammerAction[] {
-  if (event.type === 'dotEaten' && event.remaining > 0 && event.totalEaten > 0 && event.totalEaten % DOT_MILESTONE === 0) {
-    return mapTargets(pickSimIds(sims, 1, rng), DOT_PRESSURE, 'dots');
-  }
-  if (event.type === 'boardCleared') {
-    return mapTargets(pickSimIds(sims, CLEAR_TARGETS, rng), CLEAR_PRESSURE, 'clear');
-  }
-  return [];
 }
 
 export function simVsSimAction(targetId: number): JammerAction {

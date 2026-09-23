@@ -16,7 +16,7 @@ Only the **battle layer** moves over the wire:
 
 Each player's maze stays **mostly local**: Pac, ghosts, dots, fruit, trains, and the feel of the board are not replicated. The server does not run 101 mazes. A remote opponent is a roster seat, not a second canvas.
 
-That matches the local split already in the code. Gameplay emits facts about your board (`ghostEaten`, dot milestones, `boardCleared`, `playerDied`). Systems turn those facts into pressure and match results. Online, the server becomes the systems side for targeting, pressure, elimination, and the winner.
+That matches the local split already in the code. Gameplay emits facts about your board (`ghostEaten`, `boardCleared`, `playerDied`). Only ghost eats become attacks. Online, the server becomes the systems side for targeting, pressure, elimination, and the winner.
 
 ## Authority
 
@@ -26,9 +26,9 @@ Clients send **earn-attack** events only: something they did on their own maze, 
 
 | Earn type | Local fact | Meaning |
 | --- | --- | --- |
-| `ghost` | `ghostEaten` | Ate a frightened ghost (or a train follower that counts as one) |
-| `dots` | `dotEaten` on a milestone | Dot count crossed a milestone |
-| `clear` | `boardCleared` | Cleared the maze of pellets |
+| `ghost` | `ghostEaten` / `trainGhostEaten`, batched | Ate one or more frightened ghosts in a 2-second window. Strength is that count. |
+
+Dot milestones and board clears are not attack earns. The server ignores `dots` and `clear`.
 
 Strength is a claim about that local event (how big the eat or clear was). The server may clamp it. The server decides the target list, how much pressure lands, and whether anyone is eliminated.
 
@@ -37,7 +37,7 @@ Bot attacks are the same kind of apply step, but the server generates them. They
 ## Earn, then apply
 
 1. **Client earns.** The maze resolves locally. The client sends `earnAttack` with type and strength. It does not include a target id.
-2. **Server validates.** Rate limits and basic rules (the match is in play, this seat is alive, the type is one of the three above, strength is in range). Rejects are not applied.
+2. **Server validates.** Rate limits and basic rules (the match is in play, this seat is alive, the type is `ghost`, strength is in range). `dots` and `clear` are not applied.
 3. **Server picks and applies.** Living seats are chosen uniformly at random. No pressure bias. The server adds pressure, decides jammer intent for the victim, and may mark eliminations.
 4. **Server broadcasts.** Other seats get a `rosterDelta`. The victim also gets `jammerInbound` (who it came from, strength, and enough to spawn the local inbound jammer).
 5. **Victim plays it locally.** The inbound jammer is a local maze object, same as today. If it kills Pac, the client sends `deathReport`. The server confirms with `playerEliminated` and the locked place. A client death report that the server did not confirm does not change the roster.

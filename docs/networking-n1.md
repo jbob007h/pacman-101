@@ -7,7 +7,7 @@ Implemented. Local single-player is still the default. This phase is a dev loop:
 - `server/` is a Node + `ws` process. `npm run server` listens on `ws://localhost:8787` (`PORT` overrides the port, bound on `0.0.0.0` so a later host can see it).
 - One room, two human seats. A third join is rejected. In-memory only.
 - Messages: `join`, `ready`, `lobby`, `matchStart`, `earnAttack`, `jammerInbound`, `rosterDelta`, `deathReport`, `playerEliminated`, `matchEnd`, `ping`.
-- The client sends `earnAttack` with `ghost`, `dots`, or `clear` plus a strength. A `target` field is ignored. Strength is clamped to 1–200. More than 12 earns in a second are dropped.
+- The client sends `earnAttack` only for a ghost batch: type `ghost` plus the ghost count. `dots` and `clear` are ignored, and so is a `target` field. Ghost strength below 1 is dropped. Other ghost strengths are clamped to 1–200. More than 12 earns in a second are dropped.
 - The server picks the other living seat, adds pressure, and sends `jammerInbound` only to that seat. The victim plays the existing inbound jammer (panel flight into the ghost house, then local chasers).
 - `rosterDelta` updates side-panel 1 (pressure, hit flash, busy). The other 99 panels are parked out so the alive counter reads 2.
 - A local maze death sends `deathReport`. The server confirms with `playerEliminated`. Pressure at 100, or a disconnect during play, eliminates that seat and `matchEnd` names the other seat. The client then uses the existing win congratulations or death standings.
@@ -22,9 +22,9 @@ When the window ends, the client sends **one** `earnAttack` with type `ghost` an
 
 A single eat used to send strength `48 + chain * 22`. The victim turned that into several sprites (`inboundCount`), so one ghost looked like a handful of jammers. Ghost strength is now the count.
 
-An empty window never sends. Time passing, a power pellet, and ordinary dots do not open it. A ghost `earnAttack` with strength below 1 is dropped, so it cannot be clamped up into one jammer.
+An empty window never sends. Time passing, a power pellet, ordinary dots, and a full clear do not open it and do not send an attack. Eating ghosts is the only player attack.
 
-Dot milestones and board clears are different earns, and they do not require a ghost eat. Every 50 pellets (small dots and power pellets) sends `dots` at strength 22 immediately. Clearing the board sends `clear` at strength 42. Online, those still use the old sprite curve: strength 22 arrives as 3 jammers, strength 42 as 6. The inbound banner names the earn (`Dot pressure from …`, `Board clear from …`, `Ghost jam from …`) so a dot milestone is not a ghost attack. Offline play uses the same 2-second ghost window: one living sim takes pressure equal to the ghost count. There is no bot clock in N1, so the 10s grace on `matchStart` is only for later phases.
+Offline, that same window adds pressure equal to the ghost count on one living sim. A CPU shot that picks you delivers one jammer, the same as one ghost eat. CPU-versus-CPU shots still use the sim pressure clock. There is no bot clock in N1, so the 10s grace on `matchStart` is only for later phases.
 
 ## Run it
 

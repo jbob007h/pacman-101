@@ -346,7 +346,7 @@ export class Board {
   }
 
   /**
-   * Full clear adds 1 to the Speed readout, permanently speeds Pac, and sends a jammer.
+   * Full clear adds 1 to the Speed readout and permanently speeds Pac. It does not send a jammer.
    * It does not advance the board or reload dots. The fruit, if it is already out, stays until eaten.
    * Speed is committed before the event so a listener cannot observe the pre-clear meter.
    */

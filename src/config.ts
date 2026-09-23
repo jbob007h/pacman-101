@@ -200,6 +200,7 @@ export const GHOST_PRESSURE_BASE = 48;
 export const GHOST_PRESSURE_STEP = 22;
 /** Sim seconds that collect ghost eats into one attack. The next eat opens a new window. */
 export const GHOST_ATTACK_WINDOW = 2;
+/** Kept for older notes. Dot milestones and board clears do not send attacks. */
 export const DOT_MILESTONE = 50;
 export const DOT_PRESSURE = 22;
 export const CLEAR_PRESSURE = 42;
@@ -209,7 +210,9 @@ export const CLEAR_TARGETS = 8;
  * Each attack picks one seat uniformly from the other living sims plus the
  * human, so the chance it hits the player is 1 / aliveCount (about 1/100 at
  * the open), not a fixed share of the shots.
- * A sim hit adds {@link SIM_PRESSURE}. Passive recovery is
+ * A sim-versus-sim hit adds {@link SIM_PRESSURE}. A shot that picks the human
+ * is one ghost jammer, not that pressure curve and not a dot or clear.
+ * Passive recovery is
  * {@link PRESSURE_RECOVERY} per second after {@link PRESSURE_LOCK}.
  * Every {@link SIM_RELIEF_INTERVAL}, {@link SIM_RELIEFS_PER_TICK} living sims
  * shed pressure: usually a pellet ({@link SIM_PELLET_RELIEF}), sometimes a
@@ -219,7 +222,7 @@ export const CLEAR_TARGETS = 8;
  * (about 18) barely eliminates anyone, because the smaller hits stop
  * clustering over the kill line.
  * The ticker stays quiet for {@link SIM_ATTACK_GRACE} seconds of match time
- * after the clock starts. Player ghost eats, dots, and clears are not delayed.
+ * after the clock starts. Player ghost eats are not delayed. Dots and clears never attack.
  */
 export const SIM_ATTACK_INTERVAL = 0.5;
 export const SIM_ATTACKS_PER_TICK = 2;
