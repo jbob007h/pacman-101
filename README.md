@@ -2,6 +2,8 @@
 
 Local battle maze inspired by Pac-Man 99. You play the center board. One hundred simulated opponents sit on mini-boards — fifty on the left, fifty on the right. Eating a frightened ghost (or clearing dots) throws jammers at them. Stack enough pressure and they are eliminated. Last one standing wins.
 
+Online play is not built yet. The N0 design (authoritative match server, battle-layer sync only) is in [docs/networking-n0.md](docs/networking-n0.md).
+
 ## Play online
 
 https://jbob007h.github.io/pacman-101/
@@ -167,7 +169,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 
 ## Known gaps
 
-- Local only: no networking, accounts, or ranked play
+- Local only for now: no networking, accounts, or ranked play. The planned shape is [docs/networking-n0.md](docs/networking-n0.md)
 - Side boards are status panels, not live mazes or ghost AIs
 - Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life. Blinky speeds up as Cruise Elroy; the other ghosts do not
