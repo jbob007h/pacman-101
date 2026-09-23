@@ -1,0 +1,21 @@
+# Render Blueprint for the N1 match server.
+# Creating the Render account and the service is a one-time step in the Render dashboard.
+# This file does not pick a public hostname. Copy the host Render assigns, then set
+# GitHub Actions variable VITE_WS_URL to wss://<that-host> and rebuild GitHub Pages.
+# See docs/networking-n1.md.
+# npm ci needs the committed package-lock.json. It is on this PR branch.
+# main does not have that file until the PR merges, so a service tracking main
+# fails with "npm ci can only install with an existing package-lock.json".
+# A hand-made service on a branch that still lacks the lockfile can use
+# build command `npm install` for that one deploy, then switch back to `npm ci`.
+services:
+  - type: web
+    name: pacman-101-match
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm run server
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "22"

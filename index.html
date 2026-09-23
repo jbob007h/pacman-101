@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>101</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud">
+        <div class="brand">
+          <h1>101</h1>
+          <p id="hud-name">Pac</p>
+        </div>
+        <div class="stat alive-stat">
+          <span>Alive</span>
+          <strong id="alive">101</strong>
+        </div>
+        <div class="stat score-stat">
+          <span>Score</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="stat board-stat">
+          <span>Board</span>
+          <strong id="board">1</strong>
+        </div>
+        <div class="stat speed-stat">
+          <span>Speed</span>
+          <strong id="speed">0</strong>
+        </div>
+        <div class="stat time-stat">
+          <span>Time</span>
+          <strong id="time">0:00</strong>
+        </div>
+        <p id="status">Large dots frighten ghosts. Eating them sends jammers sideways.</p>
+        <div id="hud-actions">
+          <button id="mute" class="ghost" type="button" aria-pressed="false">Sound on</button>
+          <button id="restart" type="button">Restart</button>
+        </div>
+      </header>
+      <div id="stage">
+        <canvas id="view" width="1028" height="496" aria-label="101 playfield"></canvas>
+        <div id="title">
+          <div class="card title-card">
+            <p class="eyebrow">local battle maze</p>
+            <h2>101</h2>
+            <p>You, plus one hundred opponents. Eat the fruit to advance. White jammers slow you. Red ones kill.</p>
+            <label class="name-field" for="player-name-input">Your name
+              <input id="player-name-input" maxlength="16" autocomplete="nickname" spellcheck="false" placeholder="Pac" />
+            </label>
+            <div class="menu-actions">
+              <button id="start" type="button">Start match</button>
+              <button id="online" class="ghost" type="button">Online (dev)</button>
+              <button id="mute-menu" class="ghost" type="button" aria-pressed="false">Sound on</button>
+            </div>
+            <p id="online-note" hidden></p>
+          </div>
+        </div>
+        <p id="countdown" hidden></p>
+        <div id="overlay" hidden>
+          <div class="card" id="overlay-card">
+            <h2 id="overlay-title"></h2>
+            <p id="overlay-body"></p>
+            <p id="overlay-hint" hidden></p>
+            <div class="menu-actions">
+              <button id="overlay-continue" type="button" hidden>See standings</button>
+              <button id="overlay-restart" type="button">Restart match</button>
+              <button id="overlay-menu" class="ghost" type="button">Menu</button>
+            </div>
+          </div>
+          <div class="card ranking-card" id="ranking" hidden>
+            <h2>Standings</h2>
+            <p id="ranking-blurb"></p>
+            <ol id="ranking-list"></ol>
+            <div class="menu-actions">
+              <button id="ranking-restart" type="button">Restart match</button>
+              <button id="ranking-menu" class="ghost" type="button">Menu</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p id="help">
+        The match opens with Ready, 3, 2, 1, then Hit it! Pac holds still until then, and takes off to the left.
+        Arrows or WASD steer after that. Pac hitches for one frame on a dot and three frames on a power pellet.
+        Eat a large dot, then a blue ghost, to throw jammers at the side boards.
+        An open ring on the ghost house shows how long the pellet lasts. White ghosts sleep beside the side tunnels; touch one and it joins a train behind the nearest ghost. It cannot be eaten until it reaches the back of that train. Eating the lead ghost hands that ghost's color to the next in line.
+        The fruit under the ghost house reloads the dots and advances the board. Clearing every pellet raises Speed by 1, pops "Speed Up!" on Pac, and leaves the maze empty until the fruit.
+        White jammers slow you down and die if they touch you; a power pellet wipes them.
+        Red jammers kill on contact, freeze while a power pellet is active, and vanish when you eat the fruit.
+        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. When you win, a congratulations screen comes up first; click, tap, Space, or Enter opens the standings. R restarts. M or Sound on mutes the effects.
+      </p>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
