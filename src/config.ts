@@ -191,8 +191,15 @@ export const INCOMING_GHOST_MULT = 1.28;
 
 export const SIM_COUNT = 100;
 export const KILL_PRESSURE = 100;
+/**
+ * Older per-bite ghost pressure. Live ghost attacks no longer use these.
+ * A frightened-ghost chain batches for {@link GHOST_ATTACK_WINDOW} and sends
+ * one jammer per ghost eaten in that window.
+ */
 export const GHOST_PRESSURE_BASE = 48;
 export const GHOST_PRESSURE_STEP = 22;
+/** Sim seconds that collect ghost eats into one attack. The next eat opens a new window. */
+export const GHOST_ATTACK_WINDOW = 2;
 export const DOT_MILESTONE = 50;
 export const DOT_PRESSURE = 22;
 export const CLEAR_PRESSURE = 42;

@@ -289,7 +289,7 @@ const session = new NetSession({
     syncHud();
   },
   onJammer: (message) => {
-    game.receiveOnlineJammer(message.strength, message.fromName);
+    game.receiveOnlineJammer(message.strength, message.fromName, message.attack);
   },
   onRoster: (message) => {
     game.applyOnlineRoster(message.seats);

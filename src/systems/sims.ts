@@ -14,7 +14,8 @@ import {
 } from '../config';
 import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
-import { jammersFromEvent, pickCpuTarget, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
+import { GhostAttackWindow } from './ghostWindow';
+import { ghostVolley, jammersFromEvent, pickCpuTarget, simVsSimAction, type JammerAction, type JammerSim } from './jammers';
 import { cpuName } from './names';
 
 export interface Sim {
@@ -47,6 +48,7 @@ export class SimWorld {
    * and the CPU ticker does not also hit the player. {@link reset} turns it back on.
    */
   private localBattle = true;
+  private readonly ghostWindow = new GhostAttackWindow();
   /**
    * Match seconds the CPU ticker follows. A fresh world is already past the
    * grace so a direct {@link update} models a battle in progress. {@link reset}
@@ -59,10 +61,8 @@ export class SimWorld {
     private readonly rng: Rng,
   ) {
     this.sims = createSims(rng);
-    bus.on('ghostEaten', (event) => {
-      if (!this.localBattle) return;
-      this.apply(jammersFromEvent(event, this.snapshot(), rng));
-    });
+    bus.on('ghostEaten', () => this.ghostWindow.eat());
+    bus.on('trainGhostEaten', () => this.ghostWindow.eat());
     bus.on('dotEaten', (event) => {
       if (!this.localBattle) return;
       this.apply(jammersFromEvent(event, this.snapshot(), rng));
@@ -116,9 +116,21 @@ export class SimWorld {
     this.reliefAcc = 0;
     this.attackClock = 0;
     this.localBattle = true;
+    this.ghostWindow.reset();
+  }
+
+  /** Advance only the ghost-eat window. Does not run CPU attacks or relief. */
+  advanceGhostWindow(dt: number): void {
+    let left = Math.max(0, dt);
+    while (left > 0) {
+      const stepDt = Math.min(0.05, left);
+      this.releaseGhostWindow(stepDt);
+      left -= stepDt;
+    }
   }
 
   private step(dt: number): void {
+    this.releaseGhostWindow(dt);
     for (const sim of this.sims) {
       if (sim.heat > 0) sim.heat = Math.max(0, sim.heat - dt / 0.45);
       if (sim.busy > 0) sim.busy = Math.max(0, sim.busy - dt / 0.7);
@@ -151,6 +163,13 @@ export class SimWorld {
       this.reliefAcc -= SIM_RELIEF_INTERVAL;
       this.relieve();
     }
+  }
+
+  private releaseGhostWindow(dt: number): void {
+    const count = this.ghostWindow.tick(dt);
+    if (count == null) return;
+    if (this.localBattle) this.apply(ghostVolley(count, this.snapshot(), this.rng));
+    this.bus.emit({ type: 'ghostVolley', count });
   }
 
   private simAttack(): void {

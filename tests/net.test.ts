@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import {
-  CLEAR_PRESSURE,
-  DOT_PRESSURE,
-  GHOST_PRESSURE_BASE,
-  GHOST_PRESSURE_STEP,
-} from '../src/config';
+import { CLEAR_PRESSURE, DOT_PRESSURE, GHOST_ATTACK_WINDOW } from '../src/config';
 import { Game } from '../src/game';
 import type { ServerMessage } from '../src/net/protocol';
 import { EARN_RATE_LIMIT } from '../src/net/protocol';
@@ -42,7 +37,7 @@ describe('match room', () => {
     expect(jammers).toEqual([
       {
         who: 'bea',
-        message: { type: 'jammerInbound', fromSeat: ada.seat, fromName: 'Ada', strength: 48 },
+        message: { type: 'jammerInbound', fromSeat: ada.seat, fromName: 'Ada', strength: 48, attack: 'ghost' },
       },
     ]);
     const roster = logs.find((entry) => entry.who === 'ada' && entry.message.type === 'rosterDelta');
@@ -146,7 +141,7 @@ describe('match server', () => {
     const inbound = nextMessage(bea, 'jammerInbound');
     ada.send(JSON.stringify({ type: 'earnAttack', attack: 'ghost', strength: 48 }));
     const jammer = await inbound;
-    expect(jammer).toMatchObject({ fromName: 'Ada', strength: 48, fromSeat: started[0].you });
+    expect(jammer).toMatchObject({ fromName: 'Ada', strength: 48, fromSeat: started[0].you, attack: 'ghost' });
     expect(inboundCount).toBe(1);
     expect(seenByAttacker).not.toContain('jammerInbound');
   });
@@ -180,16 +175,25 @@ describe('online game path', () => {
     expect(game.sims.aliveCount()).toBe(1);
 
     game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+    game.bus.emit({ type: 'trainGhostEaten', combo: 2 });
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'pinky', strength: 3, combo: 3 });
+    expect(earns).toEqual([]);
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW - 0.05);
+    expect(earns).toEqual([]);
+    game.sims.advanceGhostWindow(0.05);
     game.bus.emit({ type: 'dotEaten', totalEaten: 50, remaining: 20 });
     game.bus.emit({ type: 'dotEaten', totalEaten: 51, remaining: 19 });
     game.bus.emit({ type: 'boardCleared' });
-    game.bus.emit({ type: 'trainGhostEaten', combo: 2 });
     expect(earns).toEqual([
-      { attack: 'ghost', strength: GHOST_PRESSURE_BASE + GHOST_PRESSURE_STEP },
+      { attack: 'ghost', strength: 3 },
       { attack: 'dots', strength: DOT_PRESSURE },
       { attack: 'clear', strength: CLEAR_PRESSURE },
     ]);
     expect(game.sims.sims[0]?.pressure).toBe(0);
+
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'inky', strength: 1, combo: 1 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(earns[3]).toEqual({ attack: 'ghost', strength: 1 });
 
     game.applyOnlineRoster([
       { seat: 1, name: 'You', alive: true, pressure: 0, hit: false, busy: false },
@@ -203,6 +207,16 @@ describe('online game path', () => {
     const banner = new Game(() => 0);
     banner.receiveOnlineJammer(8, 'Ada');
     expect(banner.hud().status).toBe('Jammer from Ada');
+    const one = new Game(() => 0);
+    one.receiveOnlineJammer(1, 'Ada', 'ghost');
+    const three = new Game(() => 0);
+    three.receiveOnlineJammer(3, 'Bea', 'ghost');
+    for (let frame = 0; frame < 12; frame++) {
+      one.update(0.05);
+      three.update(0.05);
+    }
+    expect(one.board.inbound.jammers).toHaveLength(1);
+    expect(three.board.inbound.jammers).toHaveLength(3);
 
     game.eliminateOnlineOpponent();
     expect(game.match.phase).toBe('won');
@@ -211,7 +225,9 @@ describe('online game path', () => {
     game.startMatch();
     game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
     expect(game.online).toBe(false);
-    expect(earns).toHaveLength(3);
+    expect(earns).toHaveLength(4);
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(earns).toHaveLength(4);
     expect(game.sims.sims.some((sim) => sim.pressure > 0)).toBe(true);
     expect(game.match.remaining()).toBe(101);
   });

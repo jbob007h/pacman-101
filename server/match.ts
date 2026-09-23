@@ -160,6 +160,7 @@ export class MatchRoom {
       fromSeat: seat.id,
       fromName: seat.name,
       strength,
+      attack: raw.attack,
     });
     if (victim.pressure >= KILL_PRESSURE) this.eliminate(victim);
     else this.publishRoster();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SPEED_POPUP_SECONDS } from '../src/config';
+import { GHOST_ATTACK_WINDOW, SPEED_POPUP_SECONDS } from '../src/config';
 import { Game } from '../src/game';
 import { ghostDrawMode } from '../src/render/draw';
 import type { Dir } from '../src/shared/types';
@@ -36,6 +36,7 @@ describe('main board', () => {
     blinky.y = game.board.pac.y;
     game.update(1 / 60);
     expect(seen.some((event) => event.startsWith('ghost:'))).toBe(true);
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
     expect(game.sims.sims.some((sim) => sim.pressure > 0 || !sim.alive)).toBe(true);
   });
 

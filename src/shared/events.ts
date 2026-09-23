@@ -25,6 +25,8 @@ export type SystemsEvent =
   | { type: 'simEliminated'; simId: number; remainingPlayers: number }
   | { type: 'jammersSent'; targets: number[]; strength: number; reason: JamReason }
   | { type: 'incomingJammer'; fromSimId: number; strength: number }
+  /** One batched ghost attack. `count` is ghosts eaten in the window, and jammer count. */
+  | { type: 'ghostVolley'; count: number }
   | { type: 'matchWon' }
   | { type: 'matchLost' };
 

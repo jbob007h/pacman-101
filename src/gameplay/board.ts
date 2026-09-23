@@ -169,9 +169,9 @@ export class Board {
    * Systems hook: a sim threw jammers onto the maze.
    * Returns how many sprites spawned. Overflow past the cap is not spawned.
    */
-  spawnInbound(strength: number): number {
+  spawnInbound(strength: number, exact = false): number {
     if (!this.pac.alive) return 0;
-    return this.inbound.spawn(strength, this.matchTime, this.maze, this.pac.x, this.pac.y, this.rng);
+    return this.inbound.spawn(strength, this.matchTime, this.maze, this.pac.x, this.pac.y, this.rng, exact);
   }
 
   update(dt: number): void {

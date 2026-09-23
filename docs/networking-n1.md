@@ -13,11 +13,15 @@ Implemented. Local single-player is still the default. This phase is a dev loop:
 - A local maze death sends `deathReport`. The server confirms with `playerEliminated`. Pressure at 100, or a disconnect during play, eliminates that seat and `matchEnd` names the other seat. The client then uses the existing win congratulations or death standings.
 - Offline **Start match** never opens a socket. Online is **Online (dev)** on the title screen, or `?online=1`. `?ws=` overrides the socket URL.
 
-## Same rules as local earns
+## Ghost attack window
 
-Strength matches the local jammer math: ghost pressure is `48 + chain * 22`, a 50-dot milestone is 22, a clear is 42. Train-only eats do not earn. A clear is one claim; with two seats the server lands it on the other player once, not on eight targets.
+`GHOST_ATTACK_WINDOW` is 2 seconds. The first frightened-ghost eat (a main ghost or a train follower) opens the window. Further eats in those 2 seconds only increment a count. Nothing is sent per bite.
 
-Human earns are not delayed. There is no bot clock in N1, so the 10s grace is only carried on `matchStart` for later phases.
+When the window ends, the client sends **one** `earnAttack` with type `ghost` and strength equal to that count. The server still picks the other living seat. The victim spawns **that many** inbound jammers — one per ghost — not `ceil(pressure / 8)`. One ghost alone is one jammer, two seconds later. Three ghosts inside the window are one attack that delivers three jammers. The next eat opens a new window.
+
+A single eat used to send strength `48 + chain * 22`. The victim turned that into several sprites (`inboundCount`), so one ghost looked like a handful of jammers. Ghost strength is now the count.
+
+Dot milestones (strength 22) and board clears (strength 42) are still immediate and still use the old sprite curve. Offline play uses the same 2-second window: one living sim takes pressure equal to the ghost count. There is no bot clock in N1, so the 10s grace on `matchStart` is only for later phases.
 
 ## Run it
 

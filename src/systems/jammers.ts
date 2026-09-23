@@ -3,8 +3,6 @@ import {
   CLEAR_TARGETS,
   DOT_MILESTONE,
   DOT_PRESSURE,
-  GHOST_PRESSURE_BASE,
-  GHOST_PRESSURE_STEP,
   KILL_PRESSURE,
   SIM_PRESSURE,
 } from '../config';
@@ -54,12 +52,16 @@ export function pickCpuTarget(otherIds: readonly number[], rng: Rng): number | n
   return otherIds[roll] ?? null;
 }
 
+/**
+ * One ghost attack after the eat window closes. One living target, strength
+ * equal to the number of ghosts eaten. That strength is the jammer count.
+ */
+export function ghostVolley(count: number, sims: readonly JammerSim[], rng: Rng): JammerAction[] {
+  if (count <= 0) return [];
+  return mapTargets(pickSimIds(sims, 1, rng), count, 'ghost');
+}
+
 export function jammersFromEvent(event: GameplayEvent, sims: readonly JammerSim[], rng: Rng): JammerAction[] {
-  if (event.type === 'ghostEaten') {
-    const strength = GHOST_PRESSURE_BASE + event.strength * GHOST_PRESSURE_STEP;
-    const count = event.strength >= 3 ? Math.min(3, event.strength - 1) : 1;
-    return mapTargets(pickSimIds(sims, count, rng), strength, 'ghost');
-  }
   if (event.type === 'dotEaten' && event.remaining > 0 && event.totalEaten > 0 && event.totalEaten % DOT_MILESTONE === 0) {
     return mapTargets(pickSimIds(sims, 1, rng), DOT_PRESSURE, 'dots');
   }

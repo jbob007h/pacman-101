@@ -112,7 +112,10 @@ export class Game {
       this.sfx.death();
       this.forwardDeath();
     });
-    this.bus.on('ghostEaten', (event) => this.forwardEarn(event));
+    this.bus.on('ghostVolley', (event) => {
+      if (!this.online || !this.earnSink || event.count <= 0) return;
+      this.earnSink('ghost', event.count);
+    });
     this.bus.on('dotEaten', (event) => this.forwardEarn(event));
     this.bus.on('boardCleared', (event) => this.forwardEarn(event));
     this.bus.on('matchWon', () => this.sfx.win());
@@ -180,9 +183,13 @@ export class Game {
     if (other.busy) sim.busy = 1;
   }
 
-  /** Inbound jammer chosen by the server. Panel 1 is the other human. */
-  receiveOnlineJammer(strength: number, fromName: string): void {
-    this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength);
+  /**
+   * Inbound jammer chosen by the server. Panel 1 is the other human.
+   * A ghost volley spawns one sprite per ghost. Dots and clears keep the
+   * pressure-to-count curve.
+   */
+  receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'dots'): void {
+    this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength, attack === 'ghost');
     this.setBanner(`Jammer from ${fromName}`);
   }
 
@@ -328,9 +335,9 @@ export class Game {
   }
 
   private tickFx(step: number): void {
-    this.fx.update(step, (strength) => {
+    this.fx.update(step, (strength, exact) => {
       this.sfx.impact();
-      const spawned = this.board.spawnInbound(strength);
+      const spawned = this.board.spawnInbound(strength, exact);
       if (spawned === 0) this.setBanner('Jammers are full');
     });
   }

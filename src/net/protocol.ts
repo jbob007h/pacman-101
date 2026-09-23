@@ -41,7 +41,7 @@ export type ClientMessage =
 export type ServerMessage =
   | { type: 'lobby'; you: number; seats: RosterSeat[]; need: number }
   | { type: 'matchStart'; you: number; roster: RosterSeat[]; grace: number }
-  | { type: 'jammerInbound'; fromSeat: number; fromName: string; strength: number }
+  | { type: 'jammerInbound'; fromSeat: number; fromName: string; strength: number; attack: AttackKind }
   | { type: 'rosterDelta'; seats: RosterSeat[] }
   | { type: 'playerEliminated'; seat: number; place: number; remaining: number }
   | { type: 'matchEnd'; winnerSeat: number | null; placements: Placement[] }

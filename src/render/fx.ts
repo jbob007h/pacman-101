@@ -24,6 +24,8 @@ export interface IncomingShot {
   t: number;
   duration: number;
   strength: number;
+  /** When true, strength is the sprite count. Otherwise {@link inboundCount} maps it. */
+  exact: boolean;
 }
 
 /** Flight from a side panel to the ghost house, in seconds. */
@@ -53,7 +55,12 @@ export class BoltField {
   }
 
   /** A sim's attack flying toward the ghost house. Jammers spawn when it arrives. */
-  queueIncoming(from: { x: number; y: number }, to: { x: number; y: number }, strength: number): void {
+  queueIncoming(
+    from: { x: number; y: number },
+    to: { x: number; y: number },
+    strength: number,
+    exact = false,
+  ): void {
     this.incoming.push({
       sx: from.x,
       sy: from.y,
@@ -62,10 +69,11 @@ export class BoltField {
       t: 0,
       duration: INCOMING_FLIGHT,
       strength,
+      exact,
     });
   }
 
-  update(dt: number, onImpact?: (strength: number) => void): void {
+  update(dt: number, onImpact?: (strength: number, exact: boolean) => void): void {
     for (const bolt of this.bolts) bolt.t += dt / bolt.duration;
     this.bolts = this.bolts.filter((bolt) => bolt.t < 1);
 
@@ -79,7 +87,7 @@ export class BoltField {
       shot.t += dt / shot.duration;
       if (shot.t >= 1) {
         this.impact(shot.tx, shot.ty);
-        onImpact?.(shot.strength);
+        onImpact?.(shot.strength, shot.exact);
         continue;
       }
       stillFlying.push(shot);

@@ -59,7 +59,7 @@ Not a remote maze, not ghost positions, not dots.
 
 The server pads the match to 101 with **pressure-sim fillers**. They reuse the local sim mindset: pressure, a slow attack clock, relief, no maze AI. Bot attacks are server-side. Humans and bots share one seat list, so a uniform pick can land on either.
 
-Local bot attacks wait `SIM_ATTACK_GRACE` (10 seconds) after the match clock starts. Server-driven bot attacks should respect a similar grace. Human earn-attacks are not delayed, matching the local rule.
+Local bot attacks wait `SIM_ATTACK_GRACE` (10 seconds) after the match clock starts. Server-driven bot attacks should respect a similar grace. Dot and clear earns are not delayed. Ghost eats batch for 2 seconds, then one earn goes out, matching local play.
 
 ## Anti-trust
 

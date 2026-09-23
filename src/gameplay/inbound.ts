@@ -119,8 +119,16 @@ export class InboundField {
    * Spawn up to the attack's count. Anything that would pass {@link JAMMER_CAP}
    * is negated. Returns how many sprites were actually created.
    */
-  spawn(strength: number, elapsed: number, maze: Maze, pacX: number, pacY: number, rng: Rng): number {
-    const wanted = inboundCount(strength);
+  spawn(
+    strength: number,
+    elapsed: number,
+    maze: Maze,
+    pacX: number,
+    pacY: number,
+    rng: Rng,
+    exact = false,
+  ): number {
+    const wanted = exact ? exactJammerCount(strength) : inboundCount(strength);
     const room = Math.max(0, JAMMER_CAP - this.jammers.length);
     const count = Math.min(wanted, room);
     if (count <= 0) return 0;
@@ -377,4 +385,10 @@ function sweptHit(
     if (Math.hypot(jx - px, jy - py) <= radius) return true;
   }
   return false;
+}
+
+/** Ghost-window attacks spawn one sprite per eaten ghost, still under the board cap. */
+function exactJammerCount(count: number): number {
+  if (!Number.isFinite(count) || count <= 0) return 0;
+  return Math.min(JAMMER_CAP, Math.round(count));
 }

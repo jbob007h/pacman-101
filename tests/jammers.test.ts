@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  GHOST_PRESSURE_BASE,
-  GHOST_PRESSURE_STEP,
+  GHOST_ATTACK_WINDOW,
   KILL_PRESSURE,
   SIM_ATTACK_GRACE,
   SIM_ATTACK_INTERVAL,
@@ -9,26 +8,37 @@ import {
   SIM_PRESSURE,
 } from '../src/config';
 import { Game } from '../src/game';
-import { jammersFromEvent, pickCpuTarget, pickSimIds } from '../src/systems/jammers';
+import { ghostVolley, jammersFromEvent, pickCpuTarget, pickSimIds } from '../src/systems/jammers';
 import { mulberry32 } from '../src/shared/rng';
 
 describe('jammers', () => {
-  it('eliminates a sim when repeated ghost eats land on the same seat', () => {
+  it('sends one ghost attack per window, with one jammer of pressure per ghost', () => {
     const game = new Game(() => 0);
-    const eliminated: number[] = [];
-    game.bus.on('simEliminated', (event) => eliminated.push(event.simId));
+    const sent: { targets: number[]; strength: number }[] = [];
+    game.bus.on('jammersSent', (event) => {
+      if (event.reason !== 'ghost') return;
+      sent.push({ targets: [...event.targets], strength: event.strength });
+    });
 
     game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
-    const first = game.sims.sims[0];
-    expect(first?.alive).toBe(true);
-    expect(first?.pressure).toBe(GHOST_PRESSURE_BASE + GHOST_PRESSURE_STEP);
+    game.bus.emit({ type: 'trainGhostEaten', combo: 2 });
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'pinky', strength: 2, combo: 3 });
+    expect(game.sims.sims.every((sim) => sim.pressure === 0)).toBe(true);
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW - 0.05);
+    expect(sent).toEqual([]);
 
-    game.bus.emit({ type: 'ghostEaten', ghostId: 'pinky', strength: 2, combo: 2 });
-    expect(first?.alive).toBe(false);
-    expect(first?.pressure).toBeGreaterThanOrEqual(KILL_PRESSURE);
-    expect(eliminated).toEqual([1]);
-    expect(game.match.remaining()).toBe(100);
-    expect(game.hud().remaining).toBe(100);
+    game.sims.advanceGhostWindow(0.05);
+    expect(sent).toEqual([{ targets: [1], strength: 3 }]);
+    expect(game.sims.sims[0]?.pressure).toBe(3);
+    expect(game.match.remaining()).toBe(101);
+
+    game.bus.emit({ type: 'ghostEaten', ghostId: 'inky', strength: 1, combo: 1 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
+    expect(sent).toEqual([
+      { targets: [1], strength: 3 },
+      { targets: [1], strength: 1 },
+    ]);
+    expect(game.sims.sims[0]?.pressure).toBe(4);
   });
 
   it('does not target eliminated sims', () => {
@@ -40,8 +50,8 @@ describe('jammers', () => {
     expect(pickSimIds(sims, 4, () => 0)).toEqual([2]);
     const actions = jammersFromEvent({ type: 'boardCleared' }, sims, () => 0);
     expect(actions.map((action) => action.targetId)).toEqual([2]);
-    const ghost = jammersFromEvent({ type: 'ghostEaten', ghostId: 'blinky', strength: 4, combo: 4 }, sims, () => 0);
-    expect(ghost.map((action) => action.targetId)).toEqual([2]);
+    const ghost = ghostVolley(4, sims, () => 0);
+    expect(ghost).toEqual([{ targetId: 2, strength: 4, reason: 'ghost' }]);
   });
 
   it('does not send a later ghost or clear attack at a sim that is already out', () => {
@@ -51,20 +61,18 @@ describe('jammers', () => {
       if (event.reason === 'sim') return;
       sent.push([...event.targets]);
     });
-    game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
-    game.bus.emit({ type: 'ghostEaten', ghostId: 'pinky', strength: 2, combo: 2 });
     const fallen = game.sims.sims[0];
     if (!fallen) throw new Error('missing sim');
-    expect(fallen.alive).toBe(false);
-    const pressure = fallen.pressure;
-    const before = sent.length;
+    fallen.alive = false;
+    fallen.pressure = KILL_PRESSURE;
 
     game.bus.emit({ type: 'ghostEaten', ghostId: 'inky', strength: 1, combo: 1 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
     game.bus.emit({ type: 'boardCleared' });
     expect(fallen.alive).toBe(false);
-    expect(fallen.pressure).toBe(pressure);
-    expect(sent.length).toBeGreaterThan(before);
-    for (const targets of sent.slice(before)) expect(targets).not.toContain(fallen.id);
+    expect(fallen.pressure).toBe(KILL_PRESSURE);
+    expect(sent.length).toBeGreaterThan(0);
+    for (const targets of sent) expect(targets).not.toContain(fallen.id);
   });
 
   it('picks living targets uniformly and gives the player one seat in a cpu attack', () => {
@@ -158,8 +166,16 @@ describe('jammers', () => {
     expect(cpuShots).toBe(0);
 
     game.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
-    expect(game.sims.sims.some((sim) => sim.pressure > 0)).toBe(true);
+    expect(game.sims.sims.every((sim) => sim.pressure === 0)).toBe(true);
     expect(cpuShots).toBe(0);
+    const openedAt = game.matchTime;
+    while (game.matchTime < openedAt + GHOST_ATTACK_WINDOW) {
+      pinGhosts();
+      game.update(1 / 60);
+      expect(cpuShots).toBe(0);
+    }
+    expect(game.sims.sims.some((sim) => sim.pressure > 0)).toBe(true);
+    expect(game.matchTime).toBeLessThan(SIM_ATTACK_GRACE);
 
     while (game.matchTime < SIM_ATTACK_GRACE) {
       pinGhosts();
@@ -199,7 +215,9 @@ describe('jammers', () => {
     const last = game.sims.sims[9];
     if (!last) throw new Error('missing sim');
     last.alive = true;
+    last.pressure = KILL_PRESSURE - 1;
     game.bus.emit({ type: 'ghostEaten', ghostId: 'clyde', strength: 4, combo: 4 });
+    game.sims.advanceGhostWindow(GHOST_ATTACK_WINDOW);
     expect(last.alive).toBe(false);
     expect(game.match.phase).toBe('won');
     expect(game.match.remaining()).toBe(1);
