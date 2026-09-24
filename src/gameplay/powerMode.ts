@@ -8,7 +8,10 @@ import { frightSecondsForBoard, frightTimeModifier } from '../config';
  * Normal fright time comes from {@link frightSecondsForBoard}. The pace
  * table's `fright` column is how fast a frightened ghost walks, not how long
  * the pellet lasts. Stronger is always a flat 4 seconds: no board table and
- * no match-time modifier. Every other mode multiplies the board duration by
+ * no match-time modifier. Each time Stronger activates it also permanently
+ * drops one speed level (the clear-bonus counter and the Speed readout), floored
+ * at 0. That drop stays after Stronger ends. Speed mode's +3 sits on top of
+ * whatever remains. Every other mode multiplies the board duration by
  * {@link frightTimeModifier} (1 until 90s, then −0.1 every 30s, floored at 0.1).
  * A board duration of 0 stays 0. A 0 second pellet still
  * reverses huntable ghosts and clears whites, but it does not turn them blue

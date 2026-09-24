@@ -95,9 +95,13 @@ export class Board {
   /**
    * Player-facing Speed. Starts at 0. Goes up by 1 on every full pellet clear,
    * and by 1 again when fruit advances off an even board (2, 4, 6…).
+   * Each Stronger activation subtracts 1, floored at 0.
    */
   displayedSpeed = 0;
-  /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
+  /**
+   * Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart.
+   * Each Stronger activation subtracts 1, floored at 0. Speed mode adds its levels on top.
+   */
   clearBoost = 0;
   /**
    * Scatter re-entries after the opening wave. The match starts in scatter with no bump.
@@ -499,11 +503,21 @@ export class Board {
     this.train.update(step, this.ghosts, this.maze);
   }
 
-  /** The queued mode becomes active. Leaving Train clears its white-jammer counter. */
+  /**
+   * The queued mode becomes active. Leaving Train clears its white-jammer counter.
+   * Each Stronger activation, including a re-apply, permanently drops one speed level.
+   */
   private activateQueuedPower(): void {
     const next = this.powerQueued;
     if (this.powerActive === 'train' && next !== 'train') this.trainWakes = 0;
     this.powerActive = next;
+    if (next === 'stronger') this.dropSpeedLevel();
+  }
+
+  /** One permanent speed level, shared by the readout and the clear-bonus pace. Never below 0. */
+  private dropSpeedLevel(): void {
+    this.displayedSpeed = Math.max(0, this.displayedSpeed - 1);
+    this.clearBoost = Math.max(0, this.clearBoost - 1);
   }
 
   /**

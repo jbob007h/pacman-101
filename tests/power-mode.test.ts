@@ -88,6 +88,53 @@ describe('power modes', () => {
     expect(earns).toEqual([{ attack: 'ghost', strength: 4 }]);
   });
 
+  it('drops one permanent speed level each time Stronger activates, floored at 0', () => {
+    const game = new Game(() => 0);
+    const pace = speedsForBoard(0).pac;
+    game.board.clearBoost = 3;
+    game.board.displayedSpeed = 3;
+    game.queuePower('stronger');
+    eatPellet(game);
+    expect(game.board.clearBoost).toBe(2);
+    expect(game.board.displayedSpeed).toBe(2);
+    expect(game.hud().speed).toBe(2);
+    expect(game.board.pacSpeed()).toBeCloseTo(pace + 2 * CLEAR_SPEED_BONUS);
+    expect(game.board.frightened).toBe(4);
+
+    game.queuePower('speed');
+    eatPellet(game);
+    expect(game.board.clearBoost).toBe(2);
+    expect(game.hud().speed).toBe(2 + SPEED_MODE_LEVELS);
+    expect(game.board.pacSpeed()).toBeCloseTo(pace + (2 + SPEED_MODE_LEVELS) * CLEAR_SPEED_BONUS);
+
+    game.queuePower('standard');
+    eatPellet(game);
+    expect(game.board.powerActive).toBe('standard');
+    expect(game.board.clearBoost).toBe(2);
+    expect(game.board.displayedSpeed).toBe(2);
+    expect(game.hud().speed).toBe(2);
+    expect(game.board.pacSpeed()).toBeCloseTo(pace + 2 * CLEAR_SPEED_BONUS);
+
+    const twice = new Game(() => 0);
+    twice.board.clearBoost = 2;
+    twice.board.displayedSpeed = 2;
+    twice.queuePower('stronger');
+    eatPellet(twice);
+    eatPellet(twice);
+    expect(twice.board.clearBoost).toBe(0);
+    expect(twice.board.displayedSpeed).toBe(0);
+    expect(twice.hud().speed).toBe(0);
+
+    const floor = new Game(() => 0);
+    floor.queuePower('stronger');
+    eatPellet(floor);
+    expect(floor.board.clearBoost).toBe(0);
+    expect(floor.board.displayedSpeed).toBe(0);
+    expect(floor.hud().speed).toBe(0);
+    expect(floor.board.frightened).toBe(4);
+    expect(closeWindow(floor, 3)).toBe(6);
+  });
+
   it('adds 3 speed levels while Speed is active and strips them when another mode turns on', () => {
     const game = new Game(() => 0);
     const base = speedsForBoard(0).pac;
