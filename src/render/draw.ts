@@ -114,32 +114,112 @@ export function wallFill(maze: Maze, x: number, y: number): WallFill {
   };
 }
 
-export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void {
+interface SplitLayers {
+  panels: CanvasRenderingContext2D;
+  maze: CanvasRenderingContext2D;
+  overlay: CanvasRenderingContext2D;
+}
+
+const splitCache = new WeakMap<object, { panels: HTMLCanvasElement; maze: HTMLCanvasElement; overlay: HTMLCanvasElement }>();
+
+/**
+ * Side grids, the clipped maze, and floating callouts are separate bitmaps.
+ * The maze clip (and each panel's name clip) cannot hide a callout, because
+ * the overlay canvas is never clipped and is blitted last.
+ */
+function openSplit(ctx: CanvasRenderingContext2D): SplitLayers | null {
   const view = ctx.canvas;
-  const width = view.width / (ctx.getTransform().a || 1);
-  const height = view.height / (ctx.getTransform().d || 1);
-  ctx.fillStyle = '#070b14';
-  ctx.fillRect(0, 0, width, height);
-  ctx.save();
-  if (input.shake > 0) {
-    const mag = input.shake * 6;
-    ctx.translate(Math.sin(input.time * 48) * mag, Math.cos(input.time * 37) * mag);
+  const doc = view.ownerDocument;
+  if (!doc?.createElement) return null;
+  let canvases = splitCache.get(view);
+  if (!canvases) {
+    canvases = {
+      panels: doc.createElement('canvas'),
+      maze: doc.createElement('canvas'),
+      overlay: doc.createElement('canvas'),
+    };
+    splitCache.set(view, canvases);
   }
+  const panels = prepLayer(canvases.panels, view);
+  const maze = prepLayer(canvases.maze, view);
+  const overlay = prepLayer(canvases.overlay, view);
+  if (!panels || !maze || !overlay) return null;
+  return { panels, maze, overlay };
+}
 
-  // Side grids are the back layer. The maze, FX, and callouts all paint over them.
-  for (const sim of input.sims) {
-    if (sim.parked) continue;
-    drawPanel(ctx, sim, input.time);
+function prepLayer(canvas: HTMLCanvasElement, view: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  if (canvas.width !== view.width || canvas.height !== view.height) {
+    canvas.width = view.width;
+    canvas.height = view.height;
   }
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'alphabetic';
+  const layer = canvas.getContext('2d');
+  if (!layer) return null;
+  layer.setTransform(1, 0, 0, 1, 0, 0);
+  layer.clearRect(0, 0, canvas.width, canvas.height);
+  return layer;
+}
 
+function copyTransform(from: CanvasRenderingContext2D, to: CanvasRenderingContext2D): DOMMatrix {
+  const t = from.getTransform();
+  to.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+  return t;
+}
+
+export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void {
+  const split = openSplit(ctx);
+  if (split) {
+    const t = copyTransform(ctx, split.panels);
+    copyTransform(ctx, split.maze);
+    copyTransform(ctx, split.overlay);
+    paintScene(split.panels, split.maze, split.overlay, input, false);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#070b14';
+    ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    ctx.drawImage(split.panels.canvas, 0, 0);
+    ctx.drawImage(split.maze.canvas, 0, 0);
+    ctx.drawImage(split.overlay.canvas, 0, 0);
+    ctx.setTransform(t.a, t.b, t.c, t.d, t.e, t.f);
+    return;
+  }
+  paintScene(ctx, ctx, ctx, input, true);
+}
+
+function paintScene(
+  panelCtx: CanvasRenderingContext2D,
+  mazeCtx: CanvasRenderingContext2D,
+  overlayCtx: CanvasRenderingContext2D,
+  input: DrawInput,
+  fillBackground: boolean,
+): void {
+  const shake = (layer: CanvasRenderingContext2D, draw: () => void): void => {
+    layer.save();
+    if (input.shake > 0) {
+      const mag = input.shake * 6;
+      layer.translate(Math.sin(input.time * 48) * mag, Math.cos(input.time * 37) * mag);
+    }
+    draw();
+    layer.restore();
+  };
+  if (fillBackground) {
+    const view = panelCtx.canvas;
+    const width = view.width / (panelCtx.getTransform().a || 1);
+    const height = view.height / (panelCtx.getTransform().d || 1);
+    panelCtx.fillStyle = '#070b14';
+    panelCtx.fillRect(0, 0, width, height);
+  }
+  shake(panelCtx, () => {
+    for (const sim of input.sims) {
+      if (sim.parked) continue;
+      drawPanel(panelCtx, sim, input.time);
+    }
+  });
   const board = boardRect();
-  drawMazeWorld(ctx, input, board);
-  drawBoardChrome(ctx, input, board);
-  drawPlayfieldFx(ctx, input, board);
-  drawPlayfieldCallouts(ctx, input, board);
-  ctx.restore();
+  shake(mazeCtx, () => drawMazeWorld(mazeCtx, input, board));
+  shake(overlayCtx, () => {
+    drawBoardChrome(overlayCtx, input, board);
+    drawPlayfieldFx(overlayCtx, input, board);
+    drawPlayfieldCallouts(overlayCtx, input, board);
+  });
 }
 
 /** Maze actors stay inside the board. Tunnel wraps must not cover the side grids. */

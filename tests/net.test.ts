@@ -15,6 +15,29 @@ afterEach(async () => {
 });
 
 describe('match room', () => {
+  it('mistake-kills bots through eliminate and leaves the human alive', () => {
+    const logs: ServerMessage[] = [];
+    const clock = mutableClock();
+    const room = new MatchRoom(clock.now, () => 0.999999);
+    const human = room.join({ send: (message) => logs.push(message) }, 'Ada');
+    expect(human.ok && human.role === 'player').toBe(true);
+    if (!human.ok || human.role !== 'player') return;
+    readyAndStart(room, [human.seat], clock);
+    logs.length = 0;
+
+    room.tick(10);
+    expect(logs.some((message) => message.type === 'playerEliminated')).toBe(false);
+
+    room.tick(10);
+    const eliminated = logs.filter((message) => message.type === 'playerEliminated');
+    expect(eliminated.length).toBeGreaterThan(0);
+    expect(eliminated.every((message) => message.type === 'playerEliminated' && message.seat !== human.seat)).toBe(true);
+    const ended = logs.find((message) => message.type === 'matchEnd');
+    expect(ended?.type).toBe('matchEnd');
+    if (ended?.type !== 'matchEnd') return;
+    expect(ended.winnerSeat).toBe(human.seat);
+  });
+
   it('sends a jammer only to the other living seat', () => {
     const logs: { who: string; message: ServerMessage }[] = [];
     const link = (who: string): SeatLink => ({

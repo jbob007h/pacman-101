@@ -12,6 +12,7 @@ import {
   type ServerMessage,
 } from '../src/net/protocol';
 import { cpuAttackCancelled, cpuCancelPercent, rollAttackDelay, rollJammerCount, scaleCpuJammers } from '../src/systems/jammers';
+import { cpuMistakeChance } from '../src/systems/mistakes';
 import { cpuName } from '../src/systems/names';
 
 export interface SeatLink {
@@ -159,6 +160,7 @@ export class MatchRoom {
     }
     this.matchElapsed += dt;
     this.tickBots(dt);
+    this.tickMistakes(dt);
   }
 
   private admitSpectator(link: SeatLink, name: unknown): JoinResult {
@@ -305,6 +307,17 @@ export class MatchRoom {
       this.botFire(seat);
       if (!seat.alive || this.phase !== 'playing') continue;
       seat.attackIn = rollAttackDelay(this.rng);
+    }
+  }
+
+  /** Same {@link eliminate} path as a jammer kill. Humans are never rolled. */
+  private tickMistakes(dt: number): void {
+    const chance = cpuMistakeChance(this.matchElapsed - dt, dt);
+    if (chance <= 0) return;
+    for (const seat of [...this.seats.values()]) {
+      if (this.phase !== 'playing') return;
+      if (!seat.bot || !seat.alive) continue;
+      if (this.rng() >= 1 - chance) this.eliminate(seat);
     }
   }
 

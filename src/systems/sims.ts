@@ -24,6 +24,7 @@ import {
   type JammerAction,
   type JammerSim,
 } from './jammers';
+import { cpuMistakeChance } from './mistakes';
 import { cpuName } from './names';
 
 export interface Sim {
@@ -67,6 +68,8 @@ export class SimWorld {
    */
   private localBattle = true;
   private readonly ghostWindow = new GhostAttackWindow();
+  /** Match time already rolled for a mistake, so a frozen clock cannot repeat. */
+  private mistakeMark = Number.NaN;
 
   constructor(
     private readonly bus: EventBus,
@@ -117,6 +120,7 @@ export class SimWorld {
     this.reliefAcc = 0;
     this.elapsed = 0;
     this.localBattle = true;
+    this.mistakeMark = Number.NaN;
     this.ghostWindow.reset();
   }
 
@@ -155,6 +159,8 @@ export class SimWorld {
       this.fire(sim);
       sim.attackIn = rollAttackDelay(this.rng);
     }
+
+    this.rollMistakes(dt, accumulate);
 
     this.reliefAcc += dt;
     let reliefGuard = 0;
@@ -219,9 +225,7 @@ export class SimWorld {
       reason = action.reason;
       targets.push(sim.id);
       if (sim.pressure >= KILL_PRESSURE) {
-        sim.alive = false;
-        sim.pressure = KILL_PRESSURE;
-        sim.busy = 0;
+        this.markDead(sim);
         eliminated.push(sim.id);
       }
     }
@@ -235,6 +239,38 @@ export class SimWorld {
         remainingPlayers: 1 + this.aliveCount(),
       });
     }
+  }
+
+  /**
+   * Independent per-CPU roll. Same elimination as a pressure kill
+   * ({@link markDead} plus `simEliminated`), so placement and the panel X match.
+   * A follow-the-clock step that repeats the same timestamp does not roll again.
+   */
+  private rollMistakes(dt: number, accumulate: boolean): void {
+    const start = accumulate ? this.elapsed - dt : this.elapsed;
+    if (!accumulate) {
+      if (this.mistakeMark === start) return;
+      this.mistakeMark = start;
+    }
+    const chance = cpuMistakeChance(start, dt);
+    if (chance <= 0) return;
+    for (const sim of this.sims) {
+      if (!sim.alive || sim.parked) continue;
+      // Upper tail so a constant 0 roll (used by attack tests) never mistake-kills.
+      if (this.rng() < 1 - chance) continue;
+      this.markDead(sim);
+      this.bus.emit({
+        type: 'simEliminated',
+        simId: sim.id,
+        remainingPlayers: 1 + this.aliveCount(),
+      });
+    }
+  }
+
+  private markDead(sim: Sim): void {
+    sim.alive = false;
+    sim.pressure = KILL_PRESSURE;
+    sim.busy = 0;
   }
 }
 
