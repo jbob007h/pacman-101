@@ -11,7 +11,7 @@ import {
   type RosterSeat,
   type ServerMessage,
 } from '../src/net/protocol';
-import { rollAttackDelay, rollJammerCount } from '../src/systems/jammers';
+import { cpuAttackCancelled, cpuCancelPercent, rollAttackDelay, rollJammerCount, scaleCpuJammers } from '../src/systems/jammers';
 import { cpuName } from '../src/systems/names';
 
 export interface SeatLink {
@@ -62,6 +62,8 @@ export class MatchRoom {
   private countdownEndsAt: number | null = null;
   private lastAnnouncedSecond: number | null = null;
   private matchStartedAt = 0;
+  /** Seconds of play, advanced with bot ticks so injected test time matches the wall clock. */
+  private matchElapsed = 0;
   private lastNow: number;
   private watcherSeq = 0;
 
@@ -155,6 +157,7 @@ export class MatchRoom {
       if (this.countdownEndsAt != null && t >= this.countdownEndsAt) this.begin();
       return;
     }
+    this.matchElapsed += dt;
     this.tickBots(dt);
   }
 
@@ -280,6 +283,7 @@ export class MatchRoom {
       else seat.ready = true;
     }
     this.matchStartedAt = this.now();
+    this.matchElapsed = 0;
     const roster = this.roster();
     for (const seat of humans) {
       seat.link.send({
@@ -306,7 +310,11 @@ export class MatchRoom {
 
   private botFire(seat: Seat): void {
     if (this.phase !== 'playing' || !seat.alive) return;
-    const strength = rollJammerCount(this.rng);
+    const base = rollJammerCount(this.rng);
+    const cancelPercent = cpuCancelPercent(this.matchElapsed);
+    if (cpuAttackCancelled(cancelPercent, this.rng())) return;
+    const strength = scaleCpuJammers(base, cancelPercent);
+    if (strength < 1) return;
     this.applyHit(seat, strength, 'ghost');
   }
 

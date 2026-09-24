@@ -1,4 +1,13 @@
-import { KILL_PRESSURE, SIM_ATTACK_MAX, SIM_ATTACK_MIN, SIM_JAMMER_MAX, SIM_JAMMER_MIN } from '../config';
+import {
+  CPU_CANCEL_DROP,
+  CPU_CANCEL_START,
+  CPU_CANCEL_STEP,
+  KILL_PRESSURE,
+  SIM_ATTACK_MAX,
+  SIM_ATTACK_MIN,
+  SIM_JAMMER_MAX,
+  SIM_JAMMER_MIN,
+} from '../config';
 import type { JamReason } from '../shared/events';
 import type { Rng } from '../shared/rng';
 
@@ -64,6 +73,35 @@ export function rollJammerCount(rng: Rng): number {
   const span = SIM_JAMMER_MAX - SIM_JAMMER_MIN + 1;
   const index = Math.min(span - 1, Math.floor(Math.max(0, rng()) * span));
   return SIM_JAMMER_MIN + index;
+}
+
+/**
+ * Chance, in percent, that a CPU/bot attack is cancelled outright.
+ * Starts at {@link CPU_CANCEL_START} and drops by {@link CPU_CANCEL_DROP}
+ * every {@link CPU_CANCEL_STEP} seconds of match time, floored at 0.
+ */
+export function cpuCancelPercent(matchElapsedSeconds: number): number {
+  const elapsed = Number.isFinite(matchElapsedSeconds) ? Math.max(0, matchElapsedSeconds) : 0;
+  const steps = Math.floor(elapsed / CPU_CANCEL_STEP);
+  return Math.max(0, CPU_CANCEL_START - steps * CPU_CANCEL_DROP);
+}
+
+/** True when this attack sends nothing. `roll` is a uniform unit interval. */
+export function cpuAttackCancelled(cancelPercent: number, roll: number): boolean {
+  if (cancelPercent <= 0) return false;
+  return roll * 100 < cancelPercent;
+}
+
+/**
+ * Scale a rolled jammer count by the same curve as {@link cpuCancelPercent}.
+ * `base * (100 - cancelPercent) / 100`, rounded to the nearest integer.
+ * A result below 1 is 0: the caller skips the shot instead of sending none.
+ */
+export function scaleCpuJammers(baseStrength: number, cancelPercent: number): number {
+  const percent = Math.min(100, Math.max(0, cancelPercent));
+  const scaled = (baseStrength * (100 - percent)) / 100;
+  const jammers = Math.round(scaled);
+  return jammers < 1 ? 0 : jammers;
 }
 
 export function simVsSimAction(targetId: number, jammers: number): JammerAction {

@@ -24,7 +24,7 @@ A single eat used to send strength `48 + chain * 22`. The victim turned that int
 
 An empty window never sends. Time passing, a power pellet, ordinary dots, and a full clear do not open it and do not send an attack. Eating ghosts is the only player attack.
 
-Offline, that same window adds pressure equal to the ghost count on one living sim. Each CPU fires on its own 8–12 second timer. A shot is 1–16 jammers: that many sprites if it picks you, or that much pressure if it picks another sim. There is no bot clock in N1. Later bots should use this per-seat cadence. The `grace` field on `matchStart` stays 10 for that later phase. Local CPU timers do not read it.
+Offline, that same window adds pressure equal to the ghost count on one living sim. Each CPU fires on its own 5–15 second timer. A shot rolls 1–16 jammers, then the match-time cancel ramp may drop or scale it: that many sprites if it picks you, or that much pressure if it picks another sim. There is no bot clock in N1. Later bots should use this per-seat cadence. The `grace` field on `matchStart` stays 10 for that later phase. Local CPU timers do not read it.
 
 ## Run it
 

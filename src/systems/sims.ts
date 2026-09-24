@@ -13,10 +13,13 @@ import type { EventBus } from '../shared/events';
 import type { Rng } from '../shared/rng';
 import { GhostAttackWindow } from './ghostWindow';
 import {
+  cpuAttackCancelled,
+  cpuCancelPercent,
   ghostVolley,
   pickCpuTarget,
   rollAttackDelay,
   rollJammerCount,
+  scaleCpuJammers,
   simVsSimAction,
   type JammerAction,
   type JammerSim,
@@ -56,6 +59,8 @@ export interface Sim {
 export class SimWorld {
   readonly sims: Sim[];
   private reliefAcc = 0;
+  /** Match seconds while local CPU attacks are running. Same clock as the match. */
+  private elapsed = 0;
   /**
    * Offline battle. Online matches turn this off so the server picks targets
    * and the CPU ticker does not also hit the player. {@link reset} turns it back on.
@@ -82,11 +87,17 @@ export class SimWorld {
     return n;
   }
 
-  update(dt: number): void {
+  /**
+   * `matchElapsed` is the match clock (from match start). When omitted, this
+   * world advances its own copy by `dt` so direct sim steps still ramp.
+   */
+  update(dt: number, matchElapsed?: number): void {
+    const followClock = matchElapsed != null && Number.isFinite(matchElapsed);
+    if (followClock) this.elapsed = Math.max(0, matchElapsed);
     let left = Math.max(0, dt);
     while (left > 0) {
       const step = Math.min(0.05, left);
-      this.step(step);
+      this.step(step, !followClock);
       left -= step;
     }
   }
@@ -104,6 +115,7 @@ export class SimWorld {
     const fresh = createSims(this.rng);
     this.sims.splice(0, this.sims.length, ...fresh);
     this.reliefAcc = 0;
+    this.elapsed = 0;
     this.localBattle = true;
     this.ghostWindow.reset();
   }
@@ -118,7 +130,7 @@ export class SimWorld {
     }
   }
 
-  private step(dt: number): void {
+  private step(dt: number, accumulate: boolean): void {
     this.releaseGhostWindow(dt);
     for (const sim of this.sims) {
       if (sim.heat > 0) sim.heat = Math.max(0, sim.heat - dt / 0.45);
@@ -133,6 +145,8 @@ export class SimWorld {
       this.reliefAcc = 0;
       return;
     }
+
+    if (accumulate) this.elapsed += dt;
 
     for (const sim of this.sims) {
       if (!sim.alive) continue;
@@ -159,8 +173,12 @@ export class SimWorld {
 
   private fire(attacker: Sim): void {
     if (!attacker.alive || attacker.pressure >= KILL_PRESSURE) return;
+    const base = rollJammerCount(this.rng);
+    const cancelPercent = cpuCancelPercent(this.elapsed);
+    if (cpuAttackCancelled(cancelPercent, this.rng())) return;
+    const jammers = scaleCpuJammers(base, cancelPercent);
+    if (jammers < 1) return;
     attacker.busy = 1;
-    const jammers = rollJammerCount(this.rng);
     const others = this.sims
       .filter((sim) => sim.alive && sim.pressure < KILL_PRESSURE && sim.id !== attacker.id)
       .map((sim) => sim.id);

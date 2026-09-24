@@ -9,7 +9,7 @@ Implemented on top of the N1 jammer loop. Local single-player is still the defau
 - Up to 8 humans can join. The next one still gets "Match is full". A match that has already started also rejects a new join with that same text.
 - Humans join, then click **Ready**. The match starts when every human already in the lobby is Ready. One human alone is enough: solo online practice is allowed.
 - At the whistle the server pads every empty seat with a CPU bot, then sends `matchStart` with the full 8-seat roster. Eight ready humans means zero bots.
-- Each bot is a pressure filler, not a maze. It uses the offline CPU cadence: its own 8–12s timer from match start, then 1–16 jammers at one other living seat, equal odds. `matchStart.grace` stays 10 and is not a gate.
+- Each bot is a pressure filler, not a maze. It uses the offline CPU cadence: its own 5–15s timer from match start, then a 1–16 jammer roll at one other living seat, equal odds, scaled by the match-time cancel ramp. `matchStart.grace` stays 10 and is not a gate.
 - A human `earnAttack` is still ghost-only, with no target. The server picks any other living seat, human or bot. Human → bot updates pressure and the roster only. Bot → human also sends `jammerInbound`. Bot → bot is pressure only.
 - `deathReport` is still a claim. `playerEliminated` confirms it and locks that seat's place. Disconnect during play eliminates that human. Bots stay until pressure or the rules take them out.
 - When **your** seat is eliminated, standings open after the same death pause, even if other humans and bots are still playing. Eliminated seats show the server place and name. Seats still alive stay on the list with a blank place. Later `playerEliminated` events and roster updates rewrite that list in place. `matchEnd` replaces it with the final order, including the winner and every bot name. Opening standings does not end the match for anyone else. The last survivor still gets congratulations before standings.
@@ -39,7 +39,7 @@ npm run dev
 2. Type a name. Click **Online (dev)** (the button says **Online** on a production build).
 3. The title stays up with the lobby line and a **Ready** button. Click **Ready**.
 4. The match counts down. Alive reads **8**. Seven side panels show CPU names (the same cute names as offline). The other offline panels are hidden.
-5. Eat a frightened ghost. After the 2-second batch, one living seat takes that many jammers worth of pressure. If the server picked you, you see the inbound jammer. Bots also shoot on their own 8–12s timers.
+5. Eat a frightened ghost. After the 2-second batch, one living seat takes that many jammers worth of pressure. If the server picked you, you see the inbound jammer. Bots also shoot on their own 5–15s timers.
 
 ### Two browsers, fewer bots
 

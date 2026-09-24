@@ -59,7 +59,7 @@ Not a remote maze, not ghost positions, not dots.
 
 The server pads the match to 101 with **pressure-sim fillers**. They reuse the local sim mindset: pressure, a private attack timer, relief, no maze AI. Bot attacks are server-side. Humans and bots share one seat list, so a uniform pick can land on either.
 
-Each local CPU attacks once every 8–12 seconds, on its own timer, starting from spawn. One attack is 1–16 jammers. N2b server bots use that same per-seat cadence and jammer count. They do not wait out `matchStart.grace` and then run a faster clock. Dot and clear earns are not attacks. Ghost eats batch for 2 seconds, then one earn goes out, one jammer per ghost, matching local play.
+Each local CPU attacks once every 5–15 seconds, on its own timer, starting from spawn. One attack rolls 1–16 jammers, then the match-time cancel ramp may drop or scale it. N2b server bots use that same per-seat cadence and jammer count. They do not wait out `matchStart.grace` and then run a faster clock. Dot and clear earns are not attacks. Ghost eats batch for 2 seconds, then one earn goes out, one jammer per ghost, matching local play.
 
 ## Anti-trust
 
@@ -74,7 +74,7 @@ Clients are not trusted for win, death, or pressure totals.
 1. **Lobby / name.** `join` with a display name. The server assigns a seat.
 2. **Fill.** The first Ready starts a 10 second lobby countdown. At 0, server-side bots pad empty seats to 101. Up to 16 humans can be in that lobby.
 3. **Countdown.** `matchStart` carries the shared clock. Each client runs its own maze from then on.
-4. **Opening.** Each bot's first attack waits for its own 8–12s timer. Earn-attacks may be sent immediately.
+4. **Opening.** Each bot's first attack waits for its own 5–15s timer. Earn-attacks may be sent immediately.
 5. **Play.** Earn → validate → pick → apply → roster delta and inbound jammer, until one seat is left.
 6. **End.** `matchEnd` names the winner and the locked placements. The last survivor sees **Congratulations!**, then one click (or Space / Enter) opens the rankings. Anyone already out has had that list open since their own elimination; `matchEnd` refreshes it to the final order. Online renders the server's placements instead of the local ranking set.
 
@@ -87,7 +87,7 @@ Names and purpose only. Not a schema.
 | `join` | client → server | Enter the lobby with a display name. |
 | `ready` | client → server | This human is ready to start. |
 | `lobby` | server → client | Seat list so far: who is human, who is a bot, who is ready, when the fill hits 101. |
-| `matchStart` | server → client | Countdown is armed. Includes seat id, roster snapshot, and a grace number. N2 bots use the 8–12s per-seat timer, not a fast clock after grace. |
+| `matchStart` | server → client | Countdown is armed. Includes seat id, roster snapshot, and a grace number. N2 bots use the 5–15s per-seat timer, not a fast clock after grace. |
 | `earnAttack` | client → server | Local earn. Type (`ghost`, `dots`, `clear`) and strength. No target. |
 | `jammerInbound` | server → client | This seat is the victim. Spawn the local inbound jammer. |
 | `rosterDelta` | server → client | Thin seat updates: pressure band, alive, flash/busy, name if it changed. |

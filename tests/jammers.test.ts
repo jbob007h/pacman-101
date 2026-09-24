@@ -11,7 +11,16 @@ import {
 } from '../src/config';
 import { Game } from '../src/game';
 import { GhostAttackWindow } from '../src/systems/ghostWindow';
-import { ghostVolley, pickCpuTarget, pickSimIds, rollAttackDelay, rollJammerCount } from '../src/systems/jammers';
+import {
+  cpuAttackCancelled,
+  cpuCancelPercent,
+  ghostVolley,
+  pickCpuTarget,
+  pickSimIds,
+  rollAttackDelay,
+  rollJammerCount,
+  scaleCpuJammers,
+} from '../src/systems/jammers';
 import { mulberry32 } from '../src/shared/rng';
 
 describe('jammers', () => {
@@ -175,7 +184,7 @@ describe('jammers', () => {
     expect(playing.match.phase).toBe('playing');
   });
 
-  it('rolls each CPU an 8–12s gap and a jammer count from 1 to 16', () => {
+  it('rolls each CPU a 5–15s gap and a jammer count from 1 to 16', () => {
     expect(rollAttackDelay(() => 0)).toBe(SIM_ATTACK_MIN);
     expect(rollAttackDelay(() => 1)).toBe(SIM_ATTACK_MAX);
     expect(rollJammerCount(() => 0)).toBe(SIM_JAMMER_MIN);
@@ -194,12 +203,13 @@ describe('jammers', () => {
     expect(seen.size).toBe(SIM_JAMMER_MAX - SIM_JAMMER_MIN + 1);
 
     const early = new Game(() => 0);
-    const strengths: number[] = [];
     let shots = 0;
     early.bus.on('jammersSent', (event) => {
       if (event.reason !== 'sim') return;
       shots += 1;
-      strengths.push(event.strength);
+    });
+    early.bus.on('incomingJammer', () => {
+      shots += 1;
     });
     for (const sim of early.sims.sims) {
       expect(sim.attackIn).toBe(SIM_ATTACK_MIN);
@@ -207,13 +217,9 @@ describe('jammers', () => {
     early.sims.update(SIM_ATTACK_MIN - 0.05);
     expect(shots).toBe(0);
     early.sims.update(0.05);
-    expect(shots).toBe(SIM_COUNT);
-    expect(strengths.every((strength) => strength === 1)).toBe(true);
+    expect(cpuCancelPercent(SIM_ATTACK_MIN)).toBe(49);
+    expect(shots).toBe(0);
     for (const sim of early.sims.sims) expect(sim.attackIn).toBe(SIM_ATTACK_MIN);
-    early.sims.update(SIM_ATTACK_MIN - 0.05);
-    expect(shots).toBe(SIM_COUNT);
-    early.sims.update(0.05);
-    expect(shots).toBe(SIM_COUNT * 2);
 
     const late = new Game(() => 0.999);
     const inbound: { strength: number; exact?: boolean }[] = [];
@@ -221,8 +227,9 @@ describe('jammers', () => {
     late.sims.update(SIM_ATTACK_MAX - 0.05);
     expect(inbound).toEqual([]);
     late.sims.update(0.05);
+    const openingScale = scaleCpuJammers(SIM_JAMMER_MAX, cpuCancelPercent(SIM_ATTACK_MAX));
     expect(inbound).toHaveLength(SIM_COUNT);
-    expect(inbound.every((shot) => shot.strength === SIM_JAMMER_MAX && shot.exact === true)).toBe(true);
+    expect(inbound.every((shot) => shot.strength === openingScale && shot.exact === true)).toBe(true);
 
     const spread = new Game(mulberry32(7));
     let spreadShots = 0;
@@ -242,25 +249,71 @@ describe('jammers', () => {
     }
     spread.sims.update(SIM_ATTACK_MIN - 0.05);
     expect(spreadShots).toBe(0);
-    spread.sims.update(6);
-    expect(spreadShots).toBe(SIM_COUNT);
-    expect(spreadStrengths.every((strength) => strength >= SIM_JAMMER_MIN && strength <= SIM_JAMMER_MAX)).toBe(true);
+    spread.sims.update(SIM_ATTACK_MAX);
+    expect(spreadShots).toBeGreaterThan(0);
+    expect(spreadStrengths.every((strength) => strength >= 1 && strength <= SIM_JAMMER_MAX && Number.isInteger(strength))).toBe(true);
     for (const sim of spread.sims.sims) {
       expect(sim.attackIn).toBeGreaterThan(0);
       expect(sim.attackIn).toBeLessThanOrEqual(SIM_ATTACK_MAX);
     }
   });
 
-  it('hits the player with an exact jammer count when a cpu shot picks them', () => {
+  it('hits the player with a scaled jammer count when a cpu shot picks them', () => {
     const game = new Game(() => 0.999);
     const inbound: { strength: number; exact?: boolean }[] = [];
     game.bus.on('incomingJammer', (event) => inbound.push({ strength: event.strength, exact: event.exact }));
     game.sims.update(SIM_ATTACK_MAX);
+    const scaled = scaleCpuJammers(SIM_JAMMER_MAX, cpuCancelPercent(SIM_ATTACK_MAX));
     expect(inbound.length).toBe(SIM_COUNT);
-    expect(inbound.every((shot) => shot.strength === SIM_JAMMER_MAX && shot.exact === true)).toBe(true);
+    expect(inbound.every((shot) => shot.strength === scaled && shot.exact === true)).toBe(true);
   });
 
-  it('fires no CPU attacks before the 8 second minimum of match time', () => {
+  it('drops cancelPercent from 50 to 0 and scales or skips the rolled jammer count', () => {
+    expect(cpuCancelPercent(0)).toBe(50);
+    expect(cpuCancelPercent(2.9)).toBe(50);
+    expect(cpuCancelPercent(3)).toBe(49);
+    expect(cpuCancelPercent(149.9)).toBe(1);
+    expect(cpuCancelPercent(150)).toBe(0);
+    expect(cpuCancelPercent(180)).toBe(0);
+    expect(cpuCancelPercent(-4)).toBe(50);
+
+    expect(cpuAttackCancelled(50, 0)).toBe(true);
+    expect(cpuAttackCancelled(50, 0.49)).toBe(true);
+    expect(cpuAttackCancelled(50, 0.5)).toBe(false);
+    expect(cpuAttackCancelled(0, 0)).toBe(false);
+    expect(cpuAttackCancelled(1, 0.009)).toBe(true);
+    expect(cpuAttackCancelled(1, 0.01)).toBe(false);
+
+    expect(scaleCpuJammers(10, 40)).toBe(6);
+    expect(scaleCpuJammers(16, 50)).toBe(8);
+    expect(scaleCpuJammers(1, 0)).toBe(1);
+    expect(scaleCpuJammers(16, 0)).toBe(16);
+    expect(scaleCpuJammers(1, 90)).toBe(0);
+    expect(scaleCpuJammers(1, 50)).toBe(1);
+
+    const cancelled = new Game(() => 0);
+    let sent = 0;
+    cancelled.bus.on('jammersSent', (event) => {
+      if (event.reason === 'sim') sent += 1;
+    });
+    cancelled.bus.on('incomingJammer', () => {
+      sent += 1;
+    });
+    cancelled.sims.update(149);
+    expect(sent).toBe(0);
+
+    const full = new Game(() => 0);
+    const strengths: number[] = [];
+    full.bus.on('jammersSent', (event) => {
+      if (event.reason === 'sim') strengths.push(event.strength);
+    });
+    full.bus.on('incomingJammer', (event) => strengths.push(event.strength));
+    full.sims.update(156);
+    expect(strengths.length).toBeGreaterThan(0);
+    expect(strengths.every((strength) => strength === 1)).toBe(true);
+  });
+
+  it('fires no CPU attacks before the 5 second minimum of match time', () => {
     const game = new Game(() => 0);
     let cpuShots = 0;
     game.bus.on('jammersSent', (event) => {
@@ -306,10 +359,11 @@ describe('jammers', () => {
       game.update(1 / 60);
       if (game.matchTime < SIM_ATTACK_MIN) expect(cpuShots).toBe(0);
     }
-    expect(cpuShots).toBeGreaterThan(0);
+    expect(cpuShots).toBe(0);
     expect(game.match.phase).toBe('playing');
     expect(game.matchTime).toBeGreaterThanOrEqual(SIM_ATTACK_MIN);
     expect(game.matchTime).toBeLessThan(SIM_ATTACK_MIN + 0.05);
+    for (const sim of game.sims.sims) expect(sim.attackIn).toBeGreaterThan(0);
 
     game.startMatch();
     const marked = cpuShots;
@@ -323,7 +377,7 @@ describe('jammers', () => {
       game.update(1 / 60);
       if (game.matchTime < SIM_ATTACK_MIN) expect(cpuShots).toBe(marked);
     }
-    expect(cpuShots).toBeGreaterThan(marked);
+    expect(cpuShots).toBe(marked);
     expect(game.match.phase).toBe('playing');
   });
 

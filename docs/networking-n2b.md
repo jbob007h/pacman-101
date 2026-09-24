@@ -20,7 +20,7 @@ A 17th human in the lobby gets `Lobby is full` and the socket closes. The 9th th
 
 ## Bots
 
-Server bots use the same per-seat cadence as local CPUs: first shot and every later shot wait 8–12 seconds, and each shot is 1–16 jammers. The server picks the target. Only `ghost` earns apply. A bot hit on a human is `jammerInbound`. A bot hit on a bot is pressure on the roster. The jammer chase gate and speed feel stay on the client.
+Server bots use the same per-seat cadence as local CPUs: first shot and every later shot wait 5–15 seconds, and each shot rolls 1–16 jammers, then the match-time cancel ramp may drop the shot or scale that roll. The server picks the target. Only `ghost` earns apply. A bot hit on a human is `jammerInbound`. A bot hit on a bot is pressure on the roster. The jammer chase gate and speed feel stay on the client.
 
 `matchStart.grace` is still 10. Bot timers do not treat that as a shared fast clock.
 

@@ -228,10 +228,11 @@ export const CLEAR_TARGETS = 8;
  * {@link SIM_ATTACK_MIN}–{@link SIM_ATTACK_MAX} seconds after the match clock
  * starts, and each later shot rolls that same range again. There is no shared
  * ticker and no multi-shot burst.
- * One shot is {@link SIM_JAMMER_MIN}–{@link SIM_JAMMER_MAX} jammers, picked
- * uniformly. The target is one living seat (every other living sim, plus the
- * human) with equal odds. A hit on the human spawns that many inbound sprites.
- * A hit on a sim adds that much pressure.
+ * One shot rolls {@link SIM_JAMMER_MIN}–{@link SIM_JAMMER_MAX} jammers, then
+ * {@link cpuCancelPercent} may cancel it or scale that roll down. The target
+ * is one living seat (every other living sim, plus the human) with equal odds.
+ * A hit on the human spawns that many inbound sprites. A hit on a sim adds
+ * that much pressure.
  * Player attacks are still ghost eats only, batched for {@link GHOST_ATTACK_WINDOW}.
  * Dots and clears never attack.
  * Passive recovery is {@link PRESSURE_RECOVERY} per second after {@link PRESSURE_LOCK}.
@@ -240,13 +241,20 @@ export const CLEAR_TARGETS = 8;
  * board clear ({@link SIM_CLEAR_RELIEF} when the roll is under
  * {@link SIM_CLEAR_RELIEF_CHANCE}).
  */
-export const SIM_ATTACK_MIN = 8;
-export const SIM_ATTACK_MAX = 12;
+export const SIM_ATTACK_MIN = 5;
+export const SIM_ATTACK_MAX = 15;
 export const SIM_JAMMER_MIN = 1;
 export const SIM_JAMMER_MAX = 16;
 /**
+ * CPU/bot cancel chance at match time 0. Drops by {@link CPU_CANCEL_DROP} every
+ * {@link CPU_CANCEL_STEP} seconds of match time until it hits 0.
+ */
+export const CPU_CANCEL_START = 50;
+export const CPU_CANCEL_STEP = 3;
+export const CPU_CANCEL_DROP = 1;
+/**
  * Opening quiet carried on `matchStart` for a later bot phase.
- * Local CPUs do not use this as a shared gate. Their own 8–12s timer is the wait.
+ * Local CPUs do not use this as a shared gate. Their own 5–15s timer is the wait.
  * N2 bots should copy that per-seat cadence, not a fast global clock after this grace.
  */
 export const SIM_ATTACK_GRACE = 10;
