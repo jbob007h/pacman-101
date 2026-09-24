@@ -6,6 +6,7 @@ import {
   FRUIT_TILE,
   GHOST_DOOR_SPEED,
   GHOST_LEAVE_SPEED,
+  GHOST_SCATTER_BUMP,
   speedsForBoard,
   TUNNEL_GHOST_MULT,
 } from '../src/config';
@@ -67,7 +68,7 @@ describe('board pace', () => {
     game.update(1 / 60);
     const stepped = Math.hypot(blinky.x - x0, blinky.y - y0);
     expect(blinky.mode).toBe('scatter');
-    expect(stepped).toBeCloseTo(speedsForBoard(0).ghost / 60, 2);
+    expect(stepped).toBeCloseTo((speedsForBoard(0).ghost + GHOST_SCATTER_BUMP) / 60, 2);
     expect(stepped).toBeGreaterThan(GHOST_LEAVE_SPEED / 60);
   });
 

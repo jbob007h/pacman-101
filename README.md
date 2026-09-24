@@ -68,9 +68,9 @@ Walls next to a corridor are drawn as half a tile on the blocked side so the lan
 
 ## Board speed
 
-Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, no jammer goes out, and Pac keeps a permanent movement bonus (1.6875 tiles/sec per clear, stacking for the rest of the match). Ghosts do not gain that bonus. Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
+Eating the fruit under the ghost house refills the maze, bumps the Board counter, and speeds the next maze up. Board 1 is the slow pace. The ramp caps at board 6. Eating every pellet does not advance the board and does not reload dots: the maze stays empty, no jammer goes out, and Pac keeps a permanent movement bonus (1.125 tiles/sec per clear, stacking for the rest of the match). Ghosts do not gain that bonus. Dots come back only when the fruit is eaten. A bouncing "Speed Up!" pops off Pac when that last pellet is eaten.
 
-The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets, including a clear that happens after the fruit has already been eaten and the dots refilled. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 1.6875 tiles/sec bonus is the movement behind each clear's +1. It is added to Pac only. Ghost chase, fright, and Elroy stay on the board table. The even-board fruit point does not add that bonus; the board pace table is the fruit's speed change.
+The Speed readout starts at 0. It goes up by 1 every time the board is cleared of pellets, including a clear that happens after the fruit has already been eaten and the dots refilled. It also goes up by 1 when fruit advances you off an even board (2, 4, 6, …). The 1.125 tiles/sec bonus is the movement behind each clear's +1. It is added to Pac only. Ghost chase, fright, and Elroy stay on the board table. The even-board fruit point does not add that bonus; the board pace table is the fruit's speed change.
 
 Fruit appears once half the pellets are eaten. That half is `ceil(total / 2)` of the dots plus power pellets on the board at the start of the current fill (the two tiles under the opening pose are already gone, and fruit itself does not count). Pac starts at tile position 13.5, 23, centered in the bottom corridor between columns 13 and 14. After the house-ring strip, the first fill has 250 of those (248 dots and 4 power pellets, minus those two tiles), so the fruit appears after 125 pellets. Later fills restore both dots, so that set is 252 and the half is 126 as well. It sits on the tile in the middle of the corridor under the ghost house, column 14, row 17. Clearing the board does not remove a fruit that is already waiting, and it does not start another fruit cycle. The next fruit waits until that fruit is eaten and the next fill begins.
 
@@ -81,13 +81,13 @@ Tiles per second, before the clear bonus:
 | Board | Pac | Ghost chase | Frightened |
 | --- | --- | --- | --- |
 | 1 | 8.64 | 6.075 | 2.7675 |
-| 2 | 9.6525 | 7.2225 | 3.1725 |
-| 3 | 10.665 | 8.4375 | 3.645 |
-| 4 | 11.6775 | 9.6525 | 4.1175 |
-| 5 | 12.6225 | 10.8675 | 4.59 |
-| 6+ | 13.5 | 12.015 | 5.0625 |
+| 2 | 9.315 | 6.84 | 3.0375 |
+| 3 | 9.99 | 7.65 | 3.3525 |
+| 4 | 10.665 | 8.46 | 3.6675 |
+| 5 | 11.295 | 9.27 | 3.9825 |
+| 6+ | 11.88 | 10.035 | 4.2975 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.6875 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. It does not add anything to ghost chase, fright, or Elroy. These paces are 90% of the previous 1.5× table (eyes 16.2, house bob 4.32, eyes entering the door 7.02). Leaving the house is slower still, 3.24 tiles/sec, until the ghost is fully out. Chase and scatter after that stay on the table. Elroy 1 matches the `Pac` column. Elroy 2 is 1.1× that column. Neither uses Pac's accumulated clear bonus.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds by two thirds of the old step; chase closes on Pac more slowly, and a pellet still drops the ghosts to a crawl. Each full clear adds 1.125 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. It does not add anything to ghost chase, fright, or Elroy. The table above is the board step only. Chase and scatter also gain 0.765 tiles/sec, permanently, every time the wave enters scatter, including the opening scatter. That bump stays for the rest of the match and stacks with later scatter phases. Fright, eyes, and the house do not take it. Leaving the house is 3.24 tiles/sec until the ghost is fully out. Elroy 1 matches the `Pac` column. Elroy 2 is 1.1× that column. Neither uses Pac's accumulated clear bonus.
 
 ## Cruise Elroy
 
