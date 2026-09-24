@@ -126,6 +126,7 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
     ctx.translate(Math.sin(input.time * 48) * mag, Math.cos(input.time * 37) * mag);
   }
 
+  // Side grids are the back layer. The maze, FX, and callouts all paint over them.
   for (const sim of input.sims) {
     if (sim.parked) continue;
     drawPanel(ctx, sim, input.time);
@@ -134,6 +135,15 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   ctx.textBaseline = 'alphabetic';
 
   const board = boardRect();
+  drawMazeWorld(ctx, input, board);
+  drawBoardChrome(ctx, input, board);
+  drawPlayfieldFx(ctx, input, board);
+  drawPlayfieldCallouts(ctx, input, board);
+  ctx.restore();
+}
+
+/** Maze actors stay inside the board. Tunnel wraps must not cover the side grids. */
+function drawMazeWorld(ctx: CanvasRenderingContext2D, input: DrawInput, board: { x: number; y: number; w: number; h: number }): void {
   ctx.save();
   ctx.beginPath();
   ctx.rect(board.x, board.y, board.w, board.h);
@@ -173,11 +183,14 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
   drawPac(ctx, input, board.x, board.y);
   drawPelletClock(ctx, input.frightened);
   for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
-  drawEatScore(ctx, input, board.x, board.y);
-  drawSpeedPopup(ctx, input, board.x, board.y);
-  drawEatCountPopup(ctx, input, board.x, board.y);
   ctx.restore();
+}
 
+function drawBoardChrome(
+  ctx: CanvasRenderingContext2D,
+  input: DrawInput,
+  board: { x: number; y: number; w: number; h: number },
+): void {
   ctx.strokeStyle = input.slow > 0 ? 'rgba(140, 190, 255, 0.9)' : '#243058';
   ctx.lineWidth = input.slow > 0 ? 4 : 2;
   ctx.strokeRect(board.x + 1, board.y + 1, board.w - 2, board.h - 2);
@@ -186,7 +199,14 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
     ctx.fillStyle = `rgba(80, 140, 255, ${alpha})`;
     ctx.fillRect(board.x, board.y, board.w, board.h);
   }
+}
 
+/** Bolts, impacts, and the hit flash. Drawn after the grids so they cross the gutters. */
+function drawPlayfieldFx(
+  ctx: CanvasRenderingContext2D,
+  input: DrawInput,
+  board: { x: number; y: number; w: number; h: number },
+): void {
   drawBolts(ctx, input.bolts);
   drawIncoming(ctx, input.incoming);
   drawParticles(ctx, input.particles);
@@ -194,7 +214,20 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
     ctx.fillStyle = `rgba(255, 70, 90, ${input.mazeFlash * 0.34})`;
     ctx.fillRect(board.x, board.y, board.w, board.h);
   }
-  ctx.restore();
+}
+
+/**
+ * Floating scores and callouts. Not clipped to the maze, so a "Speed Up!"
+ * near a tunnel paints over the side grids instead of vanishing behind them.
+ */
+function drawPlayfieldCallouts(
+  ctx: CanvasRenderingContext2D,
+  input: DrawInput,
+  board: { x: number; y: number; w: number; h: number },
+): void {
+  drawEatScore(ctx, input, board.x, board.y);
+  drawSpeedPopup(ctx, input, board.x, board.y);
+  drawEatCountPopup(ctx, input, board.x, board.y);
 }
 
 function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: number, time: number, flash: number): void {
