@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { CLEAR_SPEED_BONUS, FRIGHT_SECONDS, GHOST_ATTACK_WINDOW, JAMMER_CAP, speedsForBoard } from '../src/config';
+import {
+  CLEAR_SPEED_BONUS,
+  frightSecondsForBoard,
+  GHOST_ATTACK_WINDOW,
+  JAMMER_CAP,
+  speedsForBoard,
+} from '../src/config';
 import { Game } from '../src/game';
 import { Tile } from '../src/gameplay/maze';
 import {
@@ -30,8 +36,8 @@ describe('power modes', () => {
     expect(game.board.powerQueued).toBe('stronger');
     expect(game.board.frightened).toBe(STRONGER_FRIGHT_SECONDS);
     expect(game.board.pelletDuration).toBe(STRONGER_FRIGHT_SECONDS);
-    expect(frightSecondsFor('standard')).toBe(FRIGHT_SECONDS);
-    expect(game.board.frightened).toBeLessThan(FRIGHT_SECONDS);
+    expect(frightSecondsFor('standard', 1)).toBe(frightSecondsForBoard(1));
+    expect(game.board.frightened).toBe(STRONGER_FRIGHT_SECONDS);
 
     game.queuePower('speed');
     expect(game.board.powerActive).toBe('stronger');
@@ -39,8 +45,8 @@ describe('power modes', () => {
 
     eatPellet(game);
     expect(game.board.powerActive).toBe('speed');
-    expect(game.board.frightened).toBe(FRIGHT_SECONDS);
-    expect(game.board.pelletDuration).toBe(FRIGHT_SECONDS);
+    expect(game.board.frightened).toBe(frightSecondsForBoard(1));
+    expect(game.board.pelletDuration).toBe(frightSecondsForBoard(1));
   });
 
   it('re-applies Stronger so the new pellet is 4 seconds again', () => {
@@ -106,7 +112,7 @@ describe('power modes', () => {
     expect(game.board.modeSpeedLevels()).toBe(0);
     expect(game.board.pacSpeed()).toBeCloseTo(base);
     expect(game.hud().speed).toBe(0);
-    expect(game.board.frightened).toBe(FRIGHT_SECONDS);
+    expect(game.board.frightened).toBe(frightSecondsForBoard(1));
   });
 
   it('halves attack strength, rounding up, only while Speed is active', () => {
@@ -184,6 +190,51 @@ describe('power modes', () => {
     expect(game.board.inbound.count).toBe(JAMMER_CAP);
     expect(game.board.train.followers).toHaveLength(8);
   });
+
+  it('uses the board fright table, and Stronger still forces 4 seconds', () => {
+    expect(frightSecondsForBoard(1)).toBe(6);
+    expect(frightSecondsForBoard(7)).toBe(3);
+    expect(frightSecondsForBoard(12)).toBe(1.5);
+    expect(frightSecondsForBoard(17)).toBe(0);
+    expect(frightSecondsForBoard(18)).toBe(2);
+    expect(frightSecondsForBoard(19)).toBe(0);
+    expect(frightSecondsForBoard(21)).toBe(0);
+    expect(frightSecondsForBoard(22)).toBe(2);
+    expect(frightSecondsForBoard(23)).toBe(0);
+    expect(frightSecondsForBoard(26)).toBe(2);
+    expect(speedsForBoard(21).board).toBe(6);
+    expect(frightSecondsForBoard(22)).toBe(2);
+
+    const zero = new Game(() => 0);
+    zero.board.boardIndex = 16;
+    const blinky = zero.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    eatPellet(zero, () => {
+      blinky.mode = 'chase';
+      blinky.dir = { x: 1, y: 0 };
+      blinky.x = 10;
+      blinky.y = 20;
+    });
+    expect(zero.board.frightened).toBe(0);
+    expect(zero.board.pelletDuration).toBe(0);
+    expect(blinky.mode).toBe('chase');
+    expect(blinky.dir.x).toBe(-1);
+    expect(blinky.dir.y).toBeCloseTo(0);
+
+    const strong = new Game(() => 0);
+    strong.board.boardIndex = 11;
+    strong.queuePower('stronger');
+    eatPellet(strong);
+    expect(frightSecondsForBoard(12)).toBe(1.5);
+    expect(strong.board.frightened).toBe(STRONGER_FRIGHT_SECONDS);
+    expect(strong.board.pelletDuration).toBe(STRONGER_FRIGHT_SECONDS);
+
+    strong.board.boardIndex = 16;
+    strong.queuePower('stronger');
+    eatPellet(strong);
+    expect(frightSecondsForBoard(17)).toBe(0);
+    expect(strong.board.frightened).toBe(4);
+  });
 });
 
 function closeWindow(game: Game, eats: number): number {
@@ -206,8 +257,9 @@ function park(game: Game): void {
   }
 }
 
-function eatPellet(game: Game): void {
+function eatPellet(game: Game, afterPark?: () => void): void {
   park(game);
+  afterPark?.();
   const tile = findPellet(game);
   if (!tile) throw new Error('no power pellet');
   game.board.pac.x = tile.x;

@@ -1,14 +1,17 @@
-import { FRIGHT_SECONDS } from '../config';
+import { frightSecondsForBoard } from '../config';
 
 /**
  * Pac power modes. The player queues the next mode with keys 1–4.
  * The queue becomes active only when Pac eats a power pellet, and that
  * pellet uses the newly active mode.
  *
- * Fright time today is {@link FRIGHT_SECONDS} (9s) on every board. The pace
+ * Normal fright time comes from {@link frightSecondsForBoard}. The pace
  * table's `fright` column is how fast a frightened ghost walks, not how long
- * the pellet lasts. Stronger replaces that timer with a flat 4 seconds.
- * Eating a ghost near the end of the timer can still add the usual extension.
+ * the pellet lasts. Stronger replaces that timer with a flat 4 seconds,
+ * including on boards whose table duration is 0. A 0 second pellet still
+ * reverses huntable ghosts and clears whites, but it does not turn them blue
+ * or edible. Eating a ghost near the end of a positive timer can still add
+ * the usual extension.
  *
  * The Train wake counter counts sleeping ghosts woken while Train is active.
  * It resets when a different mode becomes active and when the match resets.
@@ -23,7 +26,7 @@ export const PAC_MODES: readonly { key: string; id: PacMode; label: string }[] =
   { key: '4', id: 'train', label: 'Train' },
 ];
 
-/** Stronger power-pellet timer. Normal pellets stay at {@link FRIGHT_SECONDS}. */
+/** Stronger power-pellet timer. Other modes use {@link frightSecondsForBoard}. */
 export const STRONGER_FRIGHT_SECONDS = 4;
 /** Temporary Speed-mode levels. One level is one clear-bonus step. */
 export const SPEED_MODE_LEVELS = 3;
@@ -37,9 +40,12 @@ export function modeFromKey(key: string): PacMode | null {
   return found?.id ?? null;
 }
 
-/** Duration assigned when this mode's pellet is eaten. */
-export function frightSecondsFor(mode: PacMode): number {
-  return mode === 'stronger' ? STRONGER_FRIGHT_SECONDS : FRIGHT_SECONDS;
+/**
+ * Duration assigned when this mode's pellet is eaten.
+ * `board` is the 1-based board number. Stronger ignores it and uses 4 seconds.
+ */
+export function frightSecondsFor(mode: PacMode, board: number): number {
+  return mode === 'stronger' ? STRONGER_FRIGHT_SECONDS : frightSecondsForBoard(board);
 }
 
 /**

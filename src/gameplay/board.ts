@@ -9,7 +9,7 @@ import {
   DOT_STOP_FRAMES,
   EAT_CHAIN_RESET,
   eatPauseForChain,
-  FRIGHT_SECONDS,
+  frightSecondsForBoard,
   GHOST_SCORE_BASE,
   PELLET_EXTEND_SECONDS,
   PELLET_EXTEND_THRESHOLD,
@@ -73,7 +73,7 @@ export class Board {
    * Length of the pellet that set {@link frightened}. The ring drains against this,
    * so a Stronger pellet (4s) starts full instead of 4/9 of the normal timer.
    */
-  pelletDuration = FRIGHT_SECONDS;
+  pelletDuration = frightSecondsForBoard(1);
   /** Mode in effect. Starts as Standard and changes only when a power pellet is eaten. */
   powerActive: PacMode = 'standard';
   /** Mode that will become active on the next power pellet. */
@@ -275,7 +275,7 @@ export class Board {
     this.score = 0;
     this.time = 0;
     this.frightened = 0;
-    this.pelletDuration = FRIGHT_SECONDS;
+    this.pelletDuration = frightSecondsForBoard(1);
     this.powerActive = 'standard';
     this.powerQueued = 'standard';
     this.trainWakes = 0;
@@ -446,14 +446,15 @@ export class Board {
   private frighten(): void {
     this.activateQueuedPower();
     this.inbound.killWhites();
-    this.pelletDuration = frightSecondsFor(this.powerActive);
-    this.frightened = this.pelletDuration;
+    const seconds = frightSecondsFor(this.powerActive, this.boardIndex + 1);
+    this.pelletDuration = seconds;
+    this.frightened = seconds;
     for (const ghost of this.ghosts) {
       ghost.skipFright = false;
-      if (isHuntable(ghost.mode) || ghost.mode === 'frightened') {
-        ghost.mode = 'frightened';
-        ghost.reversePending = true;
-      }
+      if (!(isHuntable(ghost.mode) || ghost.mode === 'frightened')) continue;
+      if (seconds > 0) ghost.mode = 'frightened';
+      else if (ghost.mode === 'frightened') ghost.mode = this.wave;
+      ghost.reversePending = true;
     }
   }
 

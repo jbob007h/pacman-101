@@ -41,7 +41,31 @@ export const GHOST_HOUSE_SPEED = 4.32;
 export const GHOST_LEAVE_SPEED = 3.24;
 /** Eyes dropping back into the house. Not used for the exit. */
 export const GHOST_DOOR_SPEED = 7.02;
+/**
+ * Fallback denominator for {@link pelletFill} when a caller does not pass the pellet's own duration.
+ * Live pellets use {@link frightSecondsForBoard}, not this constant.
+ */
 export const FRIGHT_SECONDS = 9;
+
+/**
+ * Power-pellet fright time in seconds, by 1-based board number
+ * (the same numbering as `speedsForBoard(index).board` on boards 1–6).
+ * Boards past the pace table are not clamped. From board 19 on, only every
+ * 4th board starting at 22 (22, 26, 30, …) lasts 2 seconds; the rest last 0.
+ * A 0 second pellet does not turn ghosts blue.
+ * The pace table's `fright` column is ghost speed, not this duration.
+ */
+const FRIGHT_DURATION_BY_BOARD: readonly number[] = [
+  6, 5, 4, 3, 2, 5, 3, 2, 1, 5, 2, 1.5, 1, 3, 1, 1, 0, 2,
+];
+
+/** Fright seconds for a 1-based board number. Does not follow the 6-row pace cap. */
+export function frightSecondsForBoard(board: number): number {
+  const n = Math.floor(board);
+  if (!Number.isFinite(n) || n < 1) return FRIGHT_DURATION_BY_BOARD[0] ?? 6;
+  if (n <= FRIGHT_DURATION_BY_BOARD.length) return FRIGHT_DURATION_BY_BOARD[n - 1] ?? 0;
+  return n >= 22 && (n - 22) % 4 === 0 ? 2 : 0;
+}
 /** Classic-style freeze after eating a frightened ghost, in seconds. The first eat in a chain. */
 export const EAT_GHOST_PAUSE = 0.5;
 /**
