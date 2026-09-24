@@ -23,21 +23,21 @@ describe('gameplay feel', () => {
     expect(speedsForBoard(0).ghost).toBeCloseTo(6.075);
   });
 
-  it('adds a permanent ghost speed bump on the opening scatter and each later scatter', () => {
+  it('skips the ghost speed bump on the opening scatter and adds it on each later scatter', () => {
     const game = new Game(() => 0);
     park(game);
     expect(game.board.wave).toBe('scatter');
-    expect(game.board.ghostPaceBoost).toBe(1);
-    expect(game.board.ghostCruise()).toBeCloseTo(speedsForBoard(0).ghost + GHOST_SCATTER_BUMP);
+    expect(game.board.ghostPaceBoost).toBe(0);
+    expect(game.board.ghostCruise()).toBeCloseTo(speedsForBoard(0).ghost);
 
     const cruise = game.board.ghostCruise();
     runUntilWave(game, 'chase');
-    expect(game.board.ghostPaceBoost).toBe(1);
+    expect(game.board.ghostPaceBoost).toBe(0);
     expect(game.board.ghostCruise()).toBeCloseTo(cruise);
 
     runUntilWave(game, 'scatter');
-    expect(game.board.ghostPaceBoost).toBe(2);
-    expect(game.board.ghostCruise()).toBeCloseTo(speedsForBoard(0).ghost + 2 * GHOST_SCATTER_BUMP);
+    expect(game.board.ghostPaceBoost).toBe(1);
+    expect(game.board.ghostCruise()).toBeCloseTo(speedsForBoard(0).ghost + GHOST_SCATTER_BUMP);
 
     const pinky = game.board.ghosts[1];
     if (!pinky) throw new Error('missing pinky');
