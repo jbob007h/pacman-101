@@ -237,7 +237,7 @@ describe('power modes', () => {
     expect(strong.board.frightened).toBe(4);
   });
 
-  it('shrinks pellet time with the match clock after the board table and Stronger', () => {
+  it('shrinks pellet time with the match clock, except Stronger stays at 4 seconds', () => {
     expect(frightTimeModifier(0)).toBe(1);
     expect(frightTimeModifier(89.9)).toBe(1);
     expect(frightTimeModifier(90)).toBeCloseTo(0.9);
@@ -256,8 +256,11 @@ describe('power modes', () => {
     stronger.matchTime = 90;
     stronger.queuePower('stronger');
     eatPellet(stronger);
-    expect(stronger.board.frightened).toBeCloseTo(4 * 0.9);
-    expect(stronger.board.pelletDuration).toBeCloseTo(3.6);
+    expect(stronger.board.frightened).toBe(4);
+    expect(stronger.board.pelletDuration).toBe(4);
+    stronger.matchTime = 10_000;
+    eatPellet(stronger);
+    expect(stronger.board.frightened).toBe(4);
 
     const none = new Game(() => 0);
     none.board.boardIndex = 16;

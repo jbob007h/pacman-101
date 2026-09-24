@@ -69,7 +69,7 @@ export function frightSecondsForBoard(board: number): number {
 
 /**
  * Scales a pellet's duration by match time. 1 before 90s, then −0.1 every 30s, floored at 0.1.
- * Applied after the board table and after Stronger's 4s override. A 0s board stays 0.
+ * Applied to every mode except Stronger, which stays a flat 4 seconds. A 0s board stays 0.
  */
 export function frightTimeModifier(matchElapsedSeconds: number): number {
   if (matchElapsedSeconds < 90) return 1;
