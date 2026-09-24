@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLEAR_SPEED_BONUS,
   frightSecondsForBoard,
+  frightTimeModifier,
   GHOST_ATTACK_WINDOW,
   JAMMER_CAP,
   speedsForBoard,
@@ -234,6 +235,38 @@ describe('power modes', () => {
     eatPellet(strong);
     expect(frightSecondsForBoard(17)).toBe(0);
     expect(strong.board.frightened).toBe(4);
+  });
+
+  it('shrinks pellet time with the match clock after the board table and Stronger', () => {
+    expect(frightTimeModifier(0)).toBe(1);
+    expect(frightTimeModifier(89.9)).toBe(1);
+    expect(frightTimeModifier(90)).toBeCloseTo(0.9);
+    expect(frightTimeModifier(119.9)).toBeCloseTo(0.9);
+    expect(frightTimeModifier(120)).toBeCloseTo(0.8);
+    expect(frightTimeModifier(330)).toBeCloseTo(0.1);
+    expect(frightTimeModifier(10_000)).toBe(0.1);
+
+    const board = new Game(() => 0);
+    board.matchTime = 90;
+    eatPellet(board);
+    expect(board.board.frightened).toBeCloseTo(6 * 0.9);
+    expect(board.board.pelletDuration).toBeCloseTo(5.4);
+
+    const stronger = new Game(() => 0);
+    stronger.matchTime = 90;
+    stronger.queuePower('stronger');
+    eatPellet(stronger);
+    expect(stronger.board.frightened).toBeCloseTo(4 * 0.9);
+    expect(stronger.board.pelletDuration).toBeCloseTo(3.6);
+
+    const none = new Game(() => 0);
+    none.board.boardIndex = 16;
+    none.matchTime = 90;
+    eatPellet(none);
+    expect(none.board.frightened).toBe(0);
+    none.matchTime = 10_000;
+    eatPellet(none);
+    expect(none.board.frightened).toBe(0);
   });
 });
 

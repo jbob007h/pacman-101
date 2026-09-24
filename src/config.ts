@@ -66,6 +66,16 @@ export function frightSecondsForBoard(board: number): number {
   if (n <= FRIGHT_DURATION_BY_BOARD.length) return FRIGHT_DURATION_BY_BOARD[n - 1] ?? 0;
   return n >= 22 && (n - 22) % 4 === 0 ? 2 : 0;
 }
+
+/**
+ * Scales a pellet's duration by match time. 1 before 90s, then −0.1 every 30s, floored at 0.1.
+ * Applied after the board table and after Stronger's 4s override. A 0s board stays 0.
+ */
+export function frightTimeModifier(matchElapsedSeconds: number): number {
+  if (matchElapsedSeconds < 90) return 1;
+  const steps = 1 + Math.floor((matchElapsedSeconds - 90) / 30);
+  return Math.max(0.1, 1 - 0.1 * steps);
+}
 /** Classic-style freeze after eating a frightened ghost, in seconds. The first eat in a chain. */
 export const EAT_GHOST_PAUSE = 0.5;
 /**

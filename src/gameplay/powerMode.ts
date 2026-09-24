@@ -1,4 +1,4 @@
-import { frightSecondsForBoard } from '../config';
+import { frightSecondsForBoard, frightTimeModifier } from '../config';
 
 /**
  * Pac power modes. The player queues the next mode with keys 1–4.
@@ -7,8 +7,11 @@ import { frightSecondsForBoard } from '../config';
  *
  * Normal fright time comes from {@link frightSecondsForBoard}. The pace
  * table's `fright` column is how fast a frightened ghost walks, not how long
- * the pellet lasts. Stronger replaces that timer with a flat 4 seconds,
- * including on boards whose table duration is 0. A 0 second pellet still
+ * the pellet lasts. Stronger replaces the board time with a flat 4 seconds
+ * first, including on boards whose table duration is 0. That result is then
+ * multiplied by {@link frightTimeModifier} (1 until 90s, then −0.1 every 30s,
+ * floored at 0.1), so a Stronger pellet shrinks with the match clock too.
+ * A board duration of 0 stays 0. A 0 second pellet still
  * reverses huntable ghosts and clears whites, but it does not turn them blue
  * or edible. Eating a ghost near the end of a positive timer can still add
  * the usual extension.
@@ -42,10 +45,12 @@ export function modeFromKey(key: string): PacMode | null {
 
 /**
  * Duration assigned when this mode's pellet is eaten.
- * `board` is the 1-based board number. Stronger ignores it and uses 4 seconds.
+ * `board` is the 1-based board number. Stronger uses 4 seconds instead of the
+ * board table, then both are multiplied by {@link frightTimeModifier}.
  */
-export function frightSecondsFor(mode: PacMode, board: number): number {
-  return mode === 'stronger' ? STRONGER_FRIGHT_SECONDS : frightSecondsForBoard(board);
+export function frightSecondsFor(mode: PacMode, board: number, matchElapsedSeconds = 0): number {
+  const base = mode === 'stronger' ? STRONGER_FRIGHT_SECONDS : frightSecondsForBoard(board);
+  return base * frightTimeModifier(matchElapsedSeconds);
 }
 
 /**

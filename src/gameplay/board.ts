@@ -446,7 +446,7 @@ export class Board {
   private frighten(): void {
     this.activateQueuedPower();
     this.inbound.killWhites();
-    const seconds = frightSecondsFor(this.powerActive, this.boardIndex + 1);
+    const seconds = frightSecondsFor(this.powerActive, this.boardIndex + 1, this.matchTime);
     this.pelletDuration = seconds;
     this.frightened = seconds;
     for (const ghost of this.ghosts) {
