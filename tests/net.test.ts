@@ -342,8 +342,8 @@ describe('online game path', () => {
     expect(earns[1]).toEqual({ attack: 'ghost', strength: 1 });
 
     game.applyOnlineRoster([
-      { seat: 1, name: 'You', alive: true, pressure: 0, hit: false, busy: false },
-      { seat: 2, name: 'Ada', alive: true, pressure: 48, hit: true, busy: true },
+      { seat: 1, name: 'You', alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true },
+      { seat: 2, name: 'Ada', alive: true, pressure: 48, hit: true, busy: true, bot: false, ready: true },
     ]);
     expect(game.sims.sims[0]).toMatchObject({ name: 'Ada', pressure: 48, heat: 1, busy: 1 });
 
@@ -390,6 +390,7 @@ describe('online game path', () => {
       hit: false,
       busy: false,
       bot: index !== 0,
+      ready: true,
     }));
     game.startMatch();
     game.armOnline(1, roster);
@@ -562,8 +563,8 @@ function sink(logs: ServerMessage[]): SeatLink {
 function duo(you: number, opponentName: string): RosterSeat[] {
   const other = you === 1 ? 2 : 1;
   return [
-    { seat: you, name: 'You', alive: true, pressure: 0, hit: false, busy: false },
-    { seat: other, name: opponentName, alive: true, pressure: 0, hit: false, busy: false },
+    { seat: you, name: 'You', alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true },
+    { seat: other, name: opponentName, alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true },
   ];
 }
 

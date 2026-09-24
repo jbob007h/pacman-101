@@ -144,7 +144,19 @@ export class InboundField {
     return tiles.length;
   }
 
-  update(dt: number, maze: Maze, pacX: number, pacY: number, chaseSpeed: number, freezeReds: boolean): void {
+  /**
+   * `chase` is false before the match-clock gate. Live jammers still age their
+   * spawn and death, and {@link touch} still slows or kills. They do not pathfind.
+   */
+  update(
+    dt: number,
+    maze: Maze,
+    pacX: number,
+    pacY: number,
+    chaseSpeed: number,
+    freezeReds: boolean,
+    chase = true,
+  ): void {
     if (this.slow > 0) {
       this.slow = Math.max(0, this.slow - dt);
       if (this.slow <= 0) this.slowFactor = 1;
@@ -167,7 +179,7 @@ export class InboundField {
         if (jammer.anim < 1) next.push(jammer);
         continue;
       }
-      if (jammer.kind === 'red' && freezeReds) {
+      if (!chase || (jammer.kind === 'red' && freezeReds)) {
         next.push(jammer);
         continue;
       }

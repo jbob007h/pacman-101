@@ -221,6 +221,7 @@ describe('inbound jammers', () => {
     for (const ghost of game.board.ghosts) {
       if (ghost.mode === 'frightened') ghost.mode = 'chase';
     }
+    game.matchTime = 60;
     game.update(1 / 60);
     expect(Math.hypot(red.x - heldX, red.y - heldY)).toBeGreaterThan(0.01);
   });

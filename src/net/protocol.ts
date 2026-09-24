@@ -35,8 +35,10 @@ export interface RosterSeat {
   hit: boolean;
   /** This seat just fired. */
   busy: boolean;
-  /** Server-side CPU filler. Omitted or false for a human. */
-  bot?: boolean;
+  /** Server-side CPU filler. Humans are false. */
+  bot: boolean;
+  /** Lobby ready flag. Bots are ready once the match starts. */
+  ready: boolean;
 }
 
 export interface Placement {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CLEAR_SPEED_BONUS, ELROY2_MULT, elroyLevel, elroyThresholds, FRUIT_TILE, speedsForBoard } from '../src/config';
+import { CLEAR_SPEED_BONUS, ELROY2_MULT, elroyLevel, elroyThresholds, FRUIT_TILE, GHOST_SCATTER_BUMP, speedsForBoard } from '../src/config';
 import { Game } from '../src/game';
 import { ghostMoveSpeed, updateGhost, type Ghost } from '../src/gameplay/ghosts';
 import { Tile, type Maze } from '../src/gameplay/maze';
@@ -99,7 +99,7 @@ describe('Cruise Elroy', () => {
     const boosted = base + 4 * CLEAR_SPEED_BONUS;
     expect(blinky.x - blinkyX).toBeCloseTo(base / 60);
     expect(Math.abs(blinky.x - blinkyX - boosted / 60)).toBeGreaterThan(0.05);
-    expect(pinky.x - pinkyX).toBeCloseTo(speedsForBoard(0).ghost / 60);
+    expect(pinky.x - pinkyX).toBeCloseTo((speedsForBoard(0).ghost + GHOST_SCATTER_BUMP) / 60);
     expect(game.board.pacSpeed()).toBeCloseTo(boosted);
   });
 });

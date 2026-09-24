@@ -2,7 +2,7 @@
 
 Local battle maze inspired by Pac-Man 99. You play the center board. One hundred simulated opponents sit on mini-boards — fifty on the left, fifty on the right. Eating frightened ghosts throws jammers at them. Stack enough pressure and they are eliminated. Last one standing wins.
 
-Play here is local by default. The battle-layer plan is [docs/networking-n0.md](docs/networking-n0.md). N1 is a two-browser jammer loop against a local server: [docs/networking-n1.md](docs/networking-n1.md).
+Play here is local by default. The battle-layer plan is [docs/networking-n0.md](docs/networking-n0.md). N1 is the jammer loop: [docs/networking-n1.md](docs/networking-n1.md). The live room is N2b: [docs/networking-n2b.md](docs/networking-n2b.md).
 
 ## Play online
 
@@ -29,20 +29,18 @@ Other scripts:
 - `npm run preview` — serve the production bundle
 - `npm run server` — N1 match server on `ws://localhost:8787` (`PORT` overrides it; `render.yaml` starts this on Render)
 
-## Two-player online (dev)
+## Online (dev)
 
-Local **Start match** does not open a socket. For the N1 loop, run the server, then the client:
+Local **Start match** does not open a socket. Run the server, then the client:
 
 ```bash
 npm run server
 npm run dev
 ```
 
-Open two tabs at `http://localhost:5173/pacman-101/?online=1`, or click **Online (dev)** on the title screen. Each client joins and readies. When both are in, the match starts. Ghost eats (including the train) batch for 2 seconds into one attack, one jammer per ghost. No attack is sent unless that batch ate at least one ghost. Dots and a full clear do not send jammers. The server picks the other player. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
+Open `http://localhost:5173/pacman-101/`, click **Online (dev)**, then **Ready**. The first Ready starts a 10 second lobby countdown. At 0 the room pads to 101 with CPU bots. Another browser can join and Ready before that hits 0, which means fewer bots. A 17th human in the lobby is turned away. Joining after the match has started spectates the roster only. Ghost eats still batch for 2 seconds into one attack. The server picks the target. `?ws=ws://host:port` points at a different server.
 
-The alive counter in that mode is 2 (you and the other seat). The other side panels are parked. When the match ends, both tabs show the same standings: the names entered before the match, in the server's finish order.
-
-Friends on the public site use that same two-seat room after a Render service is up and the Pages build has `VITE_WS_URL` set to its `wss://` URL. Until then, Online on GitHub Pages says the build has no match server and does not connect to localhost. Local two-tab play stays `ws://localhost:8787`. Steps, including the free-tier cold start: [docs/networking-n1.md](docs/networking-n1.md).
+Friends on the public site use that same room after a Render service is up and the Pages build has `VITE_WS_URL` set to its `wss://` URL. Local play stays `ws://localhost:8787`. Steps, including the free-tier cold start: [docs/networking-n1.md](docs/networking-n1.md). Details: [docs/networking-n2b.md](docs/networking-n2b.md).
 
 ## Controls
 

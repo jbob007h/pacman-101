@@ -29,6 +29,7 @@ const titleEl = document.querySelector<HTMLElement>('#title');
 const countdownEl = document.querySelector<HTMLElement>('#countdown');
 const startButton = document.querySelector<HTMLButtonElement>('#start');
 const onlineButton = document.querySelector<HTMLButtonElement>('#online');
+const readyButton = document.querySelector<HTMLButtonElement>('#ready');
 const onlineNoteEl = document.querySelector<HTMLElement>('#online-note');
 const nameInput = document.querySelector<HTMLInputElement>('#player-name-input');
 const hudName = document.querySelector<HTMLElement>('#hud-name');
@@ -36,7 +37,7 @@ const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !onlineButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -73,6 +74,9 @@ function syncHud(): void {
   statusEl!.textContent = hud.status;
   onlineNoteEl!.hidden = game.onlineNote.length === 0;
   onlineNoteEl!.textContent = game.onlineNote;
+  readyButton!.hidden = session.phase !== 'lobby';
+  readyButton!.disabled = session.hasReadied;
+  readyButton!.textContent = session.hasReadied ? 'Waiting…' : 'Ready';
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
   titleEl!.hidden = game.inMatch || game.spectating;
@@ -124,10 +128,10 @@ function renderStandings(rows: readonly StandingRow[], yourPlace: number | null,
   rankingBlurb!.textContent = game.spectating
     ? `Spectating. ${stillIn} still in. No remote maze — the next lobby opens when this match ends.`
     : yourPlace
-      ? stillIn > 0
-        ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
-        : `You placed ${yourPlace}.`
-      : `${stillIn} still in.`;
+    ? stillIn > 0
+      ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
+      : `You placed ${yourPlace}.`
+    : `${stillIn} still in.`;
   if (sig === standingsSig) return;
   const top = rankingList!.scrollTop;
   rankingList!.replaceChildren(...rows.map(renderStandingRow));
@@ -303,6 +307,7 @@ const session = new NetSession({
     game.clearSpectate();
     game.startMatch();
     game.armOnline(message.you, message.roster);
+    game.applyOnlineRoster(message.roster);
     syncHud();
   },
   onJammer: (message) => {
@@ -318,12 +323,9 @@ const session = new NetSession({
       syncHud();
       return;
     }
-    if (message.seat === session.seat) {
-      game.noteOnlineElimination(message.seat, message.place, message.remaining);
-      game.applyServerElimination();
-    } else {
-      game.eliminateOnlineSeat(message.seat, message.place, message.remaining);
-    }
+    game.noteOnlineElimination(message.seat, message.place);
+    if (message.seat === session.seat) game.applyServerElimination();
+    else game.eliminateOnlineSeat(message.seat);
   },
   onMatchEnd: (message) => {
     if (session.spectating) {
@@ -333,7 +335,7 @@ const session = new NetSession({
     }
     const mine = message.placements.find((row) => row.seat === session.seat);
     if (mine && mine.place !== 1) game.applyServerElimination();
-    else if (mine && mine.place === 1) game.finishOnlineWin();
+    else game.eliminateOnlineOpponent();
     game.setOnlineStandings(message.placements);
     syncHud();
   },
@@ -343,6 +345,10 @@ window.addEventListener('keydown', onKeyDown);
 if (!import.meta.env.DEV) onlineButton.textContent = 'Online';
 startButton.addEventListener('click', begin);
 onlineButton.addEventListener('click', beginOnline);
+readyButton.addEventListener('click', () => {
+  session.sendReady();
+  syncHud();
+});
 overlayContinue.addEventListener('click', (event) => {
   event.stopPropagation();
   advanceWin();

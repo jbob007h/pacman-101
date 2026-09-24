@@ -5,7 +5,7 @@ Implemented as the first online loop. The live room is no longer two seats. Lobb
 ## What works
 
 - `server/` is a Node + `ws` process. `npm run server` listens on `0.0.0.0` and `ws://localhost:8787` (`PORT` overrides the port). GET `/` returns 200 so a host health check can pass. WebSocket upgrades on that same port are the match.
-- One room, two human seats. A third join is rejected. In-memory only.
+- One in-memory room. N1 allowed two human seats and rejected a third join. That cap is gone; the live limits are in [networking-n2b.md](networking-n2b.md).
 - Messages: `join`, `ready`, `lobby`, `matchStart`, `earnAttack`, `jammerInbound`, `rosterDelta`, `deathReport`, `playerEliminated`, `matchEnd`, `ping`.
 - The client sends `earnAttack` only for a ghost batch: type `ghost` plus the ghost count. `dots` and `clear` are ignored, and so is a `target` field. Ghost strength below 1 is dropped. Other ghost strengths are clamped to 1–200. More than 12 earns in a second are dropped.
 - The server picks the other living seat, adds pressure, and sends `jammerInbound` only to that seat. The victim plays the existing inbound jammer (panel flight into the ghost house, then local chasers).
@@ -52,11 +52,11 @@ Both people open the Pages site: https://jbob007h.github.io/pacman-101/
 
 If that URL 404s, the README explains how to turn Pages on (branch `gh-pages` / root, or GitHub Actions).
 
-Each person types a name and clicks **Online** (on a local dev server the button says **Online (dev)**). Both join the same room. There are two seats. When both are in, both count down. Eat a frightened ghost in one browser. The other browser gets the inbound jammer. Dots and a full clear do not send an attack.
+Each person types a name and clicks **Online** (on a local dev server the button says **Online (dev)**), then **Ready**. N1 started as soon as two humans were in. The live room waits 10 seconds after the first Ready, then fills to 101. Eat a frightened ghost in one browser. The server picks one living seat. Dots and a full clear do not send an attack.
 
 That public page only connects after the steps below. Until `VITE_WS_URL` is baked into the Pages build, Online explains that this build has no match server.
 
-One room, in memory. A third person gets "Match is full". Closing the tab during play eliminates that seat. A server restart clears the room.
+One room, in memory. Closing the tab during play eliminates that seat. A server restart clears the room. A 17th human in the lobby is turned away. Someone who connects during play spectates.
 
 `?ws=` still overrides the URL for that page load, including on Pages: `?ws=wss://your-service.onrender.com`.
 

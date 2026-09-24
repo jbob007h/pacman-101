@@ -141,10 +141,13 @@ export class MatchRoom {
     if (raw.type === 'ready') this.promoteRetired(retired);
   }
 
-  /** Advance the lobby clock and bot attack timers. The server calls this on an interval. */
-  tick(): void {
+  /**
+   * Advance the lobby clock and bot attack timers.
+   * Pass seconds to step bots in tests. Otherwise the delta comes from {@link now}.
+   */
+  tick(dtSeconds?: number): void {
     const t = this.now();
-    const dt = Math.max(0, (t - this.lastNow) / 1000);
+    const dt = dtSeconds != null ? Math.max(0, dtSeconds) : Math.max(0, (t - this.lastNow) / 1000);
     this.lastNow = t;
     if (this.phase === 'lobby') {
       this.announceCountdown();
@@ -440,6 +443,7 @@ export class MatchRoom {
         hit: seat.hit,
         busy: seat.busy,
         bot: seat.bot,
+        ready: seat.ready,
       }));
   }
 

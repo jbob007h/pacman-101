@@ -1,8 +1,8 @@
-import type { AttackKind, ClientMessage, ServerMessage } from './protocol';
+import type { AttackKind, ClientMessage, RosterSeat, ServerMessage } from './protocol';
 
 export interface SessionHandlers {
   onNote(text: string): void;
-  onLobby(): void;
+  onLobby(message: Extract<ServerMessage, { type: 'lobby' }>): void;
   onSpectate(message: Extract<ServerMessage, { type: 'spectate' }>): void;
   onMatchStart(message: Extract<ServerMessage, { type: 'matchStart' }>): void;
   onJammer(message: Extract<ServerMessage, { type: 'jammerInbound' }>): void;
@@ -17,7 +17,7 @@ export interface SessionHandlers {
  */
 export class NetSession {
   seat = 0;
-  /** Roster-only viewer for a match already in play. Cannot earn or report death. */
+  /** Roster-only viewer. Cannot earn or report a death. */
   spectating = false;
   phase: 'idle' | 'connecting' | 'lobby' | 'spectating' | 'playing' | 'done' = 'idle';
   private socket: WebSocket | null = null;
@@ -33,6 +33,11 @@ export class NetSession {
 
   get active(): boolean {
     return this.phase !== 'idle';
+  }
+
+  /** True after this seat has sent `ready` for the current lobby. */
+  get hasReadied(): boolean {
+    return this.readied;
   }
 
   connect(url: string, name: string): void {
@@ -82,6 +87,13 @@ export class NetSession {
   rejoin(): void {
     if (!this.url) return;
     this.connect(this.url, this.name);
+  }
+
+  /** Lobby only. A solo human starting alone is a legal ready. */
+  sendReady(): void {
+    if (this.spectating || this.phase !== 'lobby' || this.readied) return;
+    this.readied = true;
+    this.send({ type: 'ready' });
   }
 
   sendEarn(attack: AttackKind, strength: number): void {
@@ -139,12 +151,8 @@ export class NetSession {
       this.spectating = false;
       this.seat = message.you;
       this.phase = 'lobby';
-      this.handlers.onNote(lobbyNote(message));
-      this.handlers.onLobby();
-      if (!this.readied) {
-        this.readied = true;
-        this.send({ type: 'ready' });
-      }
+      this.handlers.onNote(describeLobby(message.seats, message.need, message.countdownMs));
+      this.handlers.onLobby(message);
       return;
     }
     if (message.type === 'spectate') {
@@ -183,12 +191,17 @@ export class NetSession {
   }
 }
 
-function lobbyNote(message: Extract<ServerMessage, { type: 'lobby' }>): string {
-  const humans = message.seats.filter((seat) => !seat.bot).length;
-  const label = humans === 1 ? '1 human' : `${humans} humans`;
-  if (message.countdownMs == null) return `Lobby · ${label}. Waiting for Ready.`;
-  const secs = Math.max(0, Math.ceil(message.countdownMs / 1000));
-  return `Starting in ${secs}s · ${label}.`;
+/** Title-screen line while humans are still joining. Bots are not in the lobby yet. */
+export function describeLobby(seats: readonly RosterSeat[], roomSize: number, countdownMs: number | null = null): string {
+  const humans = seats.filter((seat) => !seat.bot);
+  const ready = humans.filter((seat) => seat.ready).length;
+  const names = humans.map((seat) => `${seat.name}${seat.ready ? ' (ready)' : ''}`).join(', ');
+  const who = names.length > 0 ? names : 'Nobody yet';
+  if (countdownMs == null) {
+    return `${who}. ${ready} of ${humans.length} ready. The first Ready starts a 10s countdown, then empty seats fill to ${roomSize}.`;
+  }
+  const secs = Math.max(0, Math.ceil(countdownMs / 1000));
+  return `${who}. Starting in ${secs}s. Empty seats fill to ${roomSize}.`;
 }
 
 function connectionFailureNote(url: string): string {

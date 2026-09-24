@@ -71,10 +71,12 @@ export class Game {
   /** Roster-only view of a match already in play. There is no local maze. */
   spectating = false;
   private onlineSeat = 0;
-  /** Server seat id → local sim panel id for the other 100 seats. */
-  private onlineSimBySeat = new Map<number, number>();
-  private onlineRoster: RosterSeat[] = [];
-  private onlinePlaces = new Map<number, number>();
+  /** Server seat → side-panel sim, for the seats that are not this client. */
+  private onlinePanels = new Map<number, number>();
+  /** Names and alive flags from the server roster. Places come only from confirms. */
+  private onlineSeats = new Map<number, OnlineSeat>();
+  /** True once `matchEnd` replaced the partial list with the final order. */
+  private onlineFinal = false;
   /** Server finish list for this online match. Offline standings stay on {@link ranking}. */
   private onlineStandings: StandingSnapshot | null = null;
   private spectatorRoster: RosterSeat[] = [];
@@ -83,7 +85,6 @@ export class Game {
   private earnSink: OnlineHandlers['earn'] | null = null;
   private deathSink: OnlineHandlers['death'] | null = null;
   private suppressDeathReport = false;
-  private muteEliminations = false;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -101,11 +102,8 @@ export class Game {
       this.setBanner(`${reasonLabel(event.reason)} ${event.strength} → ${formatTargets(event.targets)}`);
     });
     this.bus.on('simEliminated', (event) => {
-      if (this.muteEliminations) return;
-      const name =
-        this.online && event.simId === 1
-          ? (this.sims.sims[0]?.name ?? this.ranking.nameForSim(event.simId))
-          : this.ranking.nameForSim(event.simId);
+      const named = this.online ? this.sims.sims.find((sim) => sim.id === event.simId) : undefined;
+      const name = named?.name ?? this.ranking.nameForSim(event.simId);
       this.setBanner(`Eliminated ${name}`);
     });
     this.bus.on('incomingJammer', (event) => {
@@ -157,70 +155,102 @@ export class Game {
 
   /**
    * Online match. Call after {@link startMatch}: reset turns local battle
-   * back on, and this maps every other roster seat onto a side panel.
-   * Seats past the 100 panels are not drawn. Local CPU timers stay off.
+   * back on, and this parks every sim that is not in the server roster.
+   * A string is the N1 one-opponent shorthand (tests and a single remote name).
+   * A roster snapshot shows every other seat, human or bot, and hides the rest
+   * so the alive counter matches the room (101 in N2b).
    */
-  armOnline(you: number, roster: readonly RosterSeat[]): void {
-    this.online = true;
+  armOnline(you: number, opponent: string | readonly RosterSeat[]): void {
+    const roster = typeof opponent === 'string' ? oneOpponentRoster(you, opponent) : opponent;
     this.spectating = false;
+    this.online = true;
     this.onlineSeat = you;
-    this.onlinePlaces.clear();
+    this.onlinePanels.clear();
+    this.onlineSeats.clear();
+    this.onlineFinal = false;
     this.onlineStandings = null;
-    this.onlineRoster = roster.map((seat) => ({ ...seat }));
     this.sims.setLocalBattle(false);
-    this.onlineSimBySeat.clear();
-    const others = roster.filter((seat) => seat.seat !== you).sort((a, b) => a.seat - b.seat);
-    this.muteEliminations = true;
-    for (let index = 0; index < this.sims.sims.length; index++) {
+    const others = roster
+      .filter((seat) => seat.seat !== you)
+      .sort((a, b) => a.seat - b.seat);
+    others.forEach((seat, index) => {
       const sim = this.sims.sims[index];
-      const seat = others[index];
-      if (!sim) continue;
-      if (!seat) {
-        sim.alive = false;
-        sim.pressure = KILL_PRESSURE;
-        continue;
-      }
-      sim.name = seat.name;
+      if (!sim) return;
+      this.onlinePanels.set(seat.seat, sim.id);
+      sim.parked = false;
+      sim.showName = true;
+      sim.name = seat.name || 'Opponent';
       sim.alive = seat.alive;
-      sim.pressure = seat.pressure;
+      sim.pressure = seat.alive ? seat.pressure : KILL_PRESSURE;
       sim.heat = seat.hit ? 1 : 0;
       sim.busy = seat.busy ? 1 : 0;
-      this.onlineSimBySeat.set(seat.seat, sim.id);
+      sim.relief = 0;
+    });
+    for (let index = others.length; index < this.sims.sims.length; index++) {
+      const sim = this.sims.sims[index];
+      if (!sim) continue;
+      sim.parked = true;
+      sim.showName = false;
+      sim.alive = false;
+      sim.pressure = 0;
+      sim.heat = 0;
+      sim.busy = 0;
     }
-    this.muteEliminations = false;
+    this.rememberRoster(roster);
   }
 
-  applyOnlineRoster(seats: readonly RosterSeat[]): void {
+  applyOnlineRoster(seats: readonly RosterSeat[], clock?: number): void {
     if (this.spectating) {
-      this.applySpectateRoster(seats);
+      this.applySpectateRoster(seats, clock);
       return;
     }
     if (!this.online) return;
-    this.onlineRoster = seats.map((seat) => ({ ...seat }));
-    for (const place of this.onlinePlaces.keys()) {
-      const row = this.onlineRoster.find((seat) => seat.seat === place);
-      if (row) row.alive = false;
-    }
-    for (const seat of this.onlineRoster) {
+    this.rememberRoster(seats);
+    for (const seat of seats) {
       if (seat.seat === this.onlineSeat) continue;
       const sim = this.simForSeat(seat.seat);
-      if (!sim) continue;
+      if (!sim || sim.parked) continue;
       sim.name = seat.name;
+      sim.showName = true;
+      if (!seat.alive) {
+        if (sim.alive) this.markSimOut(sim);
+        continue;
+      }
+      if (!sim.alive) continue;
       sim.pressure = seat.pressure;
       if (seat.hit) sim.heat = 1;
       if (seat.busy) sim.busy = 1;
-      if (sim.alive && !seat.alive) this.killOnlineSim(sim);
     }
+    this.refreshOnlineStandings();
   }
 
   /**
-   * Inbound jammer chosen by the server. Panel 1 is the other human.
+   * Server locked a place (`playerEliminated`). Living seats stay unplaced.
+   * Standings open only after this client's own place is locked, and the death
+   * pause still gates the overlay.
+   */
+  noteOnlineElimination(seat: number, place: number): void {
+    if (this.spectating) {
+      this.noteSpectatorElimination(seat, place);
+      return;
+    }
+    if (!this.online || this.onlineFinal || !Number.isFinite(place)) return;
+    const known = this.onlineSeats.get(seat) ?? { seat, name: '', alive: true, place: null };
+    known.alive = false;
+    known.place = place;
+    if (seat === this.onlineSeat && !known.name) known.name = this.playerName;
+    this.onlineSeats.set(seat, known);
+    this.refreshOnlineStandings();
+  }
+
+  /**
+   * Inbound jammer chosen by the server. The bolt leaves that seat's panel.
    * Only a ghost earn spawns sprites: one per ghost eaten. Dot and clear
-   * messages are ignored.
+   * messages are ignored. Bot shots use the same ghost count.
    */
   receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'ghost', fromSeat?: number): void {
     if (attack !== 'ghost' || !(strength > 0)) return;
-    const simId = fromSeat == null ? 1 : (this.onlineSimBySeat.get(fromSeat) ?? 1);
+    const simId = fromSeat != null ? (this.onlinePanels.get(fromSeat) ?? 1) : 1;
     this.fx.queueIncoming(panelCenter(simId), ghostHouseCenter(), strength, true);
     this.setBanner(`Ghost jam from ${fromName}`);
   }
@@ -238,55 +268,21 @@ export class Game {
    * names and places, with `you` marked on the local seat only.
    */
   setOnlineStandings(placements: readonly Placement[]): void {
-    const rows = [...placements]
-      .sort((a, b) => a.place - b.place || a.seat - b.seat)
-      .map((row) => ({
-        place: row.place,
+    this.onlineFinal = true;
+    this.onlineSeats.clear();
+    for (const row of placements) {
+      this.onlineSeats.set(row.seat, {
+        seat: row.seat,
         name: row.name,
-        you: row.seat === this.onlineSeat,
-        state: 'out' as const,
-      }));
-    this.onlineStandings = {
-      rows,
-      yourPlace: rows.find((row) => row.you)?.place ?? null,
-      stillIn: 0,
-    };
-  }
-
-  /** Server confirmed another playing seat is out. */
-  eliminateOnlineSeat(seatId: number, place: number, remaining: number): void {
-    if (this.spectating) {
-      this.noteSpectatorElimination(seatId, place);
-      return;
+        alive: false,
+        place: row.place,
+      });
     }
-    if (!this.online) return;
-    this.onlinePlaces.set(seatId, place);
-    const row = this.onlineRoster.find((seat) => seat.seat === seatId);
-    if (row) row.alive = false;
-    const sim = this.simForSeat(seatId);
-    if (sim) this.killOnlineSim(sim);
-    this.refreshPartial(remaining);
-  }
-
-  /** Lock this client's place without treating it as a remote panel. */
-  noteOnlineElimination(seatId: number, place: number, remaining: number): void {
-    if (!this.online) return;
-    this.onlinePlaces.set(seatId, place);
-    const row = this.onlineRoster.find((seat) => seat.seat === seatId);
-    if (row) row.alive = false;
-    this.refreshPartial(remaining);
-  }
-
-  /** Server confirmed the other human is out. With one remote seat, that is the win. */
-  eliminateOnlineOpponent(): void {
-    if (!this.online) return;
-    const sim = this.sims.sims[0];
-    if (!sim) return;
-    this.killOnlineSim(sim);
+    this.refreshOnlineStandings();
   }
 
   /**
-   * Admit a late joiner as a spectator. The maze stays on the title screen.
+   * Admit a late joiner as a spectator. The maze stays off.
    * Roster and standings update; there is no playable board for this match.
    */
   beginSpectate(roster: readonly RosterSeat[], clock: number): void {
@@ -327,6 +323,8 @@ export class Game {
       pressure: 0,
       hit: false,
       busy: false,
+      bot: false,
+      ready: false,
     }));
     this.spectatorPlaces = new Map(placements.map((row) => [row.seat, row.place]));
     this.onlineNote = 'Match over. Joining the next lobby…';
@@ -339,10 +337,18 @@ export class Game {
     this.spectatorClock = 0;
   }
 
-  /** Last living seat, from the server. Force the local win if a roster delta was missed. */
-  finishOnlineWin(): void {
-    if (!this.online || this.match.phase !== 'playing') return;
-    for (const sim of this.sims.sims) this.killOnlineSim(sim);
+  /** Server confirmed one other seat is out. The last living seat wins. */
+  eliminateOnlineSeat(seat: number): void {
+    if (!this.online) return;
+    const sim = this.simForSeat(seat);
+    if (!sim) return;
+    this.markSimOut(sim);
+  }
+
+  /** Mark every other online seat out. Used when the server says this client won. */
+  eliminateOnlineOpponent(): void {
+    if (!this.online) return;
+    for (const seat of [...this.onlinePanels.keys()]) this.eliminateOnlineSeat(seat);
   }
 
   startMatch(): void {
@@ -413,13 +419,13 @@ export class Game {
     this.online = false;
     this.spectating = false;
     this.onlineSeat = 0;
-    this.onlineSimBySeat.clear();
-    this.onlineRoster = [];
-    this.onlinePlaces.clear();
-    this.onlineStandings = null;
     this.spectatorRoster = [];
     this.spectatorPlaces.clear();
     this.spectatorClock = 0;
+    this.onlinePanels.clear();
+    this.onlineSeats.clear();
+    this.onlineFinal = false;
+    this.onlineStandings = null;
     this.suppressDeathReport = false;
     this.sfx.resetWatch();
     this.ranking.reset(this.playerName);
@@ -563,44 +569,69 @@ export class Game {
     return this.finalStandings();
   }
 
-  /** Online matches wait for the server list. Offline keeps the local 101. */
+  /**
+   * Online standings are the server list: partial after this seat's confirm,
+   * final after `matchEnd`. Offline keeps the local 101.
+   */
   private finalStandings(): StandingSnapshot | null {
     if (this.online) return this.onlineStandings;
     return this.ranking.snapshot();
   }
 
-  private simForSeat(seatId: number) {
-    const simId = this.onlineSimBySeat.get(seatId);
-    if (simId == null) return undefined;
-    return this.sims.sims[simId - 1];
+  private rememberRoster(seats: readonly RosterSeat[]): void {
+    if (this.onlineFinal) return;
+    for (const seat of seats) {
+      const known = this.onlineSeats.get(seat.seat);
+      const name = seat.name || known?.name || '';
+      const place = known?.place ?? null;
+      this.onlineSeats.set(seat.seat, {
+        seat: seat.seat,
+        name,
+        alive: place != null ? false : seat.alive,
+        place,
+      });
+    }
   }
 
-  private killOnlineSim(sim: { id: number; alive: boolean; pressure: number; busy: number }): void {
-    if (!sim.alive) return;
-    sim.alive = false;
-    sim.pressure = KILL_PRESSURE;
-    sim.busy = 0;
-    this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 + this.sims.aliveCount() });
-  }
-
-  private refreshPartial(stillIn: number): void {
+  /** Blank places for the living. Locked places only from server confirms. */
+  private refreshOnlineStandings(): void {
     if (!this.online) return;
-    const rows = this.onlineRoster.map((seat) => {
-      const place = this.onlinePlaces.get(seat.seat) ?? null;
-      const alive = place == null && seat.alive;
-      return {
-        place: alive ? null : place,
-        name: seat.name,
-        you: seat.seat === this.onlineSeat,
-        state: alive ? ('active' as const) : ('out' as const),
-      };
+    const self = this.onlineSeats.get(this.onlineSeat);
+    if (!this.onlineFinal && self?.place == null) {
+      this.onlineStandings = null;
+      return;
+    }
+    const seats = [...this.onlineSeats.values()];
+    const label = (seat: OnlineSeat): string =>
+      seat.name || (seat.seat === this.onlineSeat ? this.playerName : 'Pac');
+    const toRow = (seat: OnlineSeat, state: 'active' | 'out') => ({
+      place: state === 'active' ? null : seat.place,
+      name: label(seat),
+      you: seat.seat === this.onlineSeat,
+      state,
     });
-    const active = rows.filter((row) => row.state === 'active').sort((a, b) => a.name.localeCompare(b.name));
-    const out = rows.filter((row) => row.state === 'out').sort((a, b) => (a.place ?? 9999) - (b.place ?? 9999));
+    if (this.onlineFinal) {
+      const rows = seats
+        .sort((a, b) => (a.place ?? 0) - (b.place ?? 0) || a.seat - b.seat)
+        .map((seat) => toRow(seat, 'out'));
+      this.onlineStandings = {
+        rows,
+        yourPlace: rows.find((row) => row.you)?.place ?? null,
+        stillIn: 0,
+      };
+      return;
+    }
+    const active = seats
+      .filter((seat) => seat.alive && seat.place == null)
+      .sort((a, b) => label(a).localeCompare(label(b)) || a.seat - b.seat);
+    const out = seats
+      .filter((seat) => seat.place != null || !seat.alive)
+      .sort((a, b) => (a.place ?? Number.MAX_SAFE_INTEGER) - (b.place ?? Number.MAX_SAFE_INTEGER) || a.seat - b.seat);
+    const rows = [...active.map((seat) => toRow(seat, 'active')), ...out.map((seat) => toRow(seat, 'out'))];
     this.onlineStandings = {
-      rows: [...active, ...out],
-      yourPlace: rows.find((row) => row.you)?.place ?? null,
-      stillIn: stillIn,
+      rows,
+      yourPlace: self?.place ?? null,
+      stillIn: active.length,
     };
   }
 
@@ -615,9 +646,9 @@ export class Game {
     for (const seat of this.spectatorRoster) {
       const place = this.spectatorPlaces.get(seat.seat) ?? null;
       if (seat.alive && place == null) {
-        active.push({ place: null, name: seat.name, you: false, state: 'active' as const });
+        active.push({ place: null, name: seat.name, you: false, state: 'active' });
       } else {
-        out.push({ place, name: seat.name, you: false, state: 'out' as const });
+        out.push({ place, name: seat.name, you: false, state: 'out' });
       }
     }
     active.sort((a, b) => a.name.localeCompare(b.name));
@@ -630,6 +661,20 @@ export class Game {
     this.bannerT = 2.2;
   }
 
+  private simForSeat(seat: number) {
+    const simId = this.onlinePanels.get(seat);
+    if (simId == null) return undefined;
+    return this.sims.sims.find((sim) => sim.id === simId);
+  }
+
+  private markSimOut(sim: { id: number; alive: boolean; pressure: number; busy: number }): void {
+    if (!sim.alive) return;
+    sim.alive = false;
+    sim.pressure = KILL_PRESSURE;
+    sim.busy = 0;
+    this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 + this.sims.aliveCount() });
+  }
+
   private forwardDeath(): void {
     if (this.suppressDeathReport) {
       this.suppressDeathReport = false;
@@ -638,6 +683,23 @@ export class Game {
     if (!this.online || !this.deathSink) return;
     this.deathSink();
   }
+}
+
+interface OnlineSeat {
+  seat: number;
+  name: string;
+  alive: boolean;
+  /** Null while the server has not locked a finish. */
+  place: number | null;
+}
+
+function oneOpponentRoster(you: number, name: string): RosterSeat[] {
+  const other = you === 1 ? 2 : 1;
+  const blank = { alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true };
+  return [
+    { ...blank, seat: you, name: '' },
+    { ...blank, seat: other, name: name || 'Opponent' },
+  ];
 }
 
 function reasonLabel(reason: JamReason): string {
