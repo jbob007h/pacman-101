@@ -36,6 +36,8 @@ Joining while a match is already in play does not take a playing seat. The serve
 
 A spectator does not get a maze for this match. The client will not send `earnAttack` or `deathReport`, and the server ignores those messages if they arrive. There is no remote maze view.
 
+Once every living seat is a bot, eliminated humans and spectators see **End match** on the standings. That sends `endMatch`. The server ignores it while any human is still alive, and ignores a repeat after the match has already ended. Survivors are placed by pressure, then seat id, and the usual `matchEnd` plus next lobby follow. Offline play shows the same button after you are out and the CPUs are still going; that one finishes locally.
+
 When `matchEnd` arrives, that spectator is moved into the next lobby (Ready is sent with the lobby message) so they can play the following match. Humans who just played stay on their standings until they rejoin. Rejoin after the next match has started spectates that match.
 
 ## Messages added

@@ -118,4 +118,34 @@ describe('names and standings', () => {
     expect(hud.standings?.rows.filter((row) => row.state === 'active').every((row) => row.place === null)).toBe(true);
     expect(game.match.remaining()).toBe(game.sims.aliveCount());
   });
+
+  it('ends a local match from the eliminated overlay and ranks the CPUs still alive', () => {
+    const game = new Game(() => 0.5);
+    game.setPlayerName('Jason');
+    expect(game.hud().canEndMatch).toBe(false);
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    game.board.pac.x = blinky.x;
+    game.board.pac.y = blinky.y;
+    blinky.mode = 'chase';
+    game.update(1 / 60);
+    expect(game.hud().canEndMatch).toBe(false);
+    game.board.deathTime = 1;
+    expect(game.hud().canEndMatch).toBe(true);
+
+    const survivors = game.sims.sims
+      .filter((sim) => sim.alive)
+      .sort((a, b) => a.pressure - b.pressure || a.id - b.id);
+    game.requestEndMatch();
+    const board = game.hud();
+    expect(board.canEndMatch).toBe(false);
+    expect(board.standings?.stillIn).toBe(0);
+    expect(board.standings?.yourPlace).toBe(101);
+    expect(board.standings?.rows).toHaveLength(101);
+    expect(board.standings?.rows.filter((row) => row.place == null)).toEqual([]);
+    const ranked = survivors.map((sim) => board.standings?.rows.find((row) => row.name === sim.name)?.place);
+    expect(ranked).toEqual(survivors.map((_, index) => index + 1));
+    game.requestEndMatch();
+    expect(game.hud().standings?.yourPlace).toBe(101);
+  });
 });

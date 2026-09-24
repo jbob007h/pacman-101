@@ -57,6 +57,7 @@ export type ClientMessage =
   | { type: 'ready' }
   | { type: 'earnAttack'; attack: AttackKind; strength: number }
   | { type: 'deathReport' }
+  | { type: 'endMatch' }
   | { type: 'ping' };
 
 export type ServerMessage =

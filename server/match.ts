@@ -133,6 +133,7 @@ export class MatchRoom {
     }
     if (this.spectators.has(link)) {
       if (raw.type === 'ping') link.send({ type: 'ping' });
+      if (raw.type === 'endMatch') this.endIfBotsOnly();
       return;
     }
     const retired = this.retired.get(link);
@@ -196,6 +197,11 @@ export class MatchRoom {
     }
     if (raw.type === 'deathReport') {
       if (this.phase === 'playing' && seat.alive) this.eliminate(seat);
+      return;
+    }
+    if (raw.type === 'endMatch') {
+      if (seat.alive || seat.bot) return;
+      this.endIfBotsOnly();
     }
   }
 
@@ -360,6 +366,22 @@ export class MatchRoom {
     });
     this.publishRoster();
     if (survivors.length <= 1) this.finish(survivors[0] ?? null);
+  }
+
+  /**
+   * Eliminated humans and spectators may close a match that only bots are
+   * still playing. A living human, a bot, or a match that already ended is ignored.
+   * Survivors keep distinct places: lower pressure first, then seat id.
+   */
+  private endIfBotsOnly(): void {
+    if (this.phase !== 'playing') return;
+    const alive = [...this.seats.values()].filter((seat) => seat.alive);
+    if (alive.some((seat) => !seat.bot)) return;
+    alive.sort((a, b) => a.pressure - b.pressure || a.id - b.id);
+    alive.forEach((seat, index) => {
+      seat.place = index + 1;
+    });
+    this.finish(alive[0] ?? null);
   }
 
   private finish(winner: Seat | null): void {

@@ -25,6 +25,7 @@ const overlayRestart = document.querySelector<HTMLButtonElement>('#overlay-resta
 const rankingEl = document.querySelector<HTMLElement>('#ranking');
 const rankingBlurb = document.querySelector<HTMLElement>('#ranking-blurb');
 const rankingList = document.querySelector<HTMLOListElement>('#ranking-list');
+const rankingEnd = document.querySelector<HTMLButtonElement>('#ranking-end');
 const titleEl = document.querySelector<HTMLElement>('#title');
 const countdownEl = document.querySelector<HTMLElement>('#countdown');
 const startButton = document.querySelector<HTMLButtonElement>('#start');
@@ -37,7 +38,7 @@ const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -87,6 +88,7 @@ function syncHud(): void {
     overlayCard!.hidden = true;
     rankingEl!.hidden = false;
     overlayEl!.hidden = false;
+    rankingEnd!.hidden = !hud.canEndMatch;
     renderStandings(hud.standings.rows, hud.standings.yourPlace, hud.standings.stillIn);
   } else if (hud.overlay) {
     rankingEl!.hidden = true;
@@ -99,6 +101,7 @@ function syncHud(): void {
     overlayContinue!.hidden = hud.phase !== 'won';
     overlayRestart!.hidden = hud.phase === 'won';
     overlayEl!.hidden = false;
+    rankingEnd!.hidden = true;
     standingsSig = '';
     scrolledToYou = false;
   } else {
@@ -107,6 +110,7 @@ function syncHud(): void {
     overlayContinue!.hidden = true;
     overlayRestart!.hidden = false;
     overlayEl!.hidden = true;
+    rankingEnd!.hidden = true;
     standingsSig = '';
     scrolledToYou = false;
   }
@@ -203,6 +207,7 @@ function beginOnline(): void {
   game.bindOnline({
     earn: (attack, strength) => session.sendEarn(attack, strength),
     death: () => session.sendDeath(),
+    end: () => session.sendEndMatch(),
   });
   session.connect(resolved.url, game.playerName);
   syncHud();
@@ -356,6 +361,10 @@ overlayContinue.addEventListener('click', (event) => {
 overlayEl.addEventListener('click', (event) => {
   if (event.target instanceof HTMLButtonElement) return;
   advanceWin();
+});
+rankingEnd.addEventListener('click', () => {
+  game.requestEndMatch();
+  syncHud();
 });
 for (const button of restartButtons) button.addEventListener('click', restart);
 for (const button of menuButtons) button.addEventListener('click', menu);

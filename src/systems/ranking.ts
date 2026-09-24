@@ -60,6 +60,20 @@ export class Ranking {
     return cpuName(simId);
   }
 
+  /**
+   * Lock the players who are still alive, best first.
+   * Used when a local match is ended while CPUs are still going.
+   * Places already locked from earlier eliminations stay put.
+   */
+  sealSims(order: readonly { id: number; name: string }[]): void {
+    let place = 1;
+    for (const row of order) {
+      if (!this.alive.delete(simKey(row.id))) continue;
+      this.placed.push({ place, name: row.name, you: false, state: 'out' });
+      place += 1;
+    }
+  }
+
   snapshot(): StandingSnapshot {
     const active: StandingRow[] = [];
     for (let id = 1; id <= SIM_COUNT; id++) {

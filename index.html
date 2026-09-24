@@ -75,6 +75,7 @@
             <p id="ranking-blurb"></p>
             <ol id="ranking-list"></ol>
             <div class="menu-actions">
+              <button id="ranking-end" type="button" hidden>End match</button>
               <button id="ranking-restart" type="button">Restart match</button>
               <button id="ranking-menu" class="ghost" type="button">Menu</button>
             </div>
@@ -89,7 +90,7 @@
         The fruit under the ghost house reloads the dots and advances the board. Clearing every pellet raises Speed by 1, pops "Speed Up!" on Pac, and leaves the maze empty until the fruit.
         White jammers slow you down and die if they touch you; a power pellet wipes them.
         Red jammers kill on contact, freeze while a power pellet is active, and vanish when you eat the fruit.
-        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. When you win, a congratulations screen comes up first; click, tap, Space, or Enter opens the standings. R restarts. M or Sound on mutes the effects.
+        Red fill is pressure. An X means that opponent is out. When you are eliminated, the standings keep updating while the other players finish. Once only CPU bots are still alive, End match skips to the results. When you win, a congratulations screen comes up first; click, tap, Space, or Enter opens the standings. R restarts. M or Sound on mutes the effects.
       </p>
     </div>
     <script type="module" src="/src/main.ts"></script>
