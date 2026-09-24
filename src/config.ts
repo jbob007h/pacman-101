@@ -253,6 +253,18 @@ export const CPU_CANCEL_START = 50;
 export const CPU_CANCEL_STEP = 3;
 export const CPU_CANCEL_DROP = 1;
 /**
+ * Occasional CPU "mistake" deaths, before the cancel ramp reaches full pressure.
+ * The ramp ({@link CPU_CANCEL_START} / {@link CPU_CANCEL_STEP}) hits 0 at 150s.
+ * No mistakes during the 15s grace, and none at or after {@link CPU_MISTAKE_END}.
+ * {@link CPU_MISTAKE_EXPECTED} is the field total if all {@link SIM_COUNT} CPUs
+ * stay alive for the whole window. The per-CPU hazard is that total divided by
+ * `SIM_COUNT * (END - START)` per second (~9.5 deaths after survival depletion,
+ * inside the 8–12 band).
+ */
+export const CPU_MISTAKE_START = 15;
+export const CPU_MISTAKE_END = 150;
+export const CPU_MISTAKE_EXPECTED = 10;
+/**
  * Opening quiet carried on `matchStart` for a later bot phase.
  * Local CPUs do not use this as a shared gate. Their own 5–15s timer is the wait.
  * N2 bots should copy that per-seat cadence, not a fast global clock after this grace.
