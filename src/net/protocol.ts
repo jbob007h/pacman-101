@@ -39,6 +39,11 @@ export interface RosterSeat {
   bot: boolean;
   /** Lobby ready flag. Bots are ready once the match starts. */
   ready: boolean;
+  /**
+   * Locked finish while this seat is out. Living seats omit it.
+   * Spectators use it for everyone already eliminated when they join.
+   */
+  place?: number | null;
 }
 
 export interface Placement {

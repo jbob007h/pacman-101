@@ -414,6 +414,10 @@ describe('online game path', () => {
     expect(earns).toEqual([]);
     watcher.noteSpectatorElimination(2, ROOM_SIZE);
     expect(watcher.hud().standings?.stillIn).toBe(ROOM_SIZE - 1);
+    expect(watcher.hud().standings?.rows.find((row) => row.name === 'Bot 1')).toMatchObject({
+      place: ROOM_SIZE,
+      state: 'out',
+    });
     watcher.showSpectatorPlacements(
       roster.map((seat, index) => ({ seat: seat.seat, name: seat.name, place: index + 1 })),
     );
@@ -421,6 +425,55 @@ describe('online game path', () => {
     watcher.clearSpectate();
     expect(watcher.spectating).toBe(false);
     expect(watcher.hud().standings).toBeNull();
+  });
+
+  it('shows every eliminated place on a spectator who joined mid-match', () => {
+    let now = 0;
+    const playerLog: ServerMessage[] = [];
+    const watchLog: ServerMessage[] = [];
+    const room = new MatchRoom(() => now, () => 0);
+    const ada = room.join(sink(playerLog), 'Ada');
+    if (!ada.ok || ada.role !== 'player') throw new Error('expected a seat');
+    room.handle(ada.seat, { type: 'ready' });
+    now += LOBBY_COUNTDOWN_MS;
+    room.tick();
+    room.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 100 });
+    const eliminated = playerLog.find((message) => message.type === 'playerEliminated');
+    expect(eliminated?.type).toBe('playerEliminated');
+    if (eliminated?.type !== 'playerEliminated') return;
+
+    const watch = room.join(sink(watchLog), 'Cam');
+    expect(watch).toMatchObject({ ok: true, role: 'spectator' });
+    const spectate = watchLog.find((message) => message.type === 'spectate');
+    expect(spectate?.type).toBe('spectate');
+    if (spectate?.type !== 'spectate') return;
+    const alreadyOut = spectate.roster.filter((seat) => seat.place != null);
+    expect(alreadyOut).toHaveLength(1);
+    expect(alreadyOut[0]).toMatchObject({ seat: eliminated.seat, place: eliminated.place, alive: false });
+
+    const watcher = new Game(() => 0);
+    watcher.beginSpectate(spectate.roster, spectate.clock);
+    const board = watcher.hud().standings;
+    expect(board?.stillIn).toBe(ROOM_SIZE - 1);
+    const out = board?.rows.filter((row) => row.state === 'out') ?? [];
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ place: eliminated.place, name: alreadyOut[0]?.name });
+    expect(board?.rows.filter((row) => row.state === 'out' && row.place == null)).toEqual([]);
+
+    const nextSeat = spectate.roster.find((seat) => seat.alive && seat.seat !== ada.seat);
+    if (!nextSeat) throw new Error('expected a living seat');
+    watcher.applySpectateRoster(
+      spectate.roster.map((seat) =>
+        seat.seat === nextSeat.seat ? { ...seat, alive: false, place: ROOM_SIZE - 1 } : seat,
+      ),
+    );
+    const later = watcher.hud().standings;
+    const laterOut = later?.rows.filter((row) => row.state === 'out') ?? [];
+    expect(laterOut.map((row) => row.place).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([
+      ROOM_SIZE - 1,
+      eliminated.place,
+    ]);
+    expect(later?.rows).toHaveLength(ROOM_SIZE);
   });
 
   it('does not send a ghost earn until a ghost is eaten', () => {

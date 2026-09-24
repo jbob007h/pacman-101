@@ -291,6 +291,7 @@ export class Game {
     this.inMatch = false;
     this.spectatorRoster = roster.map((seat) => ({ ...seat }));
     this.spectatorPlaces.clear();
+    this.rememberSpectatorPlaces(this.spectatorRoster);
     this.spectatorClock = clock;
     this.onlineNote = this.spectateNote();
   }
@@ -299,6 +300,7 @@ export class Game {
     if (!this.spectating) return;
     this.spectatorRoster = seats.map((seat) => ({ ...seat }));
     if (clock != null) this.spectatorClock = clock;
+    this.rememberSpectatorPlaces(this.spectatorRoster);
     for (const seatId of this.spectatorPlaces.keys()) {
       const row = this.spectatorRoster.find((seat) => seat.seat === seatId);
       if (row) row.alive = false;
@@ -633,6 +635,14 @@ export class Game {
       yourPlace: self?.place ?? null,
       stillIn: active.length,
     };
+  }
+
+  /** Locked places travel on the roster, including seats already out at join. */
+  private rememberSpectatorPlaces(seats: readonly RosterSeat[]): void {
+    for (const seat of seats) {
+      if (seat.place == null) continue;
+      this.spectatorPlaces.set(seat.seat, seat.place);
+    }
   }
 
   private spectateNote(): string {
