@@ -32,7 +32,7 @@ Partial standings still update when a playing seat is eliminated: locked place, 
 
 ## Spectate
 
-Joining while a match is already in play does not take a playing seat. The server sends `spectate` with the live roster and the match clock in seconds. The client sets a spectator flag and shows the same battle-layer roster as N0: alive, pressure, names, hit flash, busy, eliminations, and the clock.
+Joining while a match is already in play does not take a playing seat. The server sends `spectate` with the live roster and the match clock in seconds. Each roster seat includes `place` once that seat is out (`null` while alive). The client sets a spectator flag and shows the same battle-layer roster as N0: alive, pressure, names, hit flash, busy, eliminations, and the clock. Standings list every seat. Eliminated seats show the locked place from the roster (including people already out when the spectator joined) and from later `playerEliminated` events. Living seats stay blank. `matchEnd` still replaces that list with the final order, then the spectator moves into the next lobby.
 
 A spectator does not get a maze for this match. The client will not send `earnAttack` or `deathReport`, and the server ignores those messages if they arrive. There is no remote maze view.
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BOARD_W, BOARD_X, PAC_START, VIEW_H, VIEW_W } from '../src/config';
 import { Maze, Tile } from '../src/gameplay/maze';
+import { sleeperTiles } from '../src/gameplay/train';
 import { panelRect } from '../src/render/layout';
 
 describe('maze', () => {
@@ -29,14 +30,20 @@ describe('maze', () => {
     expect(maze.inSideTunnel(14, maze.tunnelRow)).toBe(false);
     expect(maze.blocks(14, 17, 'pac')).toBe(false);
     const counted = new Maze();
-    expect(counted.dotCount()).toBe(248);
+    expect(counted.dotCount()).toBe(232);
     expect(counted.pelletCount()).toBe(4);
+    for (const tile of sleeperTiles()) {
+      expect(counted.tile(tile.x, tile.y)).toBe(Tile.Empty);
+    }
     const spawnY = Math.round(PAC_START.y);
     expect(counted.consume(Math.floor(PAC_START.x), spawnY)).toBe('dot');
     expect(counted.consume(Math.ceil(PAC_START.x), spawnY)).toBe('dot');
-    expect(counted.remaining()).toBe(250);
+    expect(counted.remaining()).toBe(234);
     counted.resetDots();
-    expect(counted.remaining()).toBe(252);
+    expect(counted.remaining()).toBe(236);
+    for (const tile of sleeperTiles()) {
+      expect(counted.tile(tile.x, tile.y)).toBe(Tile.Empty);
+    }
     for (let y = 11; y <= 17; y++) {
       for (let x = 9; x <= 18; x++) {
         const tile = maze.tile(x, y);

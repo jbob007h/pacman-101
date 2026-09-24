@@ -444,6 +444,7 @@ export class MatchRoom {
         busy: seat.busy,
         bot: seat.bot,
         ready: seat.ready,
+        place: seat.place,
       }));
   }
 

@@ -87,6 +87,7 @@ export class Maze {
     this.openGhostHouse(this.initial);
     this.stripSideTunnel(this.initial);
     this.stripGhostHouseRing(this.initial);
+    this.stripSleeperPads(this.initial);
     this.cells = new Uint8Array(this.initial);
     this.left = this.countConsumables(this.cells);
     const issues = collectMazeIssues(this);
@@ -175,6 +176,22 @@ export class Maze {
   private stripGhostHouseRing(cells: Uint8Array): void {
     for (let y = 11; y <= 17; y++) {
       for (let x = 9; x <= 18; x++) {
+        const index = y * MAZE_COLS + x;
+        const tile = cells[index];
+        if (tile === Tile.Dot || tile === Tile.Pellet) cells[index] = Tile.Empty;
+      }
+    }
+  }
+
+  /**
+   * Sleeping ghosts sit on column 6 and column 21, rows 10–13 and 15–18.
+   * Those pads stay empty, the same way the house spawn tiles have no dots.
+   * Kept in line with `SLEEPER_LEFT_X`, `SLEEPER_RIGHT_X`, and `SLEEPER_ROWS`.
+   */
+  private stripSleeperPads(cells: Uint8Array): void {
+    const rows = [10, 11, 12, 13, 15, 16, 17, 18];
+    for (const x of [6, 21]) {
+      for (const y of rows) {
         const index = y * MAZE_COLS + x;
         const tile = cells[index];
         if (tile === Tile.Dot || tile === Tile.Pellet) cells[index] = Tile.Empty;
