@@ -136,6 +136,7 @@ function frameAtTunnel(): DrawInput {
     attackIn: 1,
     parked: false,
     showName: false,
+    koByYou: false,
   };
   return {
     maze,

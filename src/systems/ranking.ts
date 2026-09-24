@@ -10,7 +10,21 @@ export interface StandingRow {
   name: string;
   you: boolean;
   state: 'active' | 'out';
+  /** Knockouts this player has scored. */
+  kos: number;
+  /** The local player knocked this row out. */
+  koByYou: boolean;
+  /** This row knocked the local player out. Stays set after they are eliminated. */
+  koYou: boolean;
 }
+
+export interface KoRowMarks {
+  kos: number;
+  koByYou: boolean;
+  koYou: boolean;
+}
+
+const NO_MARKS: KoRowMarks = { kos: 0, koByYou: false, koYou: false };
 
 export interface StandingSnapshot {
   rows: StandingRow[];
@@ -33,7 +47,10 @@ export interface StandingSnapshot {
 export class Ranking {
   private playerName: string;
   private readonly alive = new Set<string>();
-  private readonly placed: StandingRow[] = [];
+  /** Placed rows keep id so KO marks can refresh while the list is open. */
+  private readonly placed: { id: number; place: number; name: string; you: boolean }[] = [];
+  /** `0` is the local player. Sim ids are 1..100. */
+  private marksFor: (id: number) => KoRowMarks = () => NO_MARKS;
 
   constructor(
     bus: EventBus,
@@ -56,6 +73,11 @@ export class Ranking {
     this.playerName = playerName;
   }
 
+  /** Live KO marks. Called again on every snapshot so counts stay current. */
+  setKoMarks(marksFor: (id: number) => KoRowMarks): void {
+    this.marksFor = marksFor;
+  }
+
   nameForSim(simId: number): string {
     return cpuName(simId);
   }
@@ -69,7 +91,7 @@ export class Ranking {
     let place = 1;
     for (const row of order) {
       if (!this.alive.delete(simKey(row.id))) continue;
-      this.placed.push({ place, name: row.name, you: false, state: 'out' });
+      this.placed.push({ id: row.id, place, name: row.name, you: false });
       place += 1;
     }
   }
@@ -78,10 +100,12 @@ export class Ranking {
     const active: StandingRow[] = [];
     for (let id = 1; id <= SIM_COUNT; id++) {
       if (!this.alive.has(simKey(id))) continue;
-      active.push({ place: null, name: cpuName(id), you: false, state: 'active' });
+      active.push(this.decorate(id, { place: null, name: cpuName(id), you: false, state: 'active' }));
     }
     active.sort((a, b) => a.name.localeCompare(b.name));
-    const out = [...this.placed].sort((a, b) => (a.place ?? 0) - (b.place ?? 0));
+    const out = [...this.placed]
+      .sort((a, b) => a.place - b.place)
+      .map((row) => this.decorate(row.id, { place: row.place, name: row.name, you: row.you, state: 'out' }));
     const yours = this.placed.find((row) => row.you);
     return {
       rows: [...active, ...out],
@@ -99,15 +123,25 @@ export class Ranking {
   private eliminate(key: string, name: string, you: boolean): void {
     if (!this.alive.delete(key)) return;
     this.placed.push({
+      id: you ? 0 : simIdFromKey(key),
       place: this.alive.size + 1,
       name,
       you,
-      state: 'out',
     });
     if (this.alive.size === 1 && this.alive.has(YOU)) this.eliminate(YOU, this.playerName, true);
+  }
+
+  private decorate(id: number, row: Omit<StandingRow, 'kos' | 'koByYou' | 'koYou'>): StandingRow {
+    const marks = this.marksFor(id);
+    return { ...row, kos: marks.kos, koByYou: marks.koByYou, koYou: marks.koYou };
   }
 }
 
 function simKey(id: number): string {
   return `sim:${id}`;
+}
+
+function simIdFromKey(key: string): number {
+  const id = Number(key.slice(4));
+  return Number.isFinite(id) ? id : 0;
 }

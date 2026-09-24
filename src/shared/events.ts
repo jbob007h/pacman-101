@@ -1,4 +1,5 @@
 import type { GhostId } from './types';
+import type { DeathCause } from '../systems/knockouts';
 
 /**
  * Boundary between Gameplay (maze, Pac, ghosts) and Systems (sims, jammers, match).
@@ -16,7 +17,8 @@ export type GameplayEvent =
   | { type: 'powerPelletEaten' }
   | { type: 'ghostEaten'; ghostId: GhostId; strength: number; combo: number }
   | { type: 'boardCleared' }
-  | { type: 'playerDied' }
+  | { type: 'playerDied'; cause?: DeathCause }
+  | { type: 'whiteTouched'; sender: number | null }
   | { type: 'sleeperWoken' }
   | { type: 'trainGhostEaten'; combo: number };
 

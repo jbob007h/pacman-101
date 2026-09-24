@@ -26,6 +26,16 @@ export interface InboundJammer extends Mover {
   centerKey: number;
   prevX: number;
   prevY: number;
+  /**
+   * Who threw this jammer. Null or omitted is a senderless body
+   * (Train-mode self-spawn) and cannot award a KO.
+   */
+  sender?: number | null;
+}
+
+export interface JammerHit {
+  kind: JammerKind;
+  sender: number | null;
 }
 
 const DIRS: readonly Dir[] = [DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN];
@@ -106,6 +116,8 @@ export function formatMatchTime(seconds: number): string {
  */
 export class InboundField {
   jammers: InboundJammer[] = [];
+  /** Live contacts from the latest {@link touch} call. Cleared at the start of each touch. */
+  hits: JammerHit[] = [];
   /** Seconds of slow still left on Pac. */
   slow = 0;
   /** Multiplier applied to Pac's speed while {@link slow} is positive. */
@@ -128,6 +140,7 @@ export class InboundField {
     pacY: number,
     rng: Rng,
     exact = false,
+    sender: number | null = null,
   ): number {
     const wanted = exact ? exactJammerCount(strength) : inboundCount(strength);
     const room = Math.max(0, JAMMER_CAP - this.jammers.length);
@@ -140,7 +153,7 @@ export class InboundField {
     for (const tile of tiles) {
       const kind: JammerKind = redsLeft > 0 ? 'red' : 'white';
       if (kind === 'red') redsLeft -= 1;
-      this.jammers.push(createJammer(kind, tile.x, tile.y, pacX, pacY, maze));
+      this.jammers.push(createJammer(kind, tile.x, tile.y, pacX, pacY, maze, sender));
     }
     return tiles.length;
   }
@@ -155,7 +168,7 @@ export class InboundField {
     if (wanted <= 0) return 0;
     const tiles = pickSpawnTiles(maze, pacX, pacY, wanted, this.jammers, rng);
     for (const tile of tiles) {
-      this.jammers.push(createJammer('white', tile.x, tile.y, pacX, pacY, maze));
+      this.jammers.push(createJammer('white', tile.x, tile.y, pacX, pacY, maze, null));
     }
     return tiles.length;
   }
@@ -218,10 +231,12 @@ export class InboundField {
   /** Returns true when a live red jammer touches Pac. Spawning jammers never collide. */
   touch(pacX: number, pacY: number, elapsed: number, prevPacX = pacX, prevPacY = pacY): boolean {
     let kill = false;
+    this.hits = [];
     for (const jammer of this.jammers) {
       if (jammer.phase !== 'live') continue;
       const hit = sweptHit(jammer.prevX, jammer.prevY, jammer.x, jammer.y, prevPacX, prevPacY, pacX, pacY, JAMMER_HIT_DISTANCE);
       if (!hit) continue;
+      this.hits.push({ kind: jammer.kind, sender: jammer.sender ?? null });
       if (jammer.kind === 'red') {
         kill = true;
         continue;
@@ -266,6 +281,7 @@ export class InboundField {
 
   reset(): void {
     this.jammers = [];
+    this.hits = [];
     this.slow = 0;
     this.slowFactor = 1;
     this.firstRedPending = true;
@@ -278,7 +294,15 @@ export class InboundField {
   }
 }
 
-function createJammer(kind: JammerKind, x: number, y: number, pacX: number, pacY: number, maze: Maze): InboundJammer {
+function createJammer(
+  kind: JammerKind,
+  x: number,
+  y: number,
+  pacX: number,
+  pacY: number,
+  maze: Maze,
+  sender: number | null,
+): InboundJammer {
   const jammer: InboundJammer = {
     kind,
     phase: 'spawn',
@@ -290,6 +314,7 @@ function createJammer(kind: JammerKind, x: number, y: number, pacX: number, pacY
     y,
     dir: { ...DIR_NONE },
     queued: null,
+    sender,
   };
   const dir = openingToward(maze, x, y, pacX, pacY);
   jammer.dir = { ...dir };

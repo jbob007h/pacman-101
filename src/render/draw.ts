@@ -51,6 +51,8 @@ export interface DrawInput {
   speedPopup: number;
   /** Seconds remaining on the single ghost-eat count. 0 hides it. */
   eatPopup: number;
+  /** Seconds remaining on the "K.O." callout. 0 hides it. Drawn above the side grids. */
+  koPopup?: number;
   eatPopupCount: number;
   eatPopupX: number;
   eatPopupY: number;
@@ -313,6 +315,7 @@ function drawPlayfieldCallouts(
   drawEatScore(ctx, input, board.x, board.y);
   drawSpeedPopup(ctx, input, board.x, board.y);
   drawEatCountPopup(ctx, input, board.x, board.y);
+  drawKoPopup(ctx, input, board);
   drawPowerModes(ctx, input);
 }
 
@@ -499,6 +502,16 @@ function drawSpeedPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: num
     speedPopupPose(input.speedPopup),
     '#ffe14a',
   );
+}
+
+function drawKoPopup(
+  ctx: CanvasRenderingContext2D,
+  input: DrawInput,
+  board: { x: number; y: number; w: number; h: number },
+): void {
+  const remaining = input.koPopup ?? 0;
+  if (remaining <= 0) return;
+  drawBouncingCallout(ctx, 'K.O.', board.x + board.w / 2, board.y + 28, speedPopupPose(remaining), '#ff2a36');
 }
 
 function drawEatCountPopup(ctx: CanvasRenderingContext2D, input: DrawInput, ox: number, oy: number): void {
@@ -761,6 +774,17 @@ function drawPanel(ctx: CanvasRenderingContext2D, sim: Sim, time: number): void 
   ctx.lineWidth = sim.busy > 0.25 ? 2 : 1;
   ctx.strokeStyle = !sim.alive ? '#2a2a2a' : sim.busy > 0.25 ? '#ffd15c' : press > 0.2 ? '#ff5a62' : '#31456f';
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  if (sim.koByYou) {
+    ctx.strokeStyle = '#ff2a36';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(rect.x + 8, rect.y + 8);
+    ctx.lineTo(rect.x + rect.w - 8, rect.y + rect.h - 8);
+    ctx.moveTo(rect.x + rect.w - 8, rect.y + 8);
+    ctx.lineTo(rect.x + 8, rect.y + rect.h - 8);
+    ctx.stroke();
+  }
   ctx.fillStyle = sim.alive ? '#d5def0' : '#6a6a6a';
   ctx.font = '10px ui-monospace, monospace';
   ctx.textAlign = 'right';

@@ -1,3 +1,5 @@
+import type { DeathCause } from '../systems/knockouts';
+
 /**
  * Wire messages. The server owns targets, pressure, and eliminations.
  * `earnAttack` never carries a target. Only `ghost` is applied. `dots` and `clear` are ignored.
@@ -44,19 +46,27 @@ export interface RosterSeat {
    * Spectators use it for everyone already eliminated when they join.
    */
   place?: number | null;
+  /** Knockouts this seat has scored. Absent on older servers. */
+  kos?: number;
+  /** Seat that knocked this player out, once credited. Null if nobody. */
+  kodBy?: number | null;
 }
 
 export interface Placement {
   seat: number;
   name: string;
   place: number;
+  kos?: number;
+  kodBy?: number | null;
 }
+
+export type { DeathCause };
 
 export type ClientMessage =
   | { type: 'join'; name: string }
   | { type: 'ready' }
   | { type: 'earnAttack'; attack: AttackKind; strength: number }
-  | { type: 'deathReport' }
+  | { type: 'deathReport'; cause?: DeathCause }
   | { type: 'endMatch' }
   | { type: 'ping' };
 
@@ -68,6 +78,7 @@ export type ServerMessage =
   | { type: 'jammerInbound'; fromSeat: number; fromName: string; strength: number; attack: AttackKind }
   | { type: 'rosterDelta'; seats: RosterSeat[]; clock?: number }
   | { type: 'playerEliminated'; seat: number; place: number; remaining: number }
+  | { type: 'ko'; victim: number; killer: number; killerKos: number }
   | { type: 'matchEnd'; winnerSeat: number | null; placements: Placement[] }
   | { type: 'ping' }
   | { type: 'error'; text: string };

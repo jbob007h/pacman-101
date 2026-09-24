@@ -51,6 +51,8 @@ export interface Sim {
   parked: boolean;
   /** Draw the roster name on this panel. Offline panels keep the numeric id. */
   showName: boolean;
+  /** Big red X: the local player knocked this sim out. Stays for the match. */
+  koByYou: boolean;
 }
 
 /**
@@ -300,5 +302,6 @@ function createSims(rng: Rng): Sim[] {
     attackIn: rollAttackDelay(rng),
     parked: false,
     showName: false,
+    koByYou: false,
   }));
 }

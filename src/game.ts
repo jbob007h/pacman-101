@@ -1,9 +1,9 @@
 import { Sfx } from './audio/sfx';
-import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, KILL_PRESSURE, PAC_LAUNCH_DIR } from './config';
+import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, KILL_PRESSURE, PAC_LAUNCH_DIR, SPEED_POPUP_SECONDS } from './config';
 import { Board } from './gameplay/board';
 import { scaleGhostAttack, type PacMode } from './gameplay/powerMode';
 import { formatMatchTime } from './gameplay/inbound';
-import type { AttackKind, Placement, RosterSeat } from './net/protocol';
+import type { AttackKind, DeathCause, Placement, RosterSeat } from './net/protocol';
 import { drawFrame, type DrawInput } from './render/draw';
 import { BoltField, GRID_BOLT_SCALE } from './render/fx';
 import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
@@ -14,17 +14,20 @@ import type { JamReason } from './shared/events';
 import type { Rng } from './shared/rng';
 import { Match, type MatchPhase } from './systems/match';
 import { DEFAULT_PLAYER_NAME } from './systems/names';
-import { Ranking, type StandingSnapshot } from './systems/ranking';
+import { LOCAL_PLAYER, causeFromMemory, KnockoutBook } from './systems/knockouts';
+import { Ranking, type StandingRow, type StandingSnapshot } from './systems/ranking';
 import { SimWorld } from './systems/sims';
 
 export interface OnlineHandlers {
   earn(attack: AttackKind, strength: number): void;
-  death(): void;
+  death(cause: DeathCause): void;
   end?(): void;
 }
 
 export interface HudState {
   score: number;
+  /** Local player's knockouts. Server-owned while online. */
+  kos: number;
   board: number;
   remaining: number;
   speed: number;
@@ -49,6 +52,7 @@ export class Game {
   readonly sims: SimWorld;
   readonly match: Match;
   readonly ranking: Ranking;
+  readonly knockouts = new KnockoutBook();
   /** Human name used on the HUD and in the standings. */
   playerName = DEFAULT_PLAYER_NAME;
   readonly sfx = new Sfx();
@@ -90,6 +94,10 @@ export class Game {
   private deathSink: OnlineHandlers['death'] | null = null;
   private endSink: OnlineHandlers['end'] | null = null;
   private suppressDeathReport = false;
+  /** Seconds left on the canvas "K.O." callout. */
+  private koCallout = 0;
+  /** Authoritative KO total while online. Offline copies {@link KnockoutBook}. */
+  private shownKos = 0;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -97,6 +105,24 @@ export class Game {
     this.sims.setAttackScale((count) => scaleGhostAttack(this.board.powerActive, count));
     this.match = new Match(this.bus, this.sims);
     this.ranking = new Ranking(this.bus, this.playerName);
+    this.ranking.setKoMarks((id) => ({
+      kos: this.knockouts.count(id),
+      koByYou: id !== LOCAL_PLAYER && this.knockouts.killer(id) === LOCAL_PLAYER,
+      koYou: id !== LOCAL_PLAYER && this.knockouts.killer(LOCAL_PLAYER) === id,
+    }));
+    this.bus.on('jammersSent', (event) => {
+      if (this.online) return;
+      const sender = event.fromSimId ?? LOCAL_PLAYER;
+      for (const target of event.targets) this.knockouts.noteAttack(target, sender);
+    });
+    this.bus.on('whiteTouched', (event) => {
+      this.knockouts.noteWhite(LOCAL_PLAYER, event.sender);
+    });
+    this.bus.on('simEliminated', (event) => {
+      if (this.online) return;
+      const killer = this.knockouts.award(event.simId, { kind: 'none' });
+      if (killer === LOCAL_PLAYER) this.markLocalKo(event.simId);
+    });
     this.bus.on('jammersSent', (event) => {
       if (event.reason === 'sim') {
         if (event.fromSimId == null) return;
@@ -121,7 +147,14 @@ export class Game {
       this.setBanner(`Eliminated ${name}`);
     });
     this.bus.on('incomingJammer', (event) => {
-      this.fx.queueIncoming(panelCenter(event.fromSimId), ghostHouseCenter(), event.strength, event.exact === true);
+      this.knockouts.noteAttack(LOCAL_PLAYER, event.fromSimId);
+      this.fx.queueIncoming(
+        panelCenter(event.fromSimId),
+        ghostHouseCenter(),
+        event.strength,
+        event.exact === true,
+        event.fromSimId,
+      );
       this.setBanner(`Ghost jam from ${this.ranking.nameForSim(event.fromSimId)}`);
     });
     this.bus.on('dotEaten', () => this.sfx.dot());
@@ -130,9 +163,12 @@ export class Game {
     this.bus.on('sleeperWoken', () => this.sfx.wake());
     this.bus.on('trainGhostEaten', (event) => this.sfx.trainEat(event.combo));
     this.bus.on('boardCleared', () => this.sfx.boardClear());
-    this.bus.on('playerDied', () => {
+    this.bus.on('playerDied', (event) => {
       this.sfx.death();
-      this.forwardDeath();
+      const memory = this.knockouts.memoryOf(LOCAL_PLAYER);
+      const cause = event.cause?.kind === 'red' ? event.cause : causeFromMemory(memory, undefined);
+      if (!this.online) this.knockouts.award(LOCAL_PLAYER, cause);
+      this.forwardDeath(cause);
     });
     this.bus.on('ghostVolley', (event) => {
       if (!this.online || !this.earnSink || event.count <= 0) return;
@@ -255,6 +291,7 @@ export class Game {
       if (!sim || sim.parked) continue;
       sim.name = seat.name;
       sim.showName = true;
+      if (seat.kodBy === this.onlineSeat) sim.koByYou = true;
       if (!seat.alive) {
         if (sim.alive) this.markSimOut(sim);
         continue;
@@ -278,7 +315,15 @@ export class Game {
       return;
     }
     if (!this.online || this.onlineFinal || !Number.isFinite(place)) return;
-    const known = this.onlineSeats.get(seat) ?? { seat, name: '', alive: true, place: null, bot: false };
+    const known = this.onlineSeats.get(seat) ?? {
+      seat,
+      name: '',
+      alive: true,
+      place: null,
+      bot: false,
+      kos: 0,
+      kodBy: null,
+    };
     known.alive = false;
     known.place = place;
     if (seat === this.onlineSeat && !known.name) known.name = this.playerName;
@@ -294,7 +339,8 @@ export class Game {
   receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'ghost', fromSeat?: number): void {
     if (attack !== 'ghost' || !(strength > 0)) return;
     const simId = fromSeat != null ? (this.onlinePanels.get(fromSeat) ?? 1) : 1;
-    this.fx.queueIncoming(panelCenter(simId), ghostHouseCenter(), strength, true);
+    this.knockouts.noteAttack(LOCAL_PLAYER, fromSeat ?? null);
+    this.fx.queueIncoming(panelCenter(simId), ghostHouseCenter(), strength, true, fromSeat ?? null);
     this.setBanner(`Ghost jam from ${fromName}`);
   }
 
@@ -320,6 +366,8 @@ export class Game {
         alive: false,
         place: row.place,
         bot: false,
+        kos: row.kos ?? 0,
+        kodBy: row.kodBy ?? null,
       });
     }
     this.refreshOnlineStandings();
@@ -371,6 +419,8 @@ export class Game {
       busy: false,
       bot: false,
       ready: false,
+      kos: row.kos ?? 0,
+      kodBy: row.kodBy ?? null,
     }));
     this.spectatorPlaces = new Map(placements.map((row) => [row.seat, row.place]));
     this.onlineNote = 'Match over. Joining the next lobby…';
@@ -418,6 +468,7 @@ export class Game {
     const step = Math.min(0.05, Math.max(0, dt));
     this.elapsed += step;
     if (this.bannerT > 0) this.bannerT = Math.max(0, this.bannerT - step);
+    if (this.koCallout > 0) this.koCallout = Math.max(0, this.koCallout - step);
     if (!this.inMatch) return;
     if (this.beatIndex >= 0) this.advanceCountdown(step);
     if (this.countdownHolding) {
@@ -473,6 +524,9 @@ export class Game {
     this.onlineFinal = false;
     this.onlineStandings = null;
     this.suppressDeathReport = false;
+    this.koCallout = 0;
+    this.shownKos = 0;
+    this.knockouts.reset();
     this.sfx.resetWatch();
     this.ranking.reset(this.playerName);
   }
@@ -481,6 +535,7 @@ export class Game {
     const phase = this.match.phase;
     return {
       score: this.board.score,
+      kos: this.shownKos,
       board: this.board.speeds().board,
       remaining: this.match.remaining(),
       speed: this.board.displayedSpeed + this.board.modeSpeedLevels(),
@@ -514,6 +569,7 @@ export class Game {
       eatPause: this.board.eatPause,
       eatPoints: this.board.lastEatPoints,
       speedPopup: this.board.speedPopup,
+      koPopup: this.koCallout,
       eatPopup: this.board.eatPopup,
       eatPopupCount: this.board.eatPopupCount,
       eatPopupX: this.board.eatPopupX,
@@ -552,9 +608,9 @@ export class Game {
   }
 
   private tickFx(step: number): void {
-    this.fx.update(step, (strength, exact) => {
+    this.fx.update(step, (strength, exact, sender) => {
       this.sfx.impact();
-      const spawned = this.board.spawnInbound(strength, exact);
+      const spawned = this.board.spawnInbound(strength, exact, sender);
       if (spawned === 0) this.setBanner('Jammers are full');
     });
   }
@@ -677,6 +733,8 @@ export class Game {
         alive: place != null ? false : seat.alive,
         place,
         bot: seat.bot,
+        kos: seat.kos ?? known?.kos ?? 0,
+        kodBy: seat.kodBy ?? known?.kodBy ?? null,
       });
     }
   }
@@ -692,11 +750,15 @@ export class Game {
     const seats = [...this.onlineSeats.values()];
     const label = (seat: OnlineSeat): string =>
       seat.name || (seat.seat === this.onlineSeat ? this.playerName : 'Pac');
-    const toRow = (seat: OnlineSeat, state: 'active' | 'out') => ({
+    const youDiedTo = this.onlineSeats.get(this.onlineSeat)?.kodBy ?? null;
+    const toRow = (seat: OnlineSeat, state: 'active' | 'out'): StandingRow => ({
       place: state === 'active' ? null : seat.place,
       name: label(seat),
       you: seat.seat === this.onlineSeat,
       state,
+      kos: seat.kos,
+      koByYou: seat.kodBy === this.onlineSeat && seat.seat !== this.onlineSeat,
+      koYou: youDiedTo != null && seat.seat === youDiedTo,
     });
     if (this.onlineFinal) {
       const rows = seats
@@ -742,9 +804,9 @@ export class Game {
     for (const seat of this.spectatorRoster) {
       const place = this.spectatorPlaces.get(seat.seat) ?? null;
       if (seat.alive && place == null) {
-        active.push({ place: null, name: seat.name, you: false, state: 'active' });
+        active.push({ place: null, name: seat.name, you: false, state: 'active', kos: seat.kos ?? 0, koByYou: false, koYou: false });
       } else {
-        out.push({ place, name: seat.name, you: false, state: 'out' });
+        out.push({ place, name: seat.name, you: false, state: 'out', kos: seat.kos ?? 0, koByYou: false, koYou: false });
       }
     }
     active.sort((a, b) => a.name.localeCompare(b.name));
@@ -771,13 +833,51 @@ export class Game {
     this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 + this.sims.aliveCount() });
   }
 
-  private forwardDeath(): void {
+  private forwardDeath(cause: DeathCause): void {
     if (this.suppressDeathReport) {
       this.suppressDeathReport = false;
       return;
     }
     if (!this.online || !this.deathSink) return;
-    this.deathSink();
+    this.deathSink(cause);
+  }
+
+  private markLocalKo(simId: number): void {
+    const sim = this.sims.sims[simId - 1];
+    if (sim) sim.koByYou = true;
+    this.bumpKos(this.knockouts.count(LOCAL_PLAYER));
+  }
+
+  private bumpKos(next: number): void {
+    if (next <= this.shownKos) return;
+    this.shownKos = next;
+    this.koCallout = SPEED_POPUP_SECONDS;
+    this.sfx.ko();
+  }
+
+  /**
+   * Server KO. The killer's count is authoritative. A KO you scored marks that
+   * seat's mini-board and bumps the HUD. Who knocked you out stays on their row.
+   */
+  noteOnlineKo(victim: number, killer: number, killerKos: number): void {
+    const known = this.onlineSeats.get(victim);
+    if (known) known.kodBy = killer;
+    if (this.spectating) {
+      const row = this.spectatorRoster.find((seat) => seat.seat === victim);
+      if (row) row.kodBy = killer;
+      const attacker = this.spectatorRoster.find((seat) => seat.seat === killer);
+      if (attacker) attacker.kos = killerKos;
+      return;
+    }
+    if (!this.online) return;
+    const killerSeat = this.onlineSeats.get(killer);
+    if (killerSeat) killerSeat.kos = killerKos;
+    if (killer === this.onlineSeat) {
+      const sim = this.simForSeat(victim);
+      if (sim) sim.koByYou = true;
+      this.bumpKos(killerKos);
+    }
+    this.refreshOnlineStandings();
   }
 }
 
@@ -788,6 +888,8 @@ interface OnlineSeat {
   /** Null while the server has not locked a finish. */
   place: number | null;
   bot: boolean;
+  kos: number;
+  kodBy: number | null;
 }
 
 /** Living seats are all CPU bots, so a waiting human may close the match. */
