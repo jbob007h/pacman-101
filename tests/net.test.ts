@@ -562,6 +562,90 @@ describe('online game path', () => {
     expect(winner.hud().standings).toBeNull();
   });
 
+  it('shows partial standings after this seat is eliminated while others are still alive', () => {
+    const game = new Game(() => 0);
+    game.setPlayerName('Ada');
+    game.startMatch();
+    const roster: RosterSeat[] = [];
+    for (let seat = 1; seat <= ROOM_SIZE; seat++) {
+      const bot = seat !== 1;
+      roster.push({
+        seat,
+        name: bot ? cpuName(seat - 1) : 'Ada',
+        alive: true,
+        pressure: 0,
+        hit: false,
+        busy: false,
+        bot,
+        ready: true,
+      });
+    }
+    game.armOnline(1, roster);
+    game.noteOnlineElimination(4, ROOM_SIZE);
+    game.eliminateOnlineSeat(4);
+    game.board.deathTime = 2;
+    expect(game.match.phase).toBe('playing');
+    expect(game.hud().standings).toBeNull();
+
+    game.noteOnlineElimination(1, ROOM_SIZE - 1);
+    game.applyServerElimination();
+    expect(game.match.phase).toBe('lost');
+    game.board.deathTime = 0.5;
+    expect(game.hud().standings).toBeNull();
+
+    game.board.deathTime = 1;
+    const partial = game.hud().standings;
+    expect(partial?.yourPlace).toBe(ROOM_SIZE - 1);
+    expect(partial?.stillIn).toBe(ROOM_SIZE - 2);
+    expect(partial?.rows.find((row) => row.you)).toMatchObject({
+      name: 'Ada',
+      place: ROOM_SIZE - 1,
+      state: 'out',
+    });
+    expect(partial?.rows.find((row) => row.name === cpuName(3))).toMatchObject({
+      place: ROOM_SIZE,
+      state: 'out',
+    });
+    const living = partial?.rows.filter((row) => row.state === 'active') ?? [];
+    expect(living).toHaveLength(ROOM_SIZE - 2);
+    expect(living.every((row) => row.place === null)).toBe(true);
+    expect(game.match.phase).toBe('lost');
+
+    game.noteOnlineElimination(2, ROOM_SIZE - 2);
+    game.eliminateOnlineSeat(2);
+    const next = game.hud().standings;
+    expect(next?.yourPlace).toBe(ROOM_SIZE - 1);
+    expect(next?.stillIn).toBe(ROOM_SIZE - 3);
+    expect(next?.rows.find((row) => row.name === cpuName(1))).toMatchObject({
+      place: ROOM_SIZE - 2,
+      state: 'out',
+    });
+    expect(next?.rows.filter((row) => row.state === 'active').every((row) => row.place === null)).toBe(true);
+
+    const placeFor = (seat: number): number => {
+      if (seat === 1) return ROOM_SIZE - 1;
+      if (seat === 2) return ROOM_SIZE - 2;
+      if (seat === 4) return ROOM_SIZE;
+      if (seat === 3) return 1;
+      return seat - 3;
+    };
+    game.setOnlineStandings(
+      roster.map((seat) => ({ seat: seat.seat, name: seat.name, place: placeFor(seat.seat) })),
+    );
+    const final = game.hud().standings;
+    expect(final?.stillIn).toBe(0);
+    expect(final?.yourPlace).toBe(ROOM_SIZE - 1);
+    expect(final?.rows).toHaveLength(ROOM_SIZE);
+    expect(final?.rows.every((row) => row.place != null && row.state === 'out')).toBe(true);
+    expect(final?.rows.map((row) => [row.place, row.name])).toEqual(
+      [...roster]
+        .map((seat) => ({ ...seat, place: placeFor(seat.seat) }))
+        .sort((a, b) => a.place - b.place || a.seat - b.seat)
+        .map((seat) => [seat.place, seat.name]),
+    );
+    expect(final?.rows.find((row) => row.place === 1)?.name).toBe(cpuName(2));
+  });
+
   it('shows the server room on the side panels and lists bot names in the standings', () => {
     const game = new Game(() => 0);
     game.startMatch();

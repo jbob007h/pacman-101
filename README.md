@@ -46,7 +46,7 @@ npm run dev
 
 Ghost eats (including the train) batch for 2 seconds into one attack, one jammer per ghost. No attack is sent unless that batch ate at least one ghost. Dots and a full clear do not send jammers. The server picks one living seat, human or bot. `?ws=ws://host:port` points at a different server. `PORT` changes the listen port.
 
-When the match ends, standings list every seat the server finished, including bot names.
+When you are eliminated, standings open after the death pause: your place is locked, and seats still alive stay blank. The list updates as others drop. When the match ends, it becomes the server's final order, including bot names. A win still shows congratulations first.
 
 Friends on the public site use that same 8-seat room after a Render service is up and the Pages build has `VITE_WS_URL` set to its `wss://` URL. Until then, Online on GitHub Pages says the build has no match server and does not connect to localhost. Steps, including the free-tier cold start: [docs/networking-n1.md](docs/networking-n1.md). The N2a lobby is [docs/networking-n2a.md](docs/networking-n2a.md).
 
