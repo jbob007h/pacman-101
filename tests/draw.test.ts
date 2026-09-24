@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { TILE } from '../src/config';
+import { TILE, VIEW_H, VIEW_W } from '../src/config';
 import { Maze, Tile } from '../src/gameplay/maze';
 import { TRAIN_CALM_SCALE } from '../src/gameplay/train';
-import { ghostDrawMode, jammerSpawnScale, SPRITE_SCALE, trainFollowerLook, wallFill } from '../src/render/draw';
+import type { DrawInput } from '../src/render/draw';
+import {
+  drawFrame,
+  ghostDrawMode,
+  jammerSpawnScale,
+  SPEED_POPUP_TEXT,
+  SPRITE_SCALE,
+  trainFollowerLook,
+  wallFill,
+} from '../src/render/draw';
+import { panelRect } from '../src/render/layout';
+import type { Sim } from '../src/systems/sims';
 
 describe('maze wall paint', () => {
   const maze = new Maze();
@@ -68,3 +79,113 @@ describe('maze wall paint', () => {
     expect(trainFollowerLook(true)).toEqual({ mode: 'frightened', scale: 1 });
   });
 });
+
+describe('playfield layer order', () => {
+  it('paints side grids first and leaves Speed Up unclipped so it covers them', () => {
+    const log: { kind: string; clipped: boolean; text?: string }[] = [];
+    const ctx = recordingContext(log);
+    drawFrame(ctx, frameAtTunnel());
+
+    const panel = log.findIndex((entry) => entry.kind === 'panel');
+    const popup = log.find((entry) => entry.kind === 'text' && entry.text === SPEED_POPUP_TEXT);
+    const eat = log.find((entry) => entry.kind === 'text' && entry.text === '4');
+    const bolt = log.findIndex((entry) => entry.kind === 'bolt');
+    expect(panel).toBeGreaterThanOrEqual(0);
+    expect(popup).toBeDefined();
+    expect(popup?.clipped).toBe(false);
+    expect(log.indexOf(popup!)).toBeGreaterThan(panel);
+    expect(eat?.clipped).toBe(false);
+    expect(log.indexOf(eat!)).toBeGreaterThan(panel);
+    expect(bolt).toBeGreaterThan(panel);
+    expect(log[bolt]?.clipped).toBe(false);
+  });
+});
+
+function frameAtTunnel(): DrawInput {
+  const maze = new Maze();
+  const sim: Sim = {
+    id: 5,
+    name: 'grid',
+    alive: true,
+    pressure: 40,
+    heat: 0,
+    busy: 0,
+    relief: 0,
+    lock: 0,
+    phase: 0,
+    attackIn: 1,
+    parked: false,
+    showName: false,
+  };
+  return {
+    maze,
+    pac: { x: 0.2, y: maze.tunnelRow, dir: { x: -1, y: 0 }, queued: null, alive: true, anim: 1 },
+    ghosts: [],
+    sims: [sim],
+    bolts: [{ sx: 400, sy: 200, tx: panelRect(5).x + 10, ty: panelRect(5).y + 10, t: 0.2, duration: 0.36, scale: 1 }],
+    incoming: [],
+    particles: [],
+    shake: 0,
+    mazeFlash: 0,
+    frightened: 0,
+    deathTime: 0,
+    time: 0.4,
+    eatPause: 0.2,
+    eatPoints: 200,
+    speedPopup: 1,
+    eatPopup: 1,
+    eatPopupCount: 4,
+    eatPopupX: 0.2,
+    eatPopupY: maze.tunnelRow,
+    sleepers: [],
+    train: [],
+    trainLeaderId: null,
+    fruit: null,
+    jammers: [],
+    slow: 0,
+  };
+}
+
+function recordingContext(log: { kind: string; clipped: boolean; text?: string }[]): CanvasRenderingContext2D {
+  let clipped = 0;
+  const stack: number[] = [];
+  const ctx = {
+    canvas: { width: VIEW_W, height: VIEW_H },
+    fillStyle: '',
+    strokeStyle: '',
+    lineWidth: 1,
+    font: '',
+    textAlign: 'left',
+    textBaseline: 'alphabetic',
+    globalAlpha: 1,
+    lineJoin: 'miter',
+    miterLimit: 10,
+    lineCap: 'butt',
+    getTransform: () => ({ a: 1, d: 1 }),
+    save: () => stack.push(clipped),
+    restore: () => {
+      clipped = stack.pop() ?? 0;
+    },
+    clip: () => {
+      clipped += 1;
+    },
+    fillRect: (x: number, y: number, w: number, h: number) => {
+      const panel = panelRect(5);
+      if (x === panel.x && y === panel.y && w === panel.w && h === panel.h) {
+        log.push({ kind: 'panel', clipped: clipped > 0 });
+      }
+    },
+    fillText: (text: string) => {
+      log.push({ kind: 'text', clipped: clipped > 0, text });
+    },
+    arc: (x: number, _y: number, radius: number) => {
+      if (radius === 3.2 && x > 0) log.push({ kind: 'bolt', clipped: clipped > 0 });
+    },
+  };
+  return new Proxy(ctx, {
+    get(target, prop) {
+      if (prop in target) return target[prop as keyof typeof target];
+      return () => undefined;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+}
