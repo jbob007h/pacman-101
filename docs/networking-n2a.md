@@ -9,7 +9,8 @@ Implemented on top of the N1 jammer loop. Local single-player is still the defau
 - At the whistle the server pads every empty seat with a CPU bot, then sends `matchStart` with the full 8-seat roster. Eight ready humans means zero bots.
 - Each bot is a pressure filler, not a maze. It uses the offline CPU cadence: its own 8–12s timer from match start, then 1–16 jammers at one other living seat, equal odds. `matchStart.grace` stays 10 and is not a gate.
 - A human `earnAttack` is still ghost-only, with no target. The server picks any other living seat, human or bot. Human → bot updates pressure and the roster only. Bot → human also sends `jammerInbound`. Bot → bot is pressure only.
-- `deathReport` is still a claim. `playerEliminated` confirms it. Disconnect during play eliminates that human. Bots stay until pressure or the rules take them out. `matchEnd.placements` lists every finished seat, including bot names.
+- `deathReport` is still a claim. `playerEliminated` confirms it and locks that seat's place. Disconnect during play eliminates that human. Bots stay until pressure or the rules take them out.
+- When **your** seat is eliminated, standings open after the same death pause, even if other humans and bots are still playing. Eliminated seats show the server place and name. Seats still alive stay on the list with a blank place. Later `playerEliminated` events and roster updates rewrite that list in place. `matchEnd` replaces it with the final order, including the winner and every bot name. Opening standings does not end the match for anyone else. The last survivor still gets congratulations before standings.
 - The client parks the offline 100-panel field down to the other seats in the roster, so the alive counter reads 8 (you included), not 101. Those panels show name, pressure, alive, hit flash, and busy.
 
 Authority is unchanged from [networking-n0.md](networking-n0.md). Mazes stay local. Clients do not pick targets.

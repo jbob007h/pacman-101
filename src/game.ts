@@ -71,6 +71,10 @@ export class Game {
   private onlineSeat = 0;
   /** Server seat → side-panel sim, for the seats that are not this client. */
   private onlinePanels = new Map<number, number>();
+  /** Names and alive flags from the server roster. Places come only from confirms. */
+  private onlineSeats = new Map<number, OnlineSeat>();
+  /** True once `matchEnd` replaced the partial list with the final order. */
+  private onlineFinal = false;
   /** Server finish list for this online match. Offline standings stay on {@link ranking}. */
   private onlineStandings: StandingSnapshot | null = null;
   private earnSink: OnlineHandlers['earn'] | null = null;
@@ -156,6 +160,9 @@ export class Game {
     this.online = true;
     this.onlineSeat = you;
     this.onlinePanels.clear();
+    this.onlineSeats.clear();
+    this.onlineFinal = false;
+    this.onlineStandings = null;
     this.sims.setLocalBattle(false);
     const others = roster
       .filter((seat) => seat.seat !== you)
@@ -183,10 +190,12 @@ export class Game {
       sim.heat = 0;
       sim.busy = 0;
     }
+    this.rememberRoster(roster);
   }
 
   applyOnlineRoster(seats: readonly RosterSeat[]): void {
     if (!this.online) return;
+    this.rememberRoster(seats);
     for (const seat of seats) {
       if (seat.seat === this.onlineSeat) continue;
       const sim = this.simForSeat(seat.seat);
@@ -202,6 +211,22 @@ export class Game {
       if (seat.hit) sim.heat = 1;
       if (seat.busy) sim.busy = 1;
     }
+    this.refreshOnlineStandings();
+  }
+
+  /**
+   * Server locked a place (`playerEliminated`). Living seats stay unplaced.
+   * Standings open only after this client's own place is locked, and the death
+   * pause still gates the overlay.
+   */
+  noteOnlineElimination(seat: number, place: number): void {
+    if (!this.online || this.onlineFinal || !Number.isFinite(place)) return;
+    const known = this.onlineSeats.get(seat) ?? { seat, name: '', alive: true, place: null };
+    known.alive = false;
+    known.place = place;
+    if (seat === this.onlineSeat && !known.name) known.name = this.playerName;
+    this.onlineSeats.set(seat, known);
+    this.refreshOnlineStandings();
   }
 
   /**
@@ -229,19 +254,17 @@ export class Game {
    * names and places, with `you` marked on the local seat only.
    */
   setOnlineStandings(placements: readonly Placement[]): void {
-    const rows = [...placements]
-      .sort((a, b) => a.place - b.place || a.seat - b.seat)
-      .map((row) => ({
-        place: row.place,
+    this.onlineFinal = true;
+    this.onlineSeats.clear();
+    for (const row of placements) {
+      this.onlineSeats.set(row.seat, {
+        seat: row.seat,
         name: row.name,
-        you: row.seat === this.onlineSeat,
-        state: 'out' as const,
-      }));
-    this.onlineStandings = {
-      rows,
-      yourPlace: rows.find((row) => row.you)?.place ?? null,
-      stillIn: 0,
-    };
+        alive: false,
+        place: row.place,
+      });
+    }
+    this.refreshOnlineStandings();
   }
 
   /** Server confirmed one other seat is out. The last living seat wins. */
@@ -326,6 +349,8 @@ export class Game {
     this.online = false;
     this.onlineSeat = 0;
     this.onlinePanels.clear();
+    this.onlineSeats.clear();
+    this.onlineFinal = false;
     this.onlineStandings = null;
     this.suppressDeathReport = false;
     this.sfx.resetWatch();
@@ -470,10 +495,70 @@ export class Game {
     return this.finalStandings();
   }
 
-  /** Online matches wait for the server list. Offline keeps the local 101. */
+  /**
+   * Online standings are the server list: partial after this seat's confirm,
+   * final after `matchEnd`. Offline keeps the local 101.
+   */
   private finalStandings(): StandingSnapshot | null {
     if (this.online) return this.onlineStandings;
     return this.ranking.snapshot();
+  }
+
+  private rememberRoster(seats: readonly RosterSeat[]): void {
+    if (this.onlineFinal) return;
+    for (const seat of seats) {
+      const known = this.onlineSeats.get(seat.seat);
+      const name = seat.name || known?.name || '';
+      const place = known?.place ?? null;
+      this.onlineSeats.set(seat.seat, {
+        seat: seat.seat,
+        name,
+        alive: place != null ? false : seat.alive,
+        place,
+      });
+    }
+  }
+
+  /** Blank places for the living. Locked places only from server confirms. */
+  private refreshOnlineStandings(): void {
+    if (!this.online) return;
+    const self = this.onlineSeats.get(this.onlineSeat);
+    if (!this.onlineFinal && self?.place == null) {
+      this.onlineStandings = null;
+      return;
+    }
+    const seats = [...this.onlineSeats.values()];
+    const label = (seat: OnlineSeat): string =>
+      seat.name || (seat.seat === this.onlineSeat ? this.playerName : 'Pac');
+    const toRow = (seat: OnlineSeat, state: 'active' | 'out') => ({
+      place: state === 'active' ? null : seat.place,
+      name: label(seat),
+      you: seat.seat === this.onlineSeat,
+      state,
+    });
+    if (this.onlineFinal) {
+      const rows = seats
+        .sort((a, b) => (a.place ?? 0) - (b.place ?? 0) || a.seat - b.seat)
+        .map((seat) => toRow(seat, 'out'));
+      this.onlineStandings = {
+        rows,
+        yourPlace: rows.find((row) => row.you)?.place ?? null,
+        stillIn: 0,
+      };
+      return;
+    }
+    const active = seats
+      .filter((seat) => seat.alive && seat.place == null)
+      .sort((a, b) => label(a).localeCompare(label(b)) || a.seat - b.seat);
+    const out = seats
+      .filter((seat) => seat.place != null || !seat.alive)
+      .sort((a, b) => (a.place ?? Number.MAX_SAFE_INTEGER) - (b.place ?? Number.MAX_SAFE_INTEGER) || a.seat - b.seat);
+    const rows = [...active.map((seat) => toRow(seat, 'active')), ...out.map((seat) => toRow(seat, 'out'))];
+    this.onlineStandings = {
+      rows,
+      yourPlace: self?.place ?? null,
+      stillIn: active.length,
+    };
   }
 
   private setBanner(text: string): void {
@@ -503,6 +588,14 @@ export class Game {
     if (!this.online || !this.deathSink) return;
     this.deathSink();
   }
+}
+
+interface OnlineSeat {
+  seat: number;
+  name: string;
+  alive: boolean;
+  /** Null while the server has not locked a finish. */
+  place: number | null;
 }
 
 function oneOpponentRoster(you: number, name: string): RosterSeat[] {

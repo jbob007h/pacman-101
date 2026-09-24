@@ -306,6 +306,7 @@ const session = new NetSession({
     game.applyOnlineRoster(message.seats);
   },
   onEliminated: (message) => {
+    game.noteOnlineElimination(message.seat, message.place);
     if (message.seat === session.seat) game.applyServerElimination();
     else game.eliminateOnlineSeat(message.seat);
   },

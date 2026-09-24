@@ -85,4 +85,4 @@ Render free web services spin down after about 15 minutes without traffic. The n
 
 ## Not in N1
 
-Lobby fill, server bots, streamed mazes, client-chosen targets, and reconnect were out of N1. N2a now has the lobby, an 8-seat bot fill, and roster panels. See [networking-n2a.md](networking-n2a.md). Fill to 101 is N2b. Streamed mazes stay out. Reconnect stays N4 in [networking-n0.md](networking-n0.md). Finish order is still the server's `matchEnd` list, and N2a includes the bot names on that list.
+Lobby fill, server bots, streamed mazes, client-chosen targets, and reconnect were out of N1. N2a now has the lobby, an 8-seat bot fill, and roster panels. See [networking-n2a.md](networking-n2a.md). Fill to 101 is N2b. Streamed mazes stay out. Reconnect stays N4 in [networking-n0.md](networking-n0.md). Finish order is still the server's list. N2a includes bot names, and an eliminated client shows partial standings from `playerEliminated` before `matchEnd` finalizes them.
