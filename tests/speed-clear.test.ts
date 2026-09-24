@@ -37,8 +37,11 @@ describe('full clear Speed', () => {
 
     const popping = game.board.speedPopup;
     game.update(1 / 60);
-    expect(game.board.clearPause).toBeGreaterThan(0);
+    expect(game.board.clearPause).toBe(0);
     expect(game.board.speedPopup).toBeLessThan(popping);
+    const x0 = game.board.pac.x;
+    game.update(1 / 60);
+    expect(game.board.pac.x).not.toBe(x0);
     expect(game.board.maze.remaining()).toBe(0);
 
     drain(game);
@@ -48,6 +51,7 @@ describe('full clear Speed', () => {
     const popupBeforeFruit = game.board.speedPopup;
     game.update(1 / 60);
     expect(game.board.boardIndex).toBe(1);
+    expect(game.board.clearPause).toBe(0);
     expect(game.hud().speed).toBe(1);
     expect(game.board.clearBoost).toBe(1);
     expect(game.board.maze.remaining()).toBeGreaterThan(1);

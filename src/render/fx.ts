@@ -5,7 +5,12 @@ export interface Bolt {
   ty: number;
   t: number;
   duration: number;
+  /** 1 is the main-board attack. Side-grid shots use {@link GRID_BOLT_SCALE}. */
+  scale: number;
 }
+
+/** Side-panel to side-panel shots, relative to the main-board bolt. */
+export const GRID_BOLT_SCALE = 0.5;
 
 export interface Particle {
   x: number;
@@ -40,7 +45,11 @@ export class BoltField {
   /** 1 right after an incoming impact, then falls to 0. */
   flash = 0;
 
-  launch(origin: { x: number; y: number }, targets: readonly { x: number; y: number }[]): void {
+  launch(
+    origin: { x: number; y: number },
+    targets: readonly { x: number; y: number }[],
+    scale = 1,
+  ): void {
     for (const target of targets) {
       this.bolts.push({
         sx: origin.x,
@@ -49,6 +58,7 @@ export class BoltField {
         ty: target.y,
         t: 0,
         duration: 0.36,
+        scale,
       });
     }
     if (this.bolts.length > 40) this.bolts.splice(0, this.bolts.length - 40);

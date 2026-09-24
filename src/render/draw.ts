@@ -1,4 +1,4 @@
-import { pelletFill, SPEED_POPUP_SECONDS, TILE } from '../config';
+import { FRUIT_DRAW_SCALE, pelletFill, SPEED_POPUP_SECONDS, TILE } from '../config';
 import type { Ghost, GhostMode } from '../gameplay/ghosts';
 import { frightenedFlash } from '../gameplay/ghosts';
 import { TRAIN_CALM_SCALE, trainMemberColor, type TrainFollower } from '../gameplay/train';
@@ -657,13 +657,14 @@ function drawBolts(ctx: CanvasRenderingContext2D, bolts: readonly Bolt[]): void 
     const eased = bolt.t * bolt.t * (3 - 2 * bolt.t);
     const x = bolt.sx + (bolt.tx - bolt.sx) * eased;
     const y = bolt.sy + (bolt.ty - bolt.sy) * eased;
+    const scale = bolt.scale;
     ctx.fillStyle = 'rgba(255, 196, 40, 0.35)';
     ctx.beginPath();
-    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.arc(x, y, 7 * scale, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = '#fff4c4';
     ctx.beginPath();
-    ctx.arc(x, y, 3.2, 0, Math.PI * 2);
+    ctx.arc(x, y, 3.2 * scale, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -676,17 +677,21 @@ function drawFruit(
 ): void {
   const cx = ox + fruit.x * TILE + TILE / 2;
   const cy = oy + fruit.y * TILE + TILE / 2;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.scale(FRUIT_DRAW_SCALE, FRUIT_DRAW_SCALE);
   ctx.strokeStyle = '#3d8f3a';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(cx, cy - 2);
-  ctx.quadraticCurveTo(cx + 4, cy - 8, cx + 6, cy - 7);
+  ctx.moveTo(0, -2);
+  ctx.quadraticCurveTo(4, -8, 6, -7);
   ctx.stroke();
   ctx.fillStyle = '#e23b3b';
   ctx.beginPath();
-  ctx.arc(cx - 2.5, cy + 1, 4.2, 0, Math.PI * 2);
-  ctx.arc(cx + 2.2, cy + 1.4, 4.2, 0, Math.PI * 2);
+  ctx.arc(-2.5, 1, 4.2, 0, Math.PI * 2);
+  ctx.arc(2.2, 1.4, 4.2, 0, Math.PI * 2);
   ctx.fill();
+  ctx.restore();
 }
 
 function spritePoints(x: number, y: number, maze: Maze): { x: number; y: number }[] {

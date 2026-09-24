@@ -4,7 +4,7 @@ import { Board } from './gameplay/board';
 import { formatMatchTime } from './gameplay/inbound';
 import type { AttackKind, Placement, RosterSeat } from './net/protocol';
 import { drawFrame, type DrawInput } from './render/draw';
-import { BoltField } from './render/fx';
+import { BoltField, GRID_BOLT_SCALE } from './render/fx';
 import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
 import type { Dir } from './shared/types';
 import { DIR_NONE } from './shared/types';
@@ -51,7 +51,7 @@ export class Game {
   /** Human name used on the HUD and in the standings. */
   playerName = DEFAULT_PLAYER_NAME;
   readonly sfx = new Sfx();
-  private readonly fx = new BoltField();
+  readonly fx = new BoltField();
   private banner = '';
   private bannerT = 0;
   elapsed = 0;
@@ -96,7 +96,15 @@ export class Game {
     this.match = new Match(this.bus, this.sims);
     this.ranking = new Ranking(this.bus, this.playerName);
     this.bus.on('jammersSent', (event) => {
-      if (event.reason === 'sim') return;
+      if (event.reason === 'sim') {
+        if (event.fromSimId == null) return;
+        this.fx.launch(
+          panelCenter(event.fromSimId),
+          event.targets.map((id) => panelCenter(id)),
+          GRID_BOLT_SCALE,
+        );
+        return;
+      }
       const board = boardRect();
       const origin = { x: board.x + board.w / 2, y: board.y + board.h / 2 };
       this.fx.launch(
@@ -231,6 +239,7 @@ export class Game {
       return;
     }
     if (!this.online) return;
+    this.launchGridAttacks(seats);
     this.rememberRoster(seats);
     for (const seat of seats) {
       if (seat.seat === this.onlineSeat) continue;
@@ -506,6 +515,29 @@ export class Game {
       slow: this.board.inbound.slow,
     };
     drawFrame(ctx, input);
+  }
+
+  /**
+   * A side-board attack in this roster delta: one seat is firing (`busy`) and
+   * another took the hit. The main maze already draws its own inbound shot.
+   */
+  private launchGridAttacks(seats: readonly RosterSeat[]): void {
+    const attackers: number[] = [];
+    const targets: number[] = [];
+    for (const seat of seats) {
+      if (seat.seat === this.onlineSeat) continue;
+      const sim = this.simForSeat(seat.seat);
+      if (!sim || sim.parked) continue;
+      if (seat.busy) attackers.push(sim.id);
+      if (seat.hit) targets.push(sim.id);
+    }
+    const pairs = Math.min(attackers.length, targets.length);
+    for (let i = 0; i < pairs; i++) {
+      const from = attackers[i];
+      const to = targets[i];
+      if (from == null || to == null || from === to) continue;
+      this.fx.launch(panelCenter(from), [panelCenter(to)], GRID_BOLT_SCALE);
+    }
   }
 
   private tickFx(step: number): void {

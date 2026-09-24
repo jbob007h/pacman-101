@@ -85,13 +85,13 @@ export class Board {
   /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
   clearBoost = 0;
   /**
-   * Scatter phases entered this match, including the opening scatter.
-   * Each one adds {@link GHOST_SCATTER_BUMP} to chase and scatter for the rest of the match.
+   * Scatter re-entries after the opening wave. The match starts in scatter with no bump.
+   * Each later scatter adds {@link GHOST_SCATTER_BUMP} to chase and scatter for the rest of the match.
    */
-  ghostPaceBoost = 1;
+  ghostPaceBoost = 0;
   /**
    * Seconds left on the "Speed Up!" callout. Set when the last pellet is eaten
-   * and ticked even while the clear pause holds Pac still.
+   * and ticked while Pac keeps moving.
    */
   speedPopup = 0;
   /**
@@ -258,7 +258,7 @@ export class Board {
     this.boardIndex = 0;
     this.displayedSpeed = 0;
     this.clearBoost = 0;
-    this.ghostPaceBoost = 1;
+    this.ghostPaceBoost = 0;
     this.speedPopup = 0;
     this.eatPopup = 0;
     this.eatPopupCount = 0;
@@ -376,7 +376,6 @@ export class Board {
     this.clearBoost += 1;
     this.displayedSpeed += 1;
     this.speedPopup = SPEED_POPUP_SECONDS;
-    this.clearPause = 0.7;
     this.bus.emit({ type: 'boardCleared' });
   }
 
@@ -403,7 +402,6 @@ export class Board {
     this.boardPellets = this.maze.remaining();
     this.train.reloadSleepers();
     this.inbound.killReds();
-    this.clearPause = 0.7;
   }
 
   /** One logic frame of the post-bite hitch. Longer pauses absorb it so it does not stack. */

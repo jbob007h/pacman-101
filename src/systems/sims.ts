@@ -169,7 +169,7 @@ export class SimWorld {
       this.bus.emit({ type: 'incomingJammer', fromSimId: attacker.id, strength: jammers, exact: true });
       return;
     }
-    this.apply([simVsSimAction(targetId, jammers)]);
+    this.apply([simVsSimAction(targetId, jammers)], attacker.id);
   }
 
   /** A few living sims eat a pellet or clear a board and lose pressure. */
@@ -185,7 +185,7 @@ export class SimWorld {
     }
   }
 
-  private apply(actions: JammerAction[]): void {
+  private apply(actions: JammerAction[], fromSimId?: number): void {
     if (actions.length === 0) return;
     const targets: number[] = [];
     const eliminated: number[] = [];
@@ -208,7 +208,7 @@ export class SimWorld {
       }
     }
     if (targets.length > 0) {
-      this.bus.emit({ type: 'jammersSent', targets, strength, reason });
+      this.bus.emit({ type: 'jammersSent', targets, strength, reason, fromSimId });
     }
     for (const simId of eliminated) {
       this.bus.emit({

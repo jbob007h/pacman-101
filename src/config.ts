@@ -98,10 +98,13 @@ export const COUNTDOWN_BEAT_FRAMES = SIM_FPS;
 export const PAC_LAUNCH_DIR: Dir = { x: -1, y: 0 };
 
 /**
- * Tile directly under the ghost house. Fruit appears here once half the pellets are gone.
+ * Bonus spot in the corridor under the ghost house. Fruit appears here once half the pellets are gone.
  * House interior is rows 13–15, columns 11–16; the open corridor below the house is row 17.
+ * x 13.5 is the boundary between columns 13 and 14, the same horizontal center as {@link PAC_START}.
  */
-export const FRUIT_TILE = { x: 14, y: 17 };
+export const FRUIT_TILE = { x: 13.5, y: 17 };
+/** Drawn cherry is this many times the original sprite. */
+export const FRUIT_DRAW_SCALE = 2;
 export const FRUIT_SCORE = 100;
 
 /**
@@ -195,7 +198,7 @@ export const INCOMING_GHOST_MULT = 1.28;
 
 /**
  * Tiles per second added to chase and scatter, permanently, each time the
- * wave schedule enters scatter (including the opening scatter).
+ * wave schedule enters scatter after the opening wave. The match-start scatter does not.
  * Two thirds of the old board-1 → board-2 ghost step (1.1475 → 0.765).
  * Fright, eyes, and the house do not take this. Elroy still uses Pac's pace.
  */
