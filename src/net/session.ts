@@ -3,6 +3,7 @@ import type { AttackKind, ClientMessage, ServerMessage } from './protocol';
 export interface SessionHandlers {
   onNote(text: string): void;
   onLobby(): void;
+  onSpectate(message: Extract<ServerMessage, { type: 'spectate' }>): void;
   onMatchStart(message: Extract<ServerMessage, { type: 'matchStart' }>): void;
   onJammer(message: Extract<ServerMessage, { type: 'jammerInbound' }>): void;
   onRoster(message: Extract<ServerMessage, { type: 'rosterDelta' }>): void;
@@ -16,7 +17,9 @@ export interface SessionHandlers {
  */
 export class NetSession {
   seat = 0;
-  phase: 'idle' | 'connecting' | 'lobby' | 'playing' | 'done' = 'idle';
+  /** Roster-only viewer for a match already in play. Cannot earn or report death. */
+  spectating = false;
+  phase: 'idle' | 'connecting' | 'lobby' | 'spectating' | 'playing' | 'done' = 'idle';
   private socket: WebSocket | null = null;
   private url = '';
   private name = 'Pac';
@@ -37,6 +40,7 @@ export class NetSession {
     this.intentional = false;
     this.failed = false;
     this.readied = false;
+    this.spectating = false;
     this.seat = 0;
     this.url = url;
     this.name = name;
@@ -81,18 +85,19 @@ export class NetSession {
   }
 
   sendEarn(attack: AttackKind, strength: number): void {
-    if (this.phase !== 'playing') return;
+    if (this.spectating || this.phase !== 'playing') return;
     this.send({ type: 'earnAttack', attack, strength });
   }
 
   sendDeath(): void {
-    if (this.phase !== 'playing') return;
+    if (this.spectating || this.phase !== 'playing') return;
     this.send({ type: 'deathReport' });
   }
 
   stop(): void {
     this.generation += 1;
     this.intentional = true;
+    this.spectating = false;
     this.phase = 'idle';
     if (this.pingTimer != null) {
       clearInterval(this.pingTimer);
@@ -105,6 +110,7 @@ export class NetSession {
   private fail(generation: number, text: string): void {
     if (generation !== this.generation) return;
     this.failed = true;
+    this.spectating = false;
     this.phase = 'idle';
     this.handlers.onNote(text);
     this.socket?.close();
@@ -124,20 +130,30 @@ export class NetSession {
     if (message.type === 'ping') return;
     if (message.type === 'error') {
       this.intentional = true;
+      this.spectating = false;
       this.phase = 'idle';
       this.handlers.onNote(message.text);
       return;
     }
     if (message.type === 'lobby') {
+      this.spectating = false;
       this.seat = message.you;
       this.phase = 'lobby';
-      const waiting = message.seats.length < message.need;
-      this.handlers.onNote(waiting ? 'Waiting for the other player…' : 'Both players in. Starting…');
+      this.handlers.onNote(lobbyNote(message));
       this.handlers.onLobby();
       if (!this.readied) {
         this.readied = true;
         this.send({ type: 'ready' });
       }
+      return;
+    }
+    if (message.type === 'spectate') {
+      this.spectating = true;
+      this.seat = 0;
+      this.phase = 'spectating';
+      this.readied = false;
+      this.handlers.onNote('Spectating this match. No maze view.');
+      this.handlers.onSpectate(message);
       return;
     }
     if (message.type === 'matchStart') {
@@ -160,11 +176,19 @@ export class NetSession {
       return;
     }
     if (message.type === 'matchEnd') {
-      this.phase = 'done';
       this.readied = false;
+      if (!this.spectating) this.phase = 'done';
       this.handlers.onMatchEnd(message);
     }
   }
+}
+
+function lobbyNote(message: Extract<ServerMessage, { type: 'lobby' }>): string {
+  const humans = message.seats.filter((seat) => !seat.bot).length;
+  const label = humans === 1 ? '1 human' : `${humans} humans`;
+  if (message.countdownMs == null) return `Lobby · ${label}. Waiting for Ready.`;
+  const secs = Math.max(0, Math.ceil(message.countdownMs / 1000));
+  return `Starting in ${secs}s · ${label}.`;
 }
 
 function connectionFailureNote(url: string): string {

@@ -8,18 +8,26 @@ export interface MatchServer {
   close(): Promise<void>;
 }
 
+export interface MatchServerOptions {
+  /** Override the lobby wait. Production uses {@link LOBBY_COUNTDOWN_MS}. */
+  countdownMs?: number;
+  now?: () => number;
+  rng?: () => number;
+}
+
 /**
  * One room, bound on `0.0.0.0`. `port` 0 asks the OS for a free port.
  * Plain HTTP (including GET /) returns 200 so a host health check can pass.
  * WebSocket upgrades on the same port are the match.
  */
-export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
-  const room = new MatchRoom();
+export function startMatchServer(port = DEFAULT_PORT, options: MatchServerOptions = {}): Promise<MatchServer> {
+  const room = new MatchRoom(options.now, options.rng, options.countdownMs);
   const httpServer = createServer(answerHttp);
   const wss = new WebSocketServer({ server: httpServer });
+  const timer = setInterval(() => room.tick(), 100);
 
   wss.on('connection', (socket) => {
-    let seat: number | null = null;
+    let joined = false;
     const link: SeatLink = {
       send(message) {
         if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -28,21 +36,21 @@ export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
     socket.on('message', (data) => {
       const raw = parseRaw(data);
       if (!raw) return;
-      if (seat == null) {
+      if (!joined) {
         if (raw.type !== 'join') return;
-        const joined = room.join(link, raw.name);
-        if (!joined.ok) {
-          link.send({ type: 'error', text: joined.text });
+        const result = room.join(link, raw.name);
+        if (!result.ok) {
+          link.send({ type: 'error', text: result.text });
           socket.close();
           return;
         }
-        seat = joined.seat;
+        joined = true;
         return;
       }
-      room.handle(seat, raw);
+      room.onMessage(link, raw);
     });
     socket.on('close', () => {
-      if (seat != null) room.leave(seat);
+      if (joined) room.disconnect(link);
     });
   });
 
@@ -57,6 +65,7 @@ export function startMatchServer(port = DEFAULT_PORT): Promise<MatchServer> {
         port: bound,
         close: () =>
           new Promise((done, fail) => {
+            clearInterval(timer);
             for (const client of wss.clients) client.terminate();
             wss.close();
             httpServer.close((error) => (error ? fail(error) : done()));

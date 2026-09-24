@@ -1,9 +1,20 @@
 /**
- * N1 wire messages. The server owns targets, pressure, and eliminations.
+ * Wire messages. The server owns targets, pressure, and eliminations.
  * `earnAttack` never carries a target. Only `ghost` is applied. `dots` and `clear` are ignored.
+ *
+ * N2b: one room of {@link ROOM_SIZE}. At most {@link MAX_HUMANS} play.
+ * The first Ready starts {@link LOBBY_COUNTDOWN_MS}, then bots pad the rest.
  */
 
-export const MATCH_SEATS = 2;
+/** Playing seats once a match starts, humans plus CPU fillers. */
+export const ROOM_SIZE = 101;
+/** Humans who can take a playing seat in the lobby. */
+export const MAX_HUMANS = 16;
+/**
+ * Wait after the first Ready before bots pad the room and `matchStart` goes out.
+ * More humans may join and Ready during this window. Tune this one constant.
+ */
+export const LOBBY_COUNTDOWN_MS = 10_000;
 export const DEFAULT_PORT = 8787;
 /** Dev client default. Production builds use `VITE_WS_URL` via `resolveSocketUrl`. */
 export const DEFAULT_WS_URL = 'ws://localhost:8787';
@@ -24,6 +35,8 @@ export interface RosterSeat {
   hit: boolean;
   /** This seat just fired. */
   busy: boolean;
+  /** Server-side CPU filler. Omitted or false for a human. */
+  bot?: boolean;
 }
 
 export interface Placement {
@@ -40,10 +53,12 @@ export type ClientMessage =
   | { type: 'ping' };
 
 export type ServerMessage =
-  | { type: 'lobby'; you: number; seats: RosterSeat[]; need: number }
+  | { type: 'lobby'; you: number; seats: RosterSeat[]; need: number; countdownMs: number | null }
   | { type: 'matchStart'; you: number; roster: RosterSeat[]; grace: number }
+  /** Roster-only admission while a match is already in play. No maze, no playing seat. */
+  | { type: 'spectate'; roster: RosterSeat[]; clock: number }
   | { type: 'jammerInbound'; fromSeat: number; fromName: string; strength: number; attack: AttackKind }
-  | { type: 'rosterDelta'; seats: RosterSeat[] }
+  | { type: 'rosterDelta'; seats: RosterSeat[]; clock?: number }
   | { type: 'playerEliminated'; seat: number; place: number; remaining: number }
   | { type: 'matchEnd'; winnerSeat: number | null; placements: Placement[] }
   | { type: 'ping' }

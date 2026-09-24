@@ -185,7 +185,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 
 ## Known gaps
 
-- The build you can play by default is local. A public two-player match needs a Render service and a Pages rebuild with `VITE_WS_URL` ([docs/networking-n1.md](docs/networking-n1.md)). Accounts, a ranked ladder, and a 101-seat lobby are not built.
+- The build you can play by default is local. Online is one in-memory room: 16 humans, a 10 second lobby countdown, then CPU bots pad the field to 101 ([docs/networking-n2b.md](docs/networking-n2b.md)). A public match still needs a Render service and a Pages rebuild with `VITE_WS_URL` ([docs/networking-n1.md](docs/networking-n1.md)). Accounts and a ranked ladder are not built. Spectators see the roster, not a remote maze.
 - Side boards are status panels, not live mazes or ghost AIs
 - Incoming jammers are chasers on your maze. Whites slow Pac; reds kill him. They do not add junk tiles or steal controls
 - One life. Blinky speeds up as Cruise Elroy; the other ghosts do not

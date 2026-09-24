@@ -103,8 +103,8 @@ Names and purpose only. Not a schema.
 | Phase | What it is |
 | --- | --- |
 | **N0** | This note. Message sketch, authority, non-goals. |
-| **N1** | **Implemented.** Two-player jammer loop. See [networking-n1.md](networking-n1.md). |
-| **N2** | Lobby, bot fill to 101, and roster sync for the side panels. |
+| **N1** | **Implemented.** Two-player jammer loop. See [networking-n1.md](networking-n1.md). The live room is now the N2b lobby. |
+| **N2b** | **Implemented.** 10s lobby countdown, 16 humans, bot fill to 101, roster spectate. See [networking-n2b.md](networking-n2b.md). |
 | **N3** | Full match end online: server `matchEnd`, then the local congratulations screen, then rankings from server placements. |
 | **N4** | Reconnect, late-join rules, and stronger validation than the N1 rate limits. |
 

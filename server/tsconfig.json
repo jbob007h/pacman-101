@@ -10,7 +10,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "forceConsistentCasingInFileNames": true,
-    "types": ["node"]
+    "types": ["node"],
+    "lib": ["ES2022", "DOM"]
   },
-  "include": ["./**/*.ts", "../src/net/protocol.ts", "../src/config.ts", "../src/shared/types.ts"]
+  "include": ["./**/*.ts", "../src/net/protocol.ts", "../src/config.ts", "../src/shared/**/*.ts", "../src/systems/jammers.ts", "../src/systems/names.ts"]
 }

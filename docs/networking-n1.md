@@ -1,6 +1,6 @@
 # N1 — two-player jammer loop
 
-Implemented. Local single-player is still the default. This phase is a dev loop: two browsers, one in-memory match, no bots and no 101-seat lobby.
+Implemented as the first online loop. The live room is no longer two seats. Lobby countdown, 16 humans, bot fill to 101, and roster spectate are [networking-n2b.md](networking-n2b.md). Local single-player is still the default.
 
 ## What works
 

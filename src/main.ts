@@ -75,7 +75,7 @@ function syncHud(): void {
   onlineNoteEl!.textContent = game.onlineNote;
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
-  titleEl!.hidden = game.inMatch;
+  titleEl!.hidden = game.inMatch || game.spectating;
   countdownEl!.hidden = !hud.countdown;
   countdownEl!.textContent = hud.countdown ?? '';
   hudName!.textContent = game.playerName;
@@ -121,11 +121,13 @@ function advanceWin(): void {
 
 function renderStandings(rows: readonly StandingRow[], yourPlace: number | null, stillIn: number): void {
   const sig = `${stillIn}|${yourPlace ?? ''}|${rows.map((row) => `${row.place ?? ''}:${row.name}:${row.state}`).join(';')}`;
-  rankingBlurb!.textContent = yourPlace
-    ? stillIn > 0
-      ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
-      : `You placed ${yourPlace}.`
-    : `${stillIn} still in.`;
+  rankingBlurb!.textContent = game.spectating
+    ? `Spectating. ${stillIn} still in. No remote maze — the next lobby opens when this match ends.`
+    : yourPlace
+      ? stillIn > 0
+        ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
+        : `You placed ${yourPlace}.`
+      : `${stillIn} still in.`;
   if (sig === standingsSig) return;
   const top = rankingList!.scrollTop;
   rankingList!.replaceChildren(...rows.map(renderStandingRow));
@@ -278,38 +280,60 @@ const session = new NetSession({
     syncHud();
   },
   onLobby: () => {
-    if (!game.inMatch) return;
+    game.clearSpectate();
+    if (game.inMatch) {
+      direction = null;
+      standingsSig = '';
+      scrolledToYou = false;
+      game.showTitle();
+    }
+    syncHud();
+  },
+  onSpectate: (message) => {
     direction = null;
     standingsSig = '';
     scrolledToYou = false;
-    game.showTitle();
+    game.beginSpectate(message.roster, message.clock);
     syncHud();
   },
   onMatchStart: (message) => {
     direction = null;
     standingsSig = '';
     scrolledToYou = false;
-    const other = message.roster.find((seat) => seat.seat !== message.you);
+    game.clearSpectate();
     game.startMatch();
-    game.armOnline(message.you, other?.name ?? 'Opponent');
-    game.applyOnlineRoster(message.roster);
+    game.armOnline(message.you, message.roster);
     syncHud();
   },
   onJammer: (message) => {
-    game.receiveOnlineJammer(message.strength, message.fromName, message.attack);
+    game.receiveOnlineJammer(message.strength, message.fromName, message.attack, message.fromSeat);
   },
   onRoster: (message) => {
-    game.applyOnlineRoster(message.seats);
+    if (session.spectating) game.applySpectateRoster(message.seats, message.clock);
+    else game.applyOnlineRoster(message.seats);
   },
   onEliminated: (message) => {
-    if (message.seat === session.seat) game.applyServerElimination();
-    else game.eliminateOnlineOpponent();
+    if (session.spectating) {
+      game.noteSpectatorElimination(message.seat, message.place);
+      syncHud();
+      return;
+    }
+    if (message.seat === session.seat) {
+      game.noteOnlineElimination(message.seat, message.place, message.remaining);
+      game.applyServerElimination();
+    } else {
+      game.eliminateOnlineSeat(message.seat, message.place, message.remaining);
+    }
   },
   onMatchEnd: (message) => {
+    if (session.spectating) {
+      game.showSpectatorPlacements(message.placements);
+      syncHud();
+      return;
+    }
     const mine = message.placements.find((row) => row.seat === session.seat);
-    const other = message.placements.find((row) => row.seat !== session.seat);
     if (mine && mine.place !== 1) game.applyServerElimination();
-    else if (other && other.place !== 1) game.eliminateOnlineOpponent();
+    else if (mine && mine.place === 1) game.finishOnlineWin();
     game.setOnlineStandings(message.placements);
     syncHud();
   },
