@@ -14,6 +14,7 @@ import {
 import { cpuAttackCancelled, cpuCancelPercent, rollAttackDelay, rollJammerCount, scaleCpuJammers } from '../src/systems/jammers';
 import { cpuMistakeChance } from '../src/systems/mistakes';
 import { cpuName } from '../src/systems/names';
+import { resolveKnockout, type DeathCause } from '../src/systems/knockouts';
 
 export interface SeatLink {
   send(message: ServerMessage): void;
@@ -33,6 +34,13 @@ interface Seat {
   earns: number[];
   /** Seconds until this bot fires again. Humans leave this at 0. */
   attackIn: number;
+  kos: number;
+  kodBy: number | null;
+  lastAttacker: number | null;
+  /** Seats that have actually sent an attack here. Reported senders must be in this set. */
+  attackers: Set<number>;
+  /** Maze facts from the latest deathReport. Bots leave this null and resolve as `none`. */
+  reportCause: DeathCause | null;
 }
 
 interface Watcher {
@@ -201,6 +209,7 @@ export class MatchRoom {
       return;
     }
     if (raw.type === 'deathReport') {
+      seat.reportCause = parseCause(raw.cause);
       if (this.phase === 'playing' && seat.alive) this.eliminate(seat);
       return;
     }
@@ -224,6 +233,11 @@ export class MatchRoom {
       link,
       earns: [],
       attackIn: 0,
+      kos: 0,
+      kodBy: null,
+      lastAttacker: null,
+      attackers: new Set(),
+      reportCause: null,
     };
   }
 
@@ -235,6 +249,11 @@ export class MatchRoom {
     seat.busy = false;
     seat.place = null;
     seat.earns = [];
+    seat.kos = 0;
+    seat.kodBy = null;
+    seat.lastAttacker = null;
+    seat.attackers = new Set();
+    seat.reportCause = null;
   }
 
   private markReady(seat: Seat): void {
@@ -277,6 +296,11 @@ export class MatchRoom {
         link: noopLink,
         earns: [],
         attackIn: 0,
+        kos: 0,
+        kodBy: null,
+        lastAttacker: null,
+        attackers: new Set(),
+        reportCause: null,
       });
     }
     for (const seat of this.seats.values()) {
@@ -350,6 +374,8 @@ export class MatchRoom {
     if (!victim) return;
     victim.pressure += strength;
     victim.hit = true;
+    victim.lastAttacker = seat.id;
+    victim.attackers.add(seat.id);
     seat.busy = true;
     if (!victim.bot) {
       victim.link.send({
@@ -379,6 +405,7 @@ export class MatchRoom {
     seat.busy = false;
     const survivors = [...this.seats.values()].filter((other) => other.alive);
     seat.place = survivors.length + 1;
+    this.creditKo(seat);
     this.broadcast({
       type: 'playerEliminated',
       seat: seat.id,
@@ -414,6 +441,8 @@ export class MatchRoom {
         seat: seat.id,
         name: seat.name,
         place: seat.place ?? (seat.alive ? 1 : ROOM_SIZE),
+        kos: seat.kos,
+        kodBy: seat.kodBy,
       }));
     this.broadcast({
       type: 'matchEnd',
@@ -488,7 +517,26 @@ export class MatchRoom {
         bot: seat.bot,
         ready: seat.ready,
         place: seat.place,
+        kos: seat.kos,
+        kodBy: seat.kodBy,
       }));
+  }
+
+  /**
+   * Bots have no maze, so a bot death is a plain death: most recent attacker,
+   * or nobody if this bot was never attacked. Humans send a death cause.
+   * A reported sender only counts after that seat has actually attacked the victim.
+   */
+  private creditKo(seat: Seat): void {
+    const cause = seat.reportCause ?? { kind: 'none' as const };
+    seat.reportCause = null;
+    const named = resolveKnockout(seat.lastAttacker, cause);
+    if (named == null || named === seat.id || !seat.attackers.has(named)) return;
+    const killer = this.seats.get(named);
+    if (!killer) return;
+    killer.kos += 1;
+    seat.kodBy = killer.id;
+    this.broadcast({ type: 'ko', victim: seat.id, killer: killer.id, killerKos: killer.kos });
   }
 
   private broadcast(message: ServerMessage): void {
@@ -508,6 +556,19 @@ export class MatchRoom {
     }
     return null;
   }
+}
+
+function parseCause(raw: unknown): DeathCause {
+  if (!isRecord(raw)) return { kind: 'none' };
+  const sender = senderId(raw.sender);
+  if (raw.kind === 'red') return { kind: 'red', sender };
+  if (raw.kind === 'white') return { kind: 'white', sender };
+  return { kind: 'none' };
+}
+
+function senderId(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return null;
+  return value;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

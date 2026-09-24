@@ -22,6 +22,7 @@ import {
   type BoardSpeeds,
 } from '../config';
 import type { EventBus } from '../shared/events';
+import type { DeathCause } from '../systems/knockouts';
 import type { Rng } from '../shared/rng';
 import type { Dir } from '../shared/types';
 import { DIR_NONE } from '../shared/types';
@@ -215,9 +216,9 @@ export class Board {
    * Systems hook: a sim threw jammers onto the maze.
    * Returns how many sprites spawned. Overflow past the cap is not spawned.
    */
-  spawnInbound(strength: number, exact = false): number {
+  spawnInbound(strength: number, exact = false, sender: number | null = null): number {
     if (!this.pac.alive) return 0;
-    return this.inbound.spawn(strength, this.matchTime, this.maze, this.pac.x, this.pac.y, this.rng, exact);
+    return this.inbound.spawn(strength, this.matchTime, this.maze, this.pac.x, this.pac.y, this.rng, exact, sender);
   }
 
   update(dt: number): void {
@@ -256,7 +257,7 @@ export class Board {
     if (!started) {
       this.moveGhosts(step, true);
       this.stepTrain(step);
-      if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, pacX0, pacY0)) this.kill();
+      this.applyJammerHits(pacX0, pacY0);
       this.collide();
       return;
     }
@@ -267,7 +268,7 @@ export class Board {
     if (!this.pac.alive) return;
     this.moveGhosts(step, false);
     this.stepTrain(step);
-    if (this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, pacX0, pacY0)) this.kill();
+    this.applyJammerHits(pacX0, pacY0);
     if (this.clearPause > 0) return;
     this.collide();
   }
@@ -608,11 +609,23 @@ export class Board {
     }
   }
 
-  private kill(): void {
+  /** White contacts update KO memory. A red contact kills and names that sender. */
+  private applyJammerHits(prevX: number, prevY: number): void {
+    const killed = this.inbound.touch(this.pac.x, this.pac.y, this.matchTime, prevX, prevY);
+    for (const hit of this.inbound.hits) {
+      if (hit.kind === 'white') this.bus.emit({ type: 'whiteTouched', sender: hit.sender });
+    }
+    if (!killed) return;
+    const reds = this.inbound.hits.filter((hit) => hit.kind === 'red');
+    const red = reds[reds.length - 1];
+    this.kill({ kind: 'red', sender: red?.sender ?? null });
+  }
+
+  private kill(cause: DeathCause = { kind: 'none' }): void {
     if (!this.pac.alive) return;
     this.pac.alive = false;
     this.deathTime = 0;
-    this.bus.emit({ type: 'playerDied' });
+    this.bus.emit({ type: 'playerDied', cause });
   }
 }
 

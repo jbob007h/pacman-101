@@ -31,6 +31,8 @@ export interface IncomingShot {
   strength: number;
   /** When true, strength is the sprite count. Otherwise {@link inboundCount} maps it. */
   exact: boolean;
+  /** Who sent this attack. Null is senderless. */
+  sender?: number | null;
 }
 
 /** Flight from a side panel to the ghost house, in seconds. */
@@ -70,6 +72,7 @@ export class BoltField {
     to: { x: number; y: number },
     strength: number,
     exact = false,
+    sender: number | null = null,
   ): void {
     this.incoming.push({
       sx: from.x,
@@ -80,10 +83,11 @@ export class BoltField {
       duration: INCOMING_FLIGHT,
       strength,
       exact,
+      sender,
     });
   }
 
-  update(dt: number, onImpact?: (strength: number, exact: boolean) => void): void {
+  update(dt: number, onImpact?: (strength: number, exact: boolean, sender: number | null) => void): void {
     for (const bolt of this.bolts) bolt.t += dt / bolt.duration;
     this.bolts = this.bolts.filter((bolt) => bolt.t < 1);
 
@@ -97,7 +101,7 @@ export class BoltField {
       shot.t += dt / shot.duration;
       if (shot.t >= 1) {
         this.impact(shot.tx, shot.ty);
-        onImpact?.(shot.strength, shot.exact);
+        onImpact?.(shot.strength, shot.exact, shot.sender ?? null);
         continue;
       }
       stillFlying.push(shot);

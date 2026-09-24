@@ -1,4 +1,5 @@
 import type { InboundJammer } from '../gameplay/inbound';
+import { koVoiceOnEnd, koVoiceOnScore, type KoVoiceState } from '../systems/knockouts';
 
 const MUTE_KEY = '101-muted';
 /** Overall level. Individual cues stay under this so overlaps do not clip. */
@@ -37,6 +38,7 @@ export class Sfx {
   private fruitOn = false;
   private boardSeen = 0;
   private slow = 0;
+  private voice: KoVoiceState = { busy: false, holdDouble: false };
 
   constructor(context?: AudioContext) {
     this.muted = readMuted();
@@ -66,6 +68,10 @@ export class Sfx {
 
   setMuted(muted: boolean): void {
     this.muted = muted;
+    if (muted) {
+      this.voice = { busy: false, holdDouble: false };
+      this.cancelSpeech();
+    }
     if (this.master && this.ctx) {
       const gain = this.master.gain;
       gain.cancelScheduledValues(this.ctx.currentTime);
@@ -90,6 +96,8 @@ export class Sfx {
     this.boardSeen = 0;
     this.slow = 0;
     this.skipDot = false;
+    this.voice = { busy: false, holdDouble: false };
+    this.cancelSpeech();
   }
 
   start(): void {
@@ -210,6 +218,22 @@ export class Sfx {
     });
   }
 
+  /**
+   * Local KO. A short hit always plays (unless muted). Speech says "K.O."
+   * once at a time, then "Double K.O." if more landed while that line was going.
+   */
+  ko(): void {
+    this.play('ko', () => {
+      this.tone(180, 0.06, 'square', 0.07, 0, 90);
+      this.tone(720, 0.1, 'square', 0.06, 0.04);
+      this.burst(0.07, 0.05);
+    });
+    if (this.muted) return;
+    const next = koVoiceOnScore(this.voice);
+    this.voice = next.state;
+    if (next.speak) this.utter(next.speak);
+  }
+
   death(): void {
     this.play('death', () => {
       this.tone(420, 0.38, 'sawtooth', 0.07, 0, 70);
@@ -252,6 +276,40 @@ export class Sfx {
     if (newReds > 0) this.redSpawn();
     if (slowed) this.whiteHit();
     else if (whiteDeaths > 0) this.whiteWipe();
+  }
+
+  private utter(text: 'K.O.' | 'Double K.O.'): void {
+    const synth = speechSynth();
+    this.log.push(text === 'K.O.' ? 'ko-voice' : 'ko-voice-double');
+    if (!synth) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.rate = 1.35;
+    utter.pitch = 0.62;
+    utter.volume = 1;
+    utter.onend = () => {
+      if (this.muted) {
+        this.voice = { busy: false, holdDouble: false };
+        return;
+      }
+      const next = koVoiceOnEnd(this.voice);
+      this.voice = next.state;
+      if (next.speak) this.utter(next.speak);
+    };
+    try {
+      synth.speak(utter);
+    } catch {
+      const next = koVoiceOnEnd(this.voice);
+      this.voice = next.state;
+    }
+  }
+
+  private cancelSpeech(): void {
+    const synth = speechSynth();
+    try {
+      synth?.cancel();
+    } catch {
+      /* no speech engine */
+    }
   }
 
   private play(name: string, body: () => void): void {
@@ -332,6 +390,11 @@ export class Sfx {
     this.noiseBuffer = buffer;
     return buffer;
   }
+}
+
+function speechSynth(): SpeechSynthesis | null {
+  const host = globalThis as { speechSynthesis?: SpeechSynthesis };
+  return host.speechSynthesis ?? null;
 }
 
 function audioContextCtor(): typeof AudioContext | undefined {

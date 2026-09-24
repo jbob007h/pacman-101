@@ -12,6 +12,7 @@ import './style.css';
 const canvas = document.querySelector<HTMLCanvasElement>('#view');
 const aliveEl = document.querySelector<HTMLElement>('#alive');
 const scoreEl = document.querySelector<HTMLElement>('#score');
+const koEl = document.querySelector<HTMLElement>('#ko');
 const boardEl = document.querySelector<HTMLElement>('#board');
 const speedEl = document.querySelector<HTMLElement>('#speed');
 const timeEl = document.querySelector<HTMLElement>('#time');
@@ -39,7 +40,7 @@ const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
 
-if (!canvas || !aliveEl || !scoreEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !koEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -51,6 +52,7 @@ game.showTitle();
 let direction: Dir | null = null;
 let standingsSig = '';
 let scrolledToYou = false;
+let shownKos = 0;
 
 function commitName(): void {
   const name = savePlayerName(nameInput!.value);
@@ -70,6 +72,13 @@ function syncHud(): void {
   const hud = game.hud();
   aliveEl!.textContent = String(hud.remaining);
   scoreEl!.textContent = String(hud.score);
+  if (hud.kos !== shownKos) {
+    shownKos = hud.kos;
+    koEl!.textContent = String(hud.kos);
+    koEl!.classList.remove('bump');
+    void koEl!.offsetWidth;
+    if (hud.kos > 0) koEl!.classList.add('bump');
+  }
   boardEl!.textContent = String(hud.board);
   speedEl!.textContent = String(hud.speed);
   timeEl!.textContent = hud.time;
@@ -129,7 +138,7 @@ function advanceWin(): void {
 }
 
 function renderStandings(rows: readonly StandingRow[], yourPlace: number | null, stillIn: number): void {
-  const sig = `${stillIn}|${yourPlace ?? ''}|${rows.map((row) => `${row.place ?? ''}:${row.name}:${row.state}`).join(';')}`;
+  const sig = `${stillIn}|${yourPlace ?? ''}|${rows.map((row) => `${row.place ?? ''}:${row.name}:${row.state}:${row.kos}:${row.koByYou ? 1 : 0}:${row.koYou ? 1 : 0}`).join(';')}`;
   rankingBlurb!.textContent = game.spectating
     ? `Spectating. ${stillIn} still in. No remote maze — the next lobby opens when this match ends.`
     : yourPlace
@@ -160,10 +169,33 @@ function renderStandingRow(row: StandingRow): HTMLLIElement {
   place.textContent = row.place === null ? '' : String(row.place);
   const name = document.createElement('span');
   name.textContent = row.name;
+  const marks = document.createElement('span');
+  marks.className = 'ko-marks';
+  if (row.koByYou) {
+    const icon = document.createElement('span');
+    icon.className = 'ko-icon';
+    icon.textContent = '✕';
+    icon.title = 'You knocked them out';
+    marks.append(icon);
+  }
+  if (row.koYou) {
+    const icon = document.createElement('span');
+    icon.className = 'kod-icon';
+    icon.textContent = '◉';
+    icon.title = 'Knocked you out';
+    marks.append(icon);
+  }
+  if (row.kos > 0) {
+    const total = document.createElement('span');
+    total.className = 'ko-total';
+    total.textContent = String(row.kos);
+    total.title = `${row.kos} KO`;
+    marks.append(total);
+  }
   const tag = document.createElement('span');
   tag.className = 'tag';
   tag.textContent = row.you ? 'you' : row.state === 'active' ? 'in' : '';
-  item.append(place, name, tag);
+  item.append(place, name, marks, tag);
   return item;
 }
 
@@ -207,7 +239,7 @@ function beginOnline(): void {
   }
   game.bindOnline({
     earn: (attack, strength) => session.sendEarn(attack, strength),
-    death: () => session.sendDeath(),
+    death: (cause) => session.sendDeath(cause),
     end: () => session.sendEndMatch(),
   });
   session.connect(resolved.url, game.playerName);
@@ -328,6 +360,10 @@ const session = new NetSession({
   onRoster: (message) => {
     if (session.spectating) game.applySpectateRoster(message.seats, message.clock);
     else game.applyOnlineRoster(message.seats);
+  },
+  onKo: (message) => {
+    game.noteOnlineKo(message.victim, message.killer, message.killerKos);
+    syncHud();
   },
   onEliminated: (message) => {
     if (session.spectating) {

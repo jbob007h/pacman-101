@@ -1,4 +1,4 @@
-import type { AttackKind, ClientMessage, RosterSeat, ServerMessage } from './protocol';
+import type { AttackKind, ClientMessage, DeathCause, RosterSeat, ServerMessage } from './protocol';
 
 export interface SessionHandlers {
   onNote(text: string): void;
@@ -8,6 +8,7 @@ export interface SessionHandlers {
   onJammer(message: Extract<ServerMessage, { type: 'jammerInbound' }>): void;
   onRoster(message: Extract<ServerMessage, { type: 'rosterDelta' }>): void;
   onEliminated(message: Extract<ServerMessage, { type: 'playerEliminated' }>): void;
+  onKo(message: Extract<ServerMessage, { type: 'ko' }>): void;
   onMatchEnd(message: Extract<ServerMessage, { type: 'matchEnd' }>): void;
 }
 
@@ -101,9 +102,9 @@ export class NetSession {
     this.send({ type: 'earnAttack', attack, strength });
   }
 
-  sendDeath(): void {
+  sendDeath(cause: DeathCause = { kind: 'none' }): void {
     if (this.spectating || this.phase !== 'playing') return;
-    this.send({ type: 'deathReport' });
+    this.send({ type: 'deathReport', cause });
   }
 
   /** Ask the server to finish a match that only bots are still playing. */
@@ -187,6 +188,10 @@ export class NetSession {
     }
     if (message.type === 'playerEliminated') {
       this.handlers.onEliminated(message);
+      return;
+    }
+    if (message.type === 'ko') {
+      this.handlers.onKo(message);
       return;
     }
     if (message.type === 'matchEnd') {

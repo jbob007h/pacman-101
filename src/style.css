@@ -26,7 +26,7 @@ body {
 
 #hud {
   display: grid;
-  grid-template-columns: auto auto auto auto auto auto 1fr auto;
+  grid-template-columns: auto auto auto auto auto auto auto 1fr auto;
   gap: 18px;
   align-items: center;
   margin-bottom: 10px;
@@ -70,6 +70,28 @@ body {
 
 #alive {
   color: #8cf0ff;
+}
+
+#ko {
+  color: #ff5a62;
+  display: inline-block;
+  transform-origin: left center;
+}
+
+#ko.bump {
+  animation: ko-bump 0.45s ease;
+}
+
+@keyframes ko-bump {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.45);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 
 #speed {
@@ -292,7 +314,7 @@ button:disabled {
 
 .rank-row {
   display: grid;
-  grid-template-columns: 3.2ch 1fr auto;
+  grid-template-columns: 3.2ch 1fr auto auto;
   gap: 8px;
   align-items: center;
   padding: 5px 8px;
@@ -321,6 +343,41 @@ button:disabled {
   color: #ffe14a;
 }
 
+.ko-marks {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.ko-icon,
+.kod-icon {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.4em;
+  height: 1.4em;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.ko-icon {
+  color: #1a0508;
+  background: #ff2a36;
+}
+
+.kod-icon {
+  color: #1a1400;
+  background: #ffe14a;
+}
+
+.ko-total {
+  color: #8ea0c8;
+  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-size: 11px;
+}
+
 .rank-row .tag {
   font-size: 11px;
   letter-spacing: 0.08em;
@@ -343,9 +400,9 @@ button:disabled {
   #hud {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:
-      "brand score restart"
+      "brand score ko"
       "alive board speed"
-      "time time time"
+      "time time restart"
       "status status status";
     gap: 10px 12px;
   }
@@ -364,6 +421,10 @@ button:disabled {
 
   .score-stat {
     grid-area: score;
+  }
+
+  .ko-stat {
+    grid-area: ko;
   }
 
   .board-stat {
