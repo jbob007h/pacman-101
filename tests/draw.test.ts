@@ -81,23 +81,27 @@ describe('maze wall paint', () => {
 });
 
 describe('playfield layer order', () => {
-  it('paints side grids first and leaves Speed Up unclipped so it covers them', () => {
-    const log: { kind: string; clipped: boolean; text?: string }[] = [];
+  it('blits an unclipped overlay after the grids so Speed Up covers them', () => {
+    const log: { kind: string; layer: string; clipped: boolean; text?: string }[] = [];
     const ctx = recordingContext(log);
     drawFrame(ctx, frameAtTunnel());
 
-    const panel = log.findIndex((entry) => entry.kind === 'panel');
     const popup = log.find((entry) => entry.kind === 'text' && entry.text === SPEED_POPUP_TEXT);
     const eat = log.find((entry) => entry.kind === 'text' && entry.text === '4');
-    const bolt = log.findIndex((entry) => entry.kind === 'bolt');
-    expect(panel).toBeGreaterThanOrEqual(0);
-    expect(popup).toBeDefined();
+    const panel = log.find((entry) => entry.kind === 'panel');
+    const bolt = log.find((entry) => entry.kind === 'bolt');
+    const blits = log.filter((entry) => entry.kind === 'blit').map((entry) => entry.layer);
+    expect(blits).toEqual(['panels', 'maze', 'overlay']);
+    expect(panel?.layer).toBe('panels');
+    expect(popup?.layer).toBe('overlay');
     expect(popup?.clipped).toBe(false);
-    expect(log.indexOf(popup!)).toBeGreaterThan(panel);
+    expect(eat?.layer).toBe('overlay');
     expect(eat?.clipped).toBe(false);
-    expect(log.indexOf(eat!)).toBeGreaterThan(panel);
-    expect(bolt).toBeGreaterThan(panel);
-    expect(log[bolt]?.clipped).toBe(false);
+    expect(bolt?.layer).toBe('overlay');
+    expect(bolt?.clipped).toBe(false);
+    expect(log.some((entry) => entry.kind === 'clip' && entry.layer === 'maze')).toBe(true);
+    expect(log.some((entry) => entry.kind === 'clip' && entry.layer === 'overlay')).toBe(false);
+    expect(log.indexOf(popup!)).toBeGreaterThan(log.indexOf(panel!));
   });
 });
 
@@ -146,11 +150,43 @@ function frameAtTunnel(): DrawInput {
   };
 }
 
-function recordingContext(log: { kind: string; clipped: boolean; text?: string }[]): CanvasRenderingContext2D {
+function recordingContext(log: { kind: string; layer: string; clipped: boolean; text?: string }[]): CanvasRenderingContext2D {
+  const names = ['panels', 'maze', 'overlay'];
+  let made = 0;
+  const rootCanvas = {
+    width: VIEW_W,
+    height: VIEW_H,
+    ownerDocument: {
+      createElement: () => layerCanvas(log, names[made++] ?? 'extra'),
+    },
+  };
+  return makeCtx(log, 'root', rootCanvas);
+}
+
+function layerCanvas(log: { kind: string; layer: string; clipped: boolean; text?: string }[], layer: string): {
+  width: number;
+  height: number;
+  __layer: string;
+  getContext: () => CanvasRenderingContext2D;
+} {
+  const canvas = {
+    width: 0,
+    height: 0,
+    __layer: layer,
+    getContext: () => makeCtx(log, layer, canvas),
+  };
+  return canvas;
+}
+
+function makeCtx(
+  log: { kind: string; layer: string; clipped: boolean; text?: string }[],
+  layer: string,
+  canvas: { width: number; height: number; __layer?: string },
+): CanvasRenderingContext2D {
   let clipped = 0;
   const stack: number[] = [];
   const ctx = {
-    canvas: { width: VIEW_W, height: VIEW_H },
+    canvas,
     fillStyle: '',
     strokeStyle: '',
     lineWidth: 1,
@@ -161,25 +197,30 @@ function recordingContext(log: { kind: string; clipped: boolean; text?: string }
     lineJoin: 'miter',
     miterLimit: 10,
     lineCap: 'butt',
-    getTransform: () => ({ a: 1, d: 1 }),
+    getTransform: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+    setTransform: () => undefined,
     save: () => stack.push(clipped),
     restore: () => {
       clipped = stack.pop() ?? 0;
     },
     clip: () => {
       clipped += 1;
+      log.push({ kind: 'clip', layer, clipped: true });
     },
     fillRect: (x: number, y: number, w: number, h: number) => {
       const panel = panelRect(5);
       if (x === panel.x && y === panel.y && w === panel.w && h === panel.h) {
-        log.push({ kind: 'panel', clipped: clipped > 0 });
+        log.push({ kind: 'panel', layer, clipped: clipped > 0 });
       }
     },
     fillText: (text: string) => {
-      log.push({ kind: 'text', clipped: clipped > 0, text });
+      log.push({ kind: 'text', layer, clipped: clipped > 0, text });
+    },
+    drawImage: (image: { __layer?: string }) => {
+      log.push({ kind: 'blit', layer: image.__layer ?? layer, clipped: clipped > 0 });
     },
     arc: (x: number, _y: number, radius: number) => {
-      if (radius === 3.2 && x > 0) log.push({ kind: 'bolt', clipped: clipped > 0 });
+      if (radius === 3.2 && x > 0) log.push({ kind: 'bolt', layer, clipped: clipped > 0 });
     },
   };
   return new Proxy(ctx, {
