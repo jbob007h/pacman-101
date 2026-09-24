@@ -54,7 +54,7 @@ Friends on the public site use that same room after a Render service is up and t
 
 Side panels: a number is an opponent, red fill is pressure, a gold border means they are attacking, a white flash is a fresh hit, a teal flash is a pellet or board clear shedding pressure, and an X means they are out. The Alive counter starts at 101 and includes you.
 
-Each CPU attacks on its own timer: the first shot is 8–12 seconds after the match clock starts, and every shot after that rolls 8–12 seconds again. One shot is 1–16 jammers, aimed at one living seat at random (every other living opponent, plus you). At the start that is about 1 in 100 shots aimed at your maze. A shot that picks you spawns that many jammers. A shot that picks another sim adds that much pressure. Your own attacks are ghost eats only: they batch for 2 seconds, then one living opponent takes pressure equal to the ghosts eaten. Dots and board clears do not send jammers. Every 2.5s, four living opponents shed pressure (34 for a pellet, 68 for a clear, a clear on 1 in 5 of those rolls) so the red bars are not a one-way climb. Passive recovery is 0.6 per second after a 1s lock. Your ghost eats are not delayed.
+Each CPU attacks on its own timer: the first shot is 5–15 seconds after the match clock starts, and every shot after that rolls 5–15 seconds again. One shot rolls 1–16 jammers, aimed at one living seat at random (every other living opponent, plus you). That shot is cancelled with a 50% chance at match time 0, dropping 1% every 3 seconds until the chance is 0 at 150 seconds. A shot that is not cancelled sends that roll scaled by the same percent (`jammers * (100 - cancelPercent) / 100`, rounded). A scaled count that rounds to 0 is skipped. At the start that is about 1 in 100 shots aimed at your maze. A shot that picks you spawns that many jammers. A shot that picks another sim adds that much pressure. Your own attacks are ghost eats only: they batch for 2 seconds, then one living opponent takes pressure equal to the ghosts eaten. Dots and board clears do not send jammers. Every 2.5s, four living opponents shed pressure (34 for a pellet, 68 for a clear, a clear on 1 in 5 of those rolls) so the red bars are not a one-way climb. Passive recovery is 0.6 per second after a 1s lock. Your ghost eats are not delayed.
 
 Walls next to a corridor are drawn as half a tile on the blocked side so the lanes look thin; the collision grid is unchanged. Pac, ghosts, and jammers are drawn at 2× size, still centered on their tile, so they can overhang those half-walls.
 
@@ -178,7 +178,7 @@ Systems turn those into outgoing jammers (`jammersSent`), eliminations (`simElim
 - Ghosts open in scatter, then follow the chase and scatter waves, turn frightened on a power pellet, and can be eaten
 - Eaten ghosts send pressure at one simulated opponent; dots and a full clear do not attack
 - Opponents die when pressure reaches 100; panels show alive, pressured, busy, and dead
-- Each sim attacks on its own 8–12s timer. A shot is 1–16 jammers at one random living seat, including you at 1/alive odds. Pellet and clear relief pulls their pressure back down
+- Each sim attacks on its own 5–15s timer. A shot rolls 1–16 jammers at one random living seat, including you at 1/alive odds, then the match-time cancel ramp may drop or shrink it. Pellet and clear relief pulls their pressure back down
 - Match starts at 101 alive, counts down, and offers restart on death or victory
 
 ## Known gaps

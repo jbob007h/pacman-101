@@ -427,7 +427,7 @@ export class Game {
     this.board.matchTime = this.matchTime;
     // After a loss the field keeps its own attack timers so the standings can still move.
     const runSims = this.online || this.match.phase === 'lost' || (this.match.phase === 'playing' && started);
-    if (runSims) this.sims.update(step);
+    if (runSims) this.sims.update(step, this.online ? undefined : this.matchTime);
     this.tickFx(step);
     this.sfx.tick(step);
     if (this.inMatch) {
