@@ -1,5 +1,7 @@
 # N2a — eight-seat room with CPU fillers
 
+Superseded by [networking-n2b.md](networking-n2b.md). The live room is 101 seats, 16 humans, a 10 second countdown after the first Ready, and roster spectate. This note is the N2a behavior that shipped before that.
+
 Implemented on top of the N1 jammer loop. Local single-player is still the default, and **Start match** still never opens a socket. Online is one in-memory room of **8 seats** (humans and CPU bots together). N2b raises the fill toward 101 by changing `ROOM_SIZE` in `src/net/protocol.ts`. The human join cap is the separate constant `MAX_HUMANS` (also 8 today).
 
 ## What changed from N1

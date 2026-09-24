@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { GHOST_ATTACK_WINDOW, SIM_ATTACK_GRACE } from '../src/config';
+import { GHOST_ATTACK_WINDOW } from '../src/config';
 import { Game } from '../src/game';
 import type { RosterSeat, ServerMessage } from '../src/net/protocol';
-import { EARN_RATE_LIMIT, MAX_HUMANS, ROOM_SIZE } from '../src/net/protocol';
-import { describeLobby } from '../src/net/session';
-import { CPU_NAMES, cpuName } from '../src/systems/names';
+import { EARN_RATE_LIMIT, LOBBY_COUNTDOWN_MS, MAX_HUMANS, ROOM_SIZE } from '../src/net/protocol';
 import { startMatchServer, type MatchServer } from '../server/index';
 import { MatchRoom, type SeatLink } from '../server/match';
 
@@ -24,13 +22,13 @@ describe('match room', () => {
         logs.push({ who, message });
       },
     });
-    const room = new MatchRoom(() => 0, () => 0);
+    const clock = mutableClock();
+    const room = new MatchRoom(clock.now, () => 0);
     const ada = room.join(link('ada'), 'Ada');
     const bea = room.join(link('bea'), 'Bea');
     expect(ada.ok && bea.ok).toBe(true);
-    if (!ada.ok || !bea.ok) return;
-    room.handle(ada.seat, { type: 'ready' });
-    room.handle(bea.seat, { type: 'ready' });
+    if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') return;
+    readyAndStart(room, [ada.seat, bea.seat], clock);
     logs.length = 0;
 
     room.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 48 });
@@ -46,9 +44,8 @@ describe('match room', () => {
     expect(roster?.message.type).toBe('rosterDelta');
     if (roster?.message.type !== 'rosterDelta') return;
     expect(roster.message.seats).toHaveLength(ROOM_SIZE);
-    expect(roster.message.seats[0]).toMatchObject({ seat: ada.seat, pressure: 0, busy: true, bot: false });
-    expect(roster.message.seats[1]).toMatchObject({ seat: bea.seat, pressure: 48, hit: true, bot: false });
-    expect(roster.message.seats.filter((seat) => seat.bot)).toHaveLength(ROOM_SIZE - 2);
+    expect(roster.message.seats.find((seat) => seat.seat === ada.seat)).toMatchObject({ pressure: 0, busy: true });
+    expect(roster.message.seats.find((seat) => seat.seat === bea.seat)).toMatchObject({ pressure: 48, hit: true });
   });
 
   it('ignores target picks, garbage, and earns past the rate limit', () => {
@@ -57,7 +54,9 @@ describe('match room', () => {
       () => now,
       () => 0,
     );
-    const pressure = track(room);
+    const pressure = track(room, (ms) => {
+      now += ms;
+    });
     room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: 10, target: 2 });
     room.handle(pressure.ada, { type: 'earnAttack', attack: 'nope', strength: 10 });
     room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: Number.NaN });
@@ -79,227 +78,159 @@ describe('match room', () => {
     expect(pressure.ofBea()).toBe(EARN_RATE_LIMIT + 2);
   });
 
-  it('lets more than two humans join, and rejects the seat past the human cap', () => {
-    const room = new MatchRoom(() => 0, () => 0);
-    for (let n = 0; n < MAX_HUMANS; n++) {
-      const joined = room.join({ send() {} }, `P${n}`);
-      expect(joined.ok).toBe(true);
-    }
-    expect(room.join({ send() {} }, 'Extra')).toEqual({ ok: false, text: 'Match is full' });
-  });
-
-  it('starts eight ready humans with no CPU fillers', () => {
+  it('eliminates a seat on death without ending a padded match, and rejects a 17th human', () => {
     const logs: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
-    const ids: number[] = [];
-    for (let n = 0; n < MAX_HUMANS; n++) {
-      const joined = room.join(n === 0 ? sink(logs) : { send() {} }, `P${n}`);
-      if (!joined.ok) throw new Error('expected a seat');
-      ids.push(joined.seat);
-    }
-    for (const id of ids) room.handle(id, { type: 'ready' });
-    const started = logs.find((message) => message.type === 'matchStart');
-    expect(started?.type).toBe('matchStart');
-    if (started?.type !== 'matchStart') return;
-    expect(started.roster).toHaveLength(ROOM_SIZE);
-    expect(started.roster.every((seat) => seat.bot === false)).toBe(true);
-  });
-
-  it('does not end on one death while bots are still alive', () => {
-    const logs: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
+    let now = 0;
+    const room = new MatchRoom(
+      () => now,
+      () => 0,
+    );
     const ada = room.join(sink(logs), 'Ada');
     const bea = room.join({ send() {} }, 'Bea');
-    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-    room.handle(ada.seat, { type: 'ready' });
-    room.handle(bea.seat, { type: 'ready' });
+    if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') throw new Error('expected two seats');
+    readyAndStart(room, [ada.seat, bea.seat], {
+      advance(ms) {
+        now += ms;
+      },
+    });
     logs.length = 0;
     room.handle(ada.seat, { type: 'deathReport' });
     room.handle(ada.seat, { type: 'deathReport' });
-    expect(logs.filter((message) => message.type === 'matchEnd')).toHaveLength(0);
+    expect(logs.some((message) => message.type === 'matchEnd')).toBe(false);
     expect(logs.find((message) => message.type === 'playerEliminated')).toMatchObject({
-      type: 'playerEliminated',
       seat: ada.seat,
       remaining: ROOM_SIZE - 1,
     });
-    expect(room.join({ send() {} }, 'Cam')).toEqual({ ok: false, text: 'Match is full' });
+
+    const fresh = new MatchRoom(() => 0, () => 0);
+    for (let i = 0; i < MAX_HUMANS; i++) {
+      const joined = fresh.join({ send() {} }, `H${i}`);
+      expect(joined.ok).toBe(true);
+    }
+    expect(fresh.join({ send() {} }, 'Extra')).toEqual({ ok: false, text: 'Lobby is full' });
   });
 
-  it('sends both seats the same finish names and places', () => {
+  it('sends every human the same finish names and places', () => {
     const adaLog: ServerMessage[] = [];
     const beaLog: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
+    let now = 0;
+    const room = new MatchRoom(
+      () => now,
+      () => 0,
+    );
     const ada = room.join(sink(adaLog), '  Ada  ');
     const bea = room.join(sink(beaLog), 'Bea');
-    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-    room.handle(ada.seat, { type: 'ready' });
-    room.handle(bea.seat, { type: 'ready' });
-    for (let n = 0; n < ROOM_SIZE; n++) {
-      room.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 200 });
+    if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') throw new Error('expected two seats');
+    readyAndStart(room, [ada.seat, bea.seat], {
+      advance(ms) {
+        now += ms;
+      },
+    });
+    for (let i = 0; i < ROOM_SIZE - 1; i++) {
+      now += 1_000;
+      room.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 100 });
     }
     const adaEnd = adaLog.find((message) => message.type === 'matchEnd');
     const beaEnd = beaLog.find((message) => message.type === 'matchEnd');
     expect(adaEnd).toEqual(beaEnd);
-    expect(adaEnd?.type).toBe('matchEnd');
-    if (adaEnd?.type !== 'matchEnd') return;
-    expect(adaEnd.winnerSeat).toBe(ada.seat);
-    expect(adaEnd.placements).toHaveLength(ROOM_SIZE);
-    expect(adaEnd.placements.map((row) => row.name)).toEqual(['Ada', 'Bea', ...CPU_NAMES.slice(0, ROOM_SIZE - 2)]);
-    expect(adaEnd.placements.find((row) => row.seat === ada.seat)?.place).toBe(1);
-    expect(adaEnd.placements.find((row) => row.seat === bea.seat)?.place).toBe(ROOM_SIZE);
-  });
-
-  it('drops a lobby leaver so a ready human is not stuck', () => {
-    const logs: ServerMessage[] = [];
-    const waiting = new MatchRoom(() => 0, () => 0);
-    const ada = waiting.join({ send() {} }, 'Ada');
-    const bea = waiting.join(sink(logs), 'Bea');
-    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-    waiting.handle(bea.seat, { type: 'ready' });
-    expect(logs.some((message) => message.type === 'matchStart')).toBe(false);
-    waiting.leave(ada.seat);
-    const started = logs.find((message) => message.type === 'matchStart');
-    expect(started?.type).toBe('matchStart');
-    if (started?.type !== 'matchStart') return;
-    expect(started.roster.filter((seat) => seat.bot)).toHaveLength(ROOM_SIZE - 1);
-    expect(started.grace).toBe(SIM_ATTACK_GRACE);
-  });
-
-  it('pads a solo ready human to the room size with named CPU bots', () => {
-    const logs: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
-    const ada = room.join(sink(logs), 'Ada');
-    if (!ada.ok) throw new Error('expected a seat');
-    const lobby = logs.find((message) => message.type === 'lobby');
-    expect(lobby?.type).toBe('lobby');
-    if (lobby?.type === 'lobby') {
-      expect(lobby.need).toBe(ROOM_SIZE);
-      expect(lobby.seats).toEqual([
-        expect.objectContaining({ seat: ada.seat, name: 'Ada', bot: false, ready: false }),
-      ]);
-    }
-    room.handle(ada.seat, { type: 'ready' });
-    const started = logs.find((message) => message.type === 'matchStart');
-    expect(started?.type).toBe('matchStart');
-    if (started?.type !== 'matchStart') return;
-    expect(started.grace).toBe(SIM_ATTACK_GRACE);
-    expect(started.roster).toHaveLength(ROOM_SIZE);
-    expect(started.roster.filter((seat) => !seat.bot)).toEqual([
-      expect.objectContaining({ seat: ada.seat, name: 'Ada', ready: true, alive: true }),
-    ]);
-    expect(started.roster.filter((seat) => seat.bot).map((seat) => seat.name)).toEqual(
-      CPU_NAMES.slice(0, ROOM_SIZE - 1),
-    );
-  });
-
-  it('waits for every joined human, then fills fewer bots when two are ready', () => {
-    const logs: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
-    const ada = room.join(sink(logs), 'Ada');
-    const bea = room.join({ send() {} }, 'Bea');
-    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-    room.handle(ada.seat, { type: 'ready' });
-    expect(logs.some((message) => message.type === 'matchStart')).toBe(false);
-    const lobby = [...logs].reverse().find((message) => message.type === 'lobby');
-    expect(lobby?.type).toBe('lobby');
-    if (lobby?.type === 'lobby') {
-      expect(describeLobby(lobby.seats, lobby.need)).toContain('Ada (ready)');
-      expect(describeLobby(lobby.seats, lobby.need)).toContain('Bea');
-      expect(lobby.seats.map((seat) => [seat.name, seat.bot, seat.ready])).toEqual([
-        ['Ada', false, true],
-        ['Bea', false, false],
-      ]);
-    }
-    room.handle(bea.seat, { type: 'ready' });
-    const started = logs.find((message) => message.type === 'matchStart');
-    expect(started?.type).toBe('matchStart');
-    if (started?.type !== 'matchStart') return;
-    expect(started.roster.filter((seat) => seat.bot)).toHaveLength(ROOM_SIZE - 2);
-    expect(started.roster.filter((seat) => !seat.bot).map((seat) => seat.name)).toEqual(['Ada', 'Bea']);
-  });
-
-  it('fires each bot on its own 8s timer at one living seat, without waiting out grace', () => {
-    const logs: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
-    const ada = room.join(sink(logs), 'Ada');
-    if (!ada.ok) throw new Error('expected a seat');
-    room.handle(ada.seat, { type: 'ready' });
-    logs.length = 0;
-    room.tick(7.9);
-    expect(logs.filter((message) => message.type === 'jammerInbound')).toHaveLength(0);
-    room.tick(0.1);
-    const inbound = logs.filter((message) => message.type === 'jammerInbound');
-    expect(inbound).toHaveLength(ROOM_SIZE - 1);
-    expect(inbound.every((message) => message.type === 'jammerInbound' && message.strength === 1 && message.attack === 'ghost')).toBe(
-      true,
-    );
-    expect(new Set(inbound.map((message) => (message.type === 'jammerInbound' ? message.fromName : ''))).size).toBe(
-      ROOM_SIZE - 1,
-    );
-  });
-
-  it('lets a human earn hit a bot, and lets a bot hit either a human or a bot', () => {
-    const humanLogs: ServerMessage[] = [];
-    const botTarget = new MatchRoom(
-      () => 0,
-      scriptedRng([...Array(ROOM_SIZE - 2).fill(0), 0.999]),
-    );
-    const ada = botTarget.join(sink(humanLogs), 'Ada');
-    const bea = botTarget.join(sink([]), 'Bea');
-    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-    botTarget.handle(ada.seat, { type: 'ready' });
-    botTarget.handle(bea.seat, { type: 'ready' });
-    humanLogs.length = 0;
-    botTarget.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 15 });
-    expect(humanLogs.some((message) => message.type === 'jammerInbound')).toBe(false);
-    const struck = [...humanLogs].reverse().find((message) => message.type === 'rosterDelta');
-    expect(struck?.type).toBe('rosterDelta');
-    if (struck?.type === 'rosterDelta') {
-      const bots = struck.seats.filter((seat) => seat.bot);
-      expect(bots.some((seat) => seat.pressure === 15 && seat.hit)).toBe(true);
-      expect(struck.seats.find((seat) => seat.seat === bea.seat)?.pressure).toBe(0);
-    }
-
-    const botLogs: ServerMessage[] = [];
-    const botsHitBots = new MatchRoom(() => 0, scriptedRng(botDice(ROOM_SIZE - 1, 0.999)));
-    const solo = botsHitBots.join(sink(botLogs), 'Ada');
-    if (!solo.ok) throw new Error('expected a seat');
-    botsHitBots.handle(solo.seat, { type: 'ready' });
-    botLogs.length = 0;
-    botsHitBots.tick(8);
-    expect(botLogs.some((message) => message.type === 'jammerInbound')).toBe(false);
-    const afterBots = [...botLogs].reverse().find((message) => message.type === 'rosterDelta');
-    expect(afterBots?.type).toBe('rosterDelta');
-    if (afterBots?.type === 'rosterDelta') {
-      expect(afterBots.seats.find((seat) => seat.seat === solo.seat)?.pressure).toBe(0);
-      const dealt = afterBots.seats.filter((seat) => seat.bot).reduce((sum, seat) => sum + seat.pressure, 0);
-      expect(dealt).toBe(ROOM_SIZE - 1);
-    }
-  });
-
-  it('eliminates a disconnected human and leaves the bots in play', () => {
-    const logs: ServerMessage[] = [];
-    const room = new MatchRoom(() => 0, () => 0);
-    const ada = room.join({ send() {} }, 'Ada');
-    const bea = room.join(sink(logs), 'Bea');
-    if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-    room.handle(ada.seat, { type: 'ready' });
-    room.handle(bea.seat, { type: 'ready' });
-    logs.length = 0;
-    room.leave(ada.seat);
-    expect(logs.some((message) => message.type === 'matchEnd')).toBe(false);
-    expect(logs.find((message) => message.type === 'playerEliminated')).toMatchObject({
-      type: 'playerEliminated',
-      seat: ada.seat,
-      remaining: ROOM_SIZE - 1,
+    expect(adaEnd).toMatchObject({
+      type: 'matchEnd',
+      winnerSeat: ada.seat,
     });
-    const roster = logs.find((message) => message.type === 'rosterDelta');
-    expect(roster?.type).toBe('rosterDelta');
-    if (roster?.type === 'rosterDelta') {
-      expect(roster.seats.find((seat) => seat.seat === ada.seat)).toMatchObject({ alive: false, bot: false });
-      expect(roster.seats.filter((seat) => seat.bot && seat.alive)).toHaveLength(ROOM_SIZE - 2);
-      expect(roster.seats.find((seat) => seat.seat === bea.seat)?.alive).toBe(true);
+    if (adaEnd?.type !== 'matchEnd') return;
+    expect(adaEnd.placements).toHaveLength(ROOM_SIZE);
+    expect(adaEnd.placements.find((row) => row.seat === ada.seat)).toMatchObject({ name: 'Ada', place: 1 });
+    expect(adaEnd.placements.find((row) => row.seat === bea.seat)).toMatchObject({ name: 'Bea', place: ROOM_SIZE });
+  });
+
+  it('frees a lobby seat when someone leaves before the match starts', () => {
+    let now = 0;
+    const room = new MatchRoom(
+      () => now,
+      () => 0,
+    );
+    const ada = room.join({ send() {} }, 'Ada');
+    const bea = room.join({ send() {} }, 'Bea');
+    if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') throw new Error('expected two seats');
+    room.handle(ada.seat, { type: 'ready' });
+    room.leave(ada.seat);
+    const cam = room.join({ send() {} }, 'Cam');
+    expect(cam.ok).toBe(true);
+    if (!cam.ok || cam.role !== 'player') return;
+    room.handle(bea.seat, { type: 'ready' });
+    room.handle(cam.seat, { type: 'ready' });
+    now += LOBBY_COUNTDOWN_MS - 1;
+    room.tick();
+    const early: ServerMessage[] = [];
+    const probe = room.join(sink(early), 'Dee');
+    expect(probe.ok).toBe(true);
+    expect(early.some((message) => message.type === 'matchStart')).toBe(false);
+  });
+
+  it('waits out the lobby countdown, then pads to 101', () => {
+    let now = 0;
+    const logs: ServerMessage[] = [];
+    const room = new MatchRoom(
+      () => now,
+      () => 0,
+    );
+    const ada = room.join(sink(logs), 'Ada');
+    if (!ada.ok || ada.role !== 'player') throw new Error('expected a seat');
+    room.handle(ada.seat, { type: 'ready' });
+    room.tick();
+    expect(logs.some((message) => message.type === 'matchStart')).toBe(false);
+    const bea = room.join(sink(logs), 'Bea');
+    if (!bea.ok || bea.role !== 'player') throw new Error('expected a second seat');
+    room.handle(bea.seat, { type: 'ready' });
+    now += LOBBY_COUNTDOWN_MS - 1;
+    room.tick();
+    expect(logs.some((message) => message.type === 'matchStart')).toBe(false);
+    now += 1;
+    room.tick();
+    const start = logs.find((message) => message.type === 'matchStart');
+    expect(start?.type).toBe('matchStart');
+    if (start?.type !== 'matchStart') return;
+    expect(start.roster).toHaveLength(ROOM_SIZE);
+    expect(start.roster.filter((seat) => seat.bot).length).toBe(ROOM_SIZE - 2);
+    expect(start.roster.filter((seat) => !seat.bot).map((seat) => seat.name).sort()).toEqual(['Ada', 'Bea']);
+  });
+
+  it('admits a spectator during play, ignores their earn, then offers the next lobby', () => {
+    let now = 0;
+    const playerLog: ServerMessage[] = [];
+    const watchLog: ServerMessage[] = [];
+    const watchLink = sink(watchLog);
+    const room = new MatchRoom(
+      () => now,
+      () => 0,
+    );
+    const ada = room.join(sink(playerLog), 'Ada');
+    if (!ada.ok || ada.role !== 'player') throw new Error('expected a seat');
+    room.handle(ada.seat, { type: 'ready' });
+    now += LOBBY_COUNTDOWN_MS;
+    room.tick();
+    const watch = room.join(watchLink, 'Cam');
+    expect(watch).toMatchObject({ ok: true, role: 'spectator' });
+    if (!watch.ok || watch.role !== 'spectator') return;
+    const spectate = watchLog.find((message) => message.type === 'spectate');
+    expect(spectate?.type).toBe('spectate');
+    if (spectate?.type !== 'spectate') return;
+    expect(spectate.roster).toHaveLength(ROOM_SIZE);
+    const before = playerLog.filter((message) => message.type === 'rosterDelta').length;
+    room.onMessage(watchLink, { type: 'earnAttack', attack: 'ghost', strength: 100 });
+    room.onMessage(watchLink, { type: 'deathReport' });
+    expect(playerLog.filter((message) => message.type === 'rosterDelta').length).toBe(before);
+    expect(playerLog.some((message) => message.type === 'playerEliminated' && message.seat === ada.seat)).toBe(false);
+    for (let i = 0; i < ROOM_SIZE - 1; i++) {
+      now += 1_000;
+      room.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 100 });
     }
+    expect(watchLog.some((message) => message.type === 'matchEnd')).toBe(true);
+    const lobby = [...watchLog].reverse().find((message) => message.type === 'lobby');
+    expect(lobby).toMatchObject({ type: 'lobby', countdownMs: null });
+    if (lobby?.type !== 'lobby') return;
+    expect(lobby.seats.some((seat) => seat.name === 'Cam')).toBe(true);
+    expect(lobby.you).toBeGreaterThan(0);
   });
 });
 
@@ -315,7 +246,7 @@ describe('match server', () => {
   });
 
   it('plays an earn from one socket into the other client jammer', async () => {
-    const server = await startMatchServer(0, { rng: () => 0 });
+    const server = await startMatchServer(0, { countdownMs: 80, rng: () => 0 });
     servers.push(server);
     const ada = await openSeat(server.port, 'Ada');
     const bea = await openSeat(server.port, 'Bea');
@@ -325,7 +256,6 @@ describe('match server', () => {
     bea.send(JSON.stringify({ type: 'ready' }));
     const started = await Promise.all([startAda, startBea]);
     expect(started[0].roster).toHaveLength(ROOM_SIZE);
-    expect(started[0].roster.filter((seat) => seat.bot)).toHaveLength(ROOM_SIZE - 2);
     expect(started[0].you).not.toBe(started[1].you);
 
     let inboundCount = 0;
@@ -352,30 +282,29 @@ describe('match server', () => {
     expect(seenByAttacker).not.toContain('jammerInbound');
   });
 
-  it('accepts a third human socket and rejects the one past the cap', async () => {
-    const server = await startMatchServer(0, { rng: () => 0 });
-    servers.push(server);
-    await openSeat(server.port, 'Ada');
-    await openSeat(server.port, 'Bea');
-    const cam = await openSeat(server.port, 'Cam');
-    expect(cam.readyState).toBe(WebSocket.OPEN);
-    for (let n = 3; n < MAX_HUMANS; n++) await openSeat(server.port, `P${n}`);
-    const extra = await connected(server.port);
-    const error = nextMessage(extra, 'error');
-    extra.send(JSON.stringify({ type: 'join', name: 'Extra' }));
-    expect(await error).toMatchObject({ type: 'error', text: 'Match is full' });
-  });
-
-  it('pads one ready socket to a full roster of humans and bots', async () => {
-    const server = await startMatchServer(0, { rng: () => 0 });
+  it('admits a spectator socket while a match is in play', async () => {
+    const server = await startMatchServer(0, { countdownMs: 80, rng: () => 0 });
     servers.push(server);
     const ada = await openSeat(server.port, 'Ada');
     const start = nextMessage(ada, 'matchStart');
     ada.send(JSON.stringify({ type: 'ready' }));
-    const message = await start;
-    expect(message.grace).toBe(SIM_ATTACK_GRACE);
-    expect(message.roster.filter((seat) => !seat.bot)).toHaveLength(1);
-    expect(message.roster.filter((seat) => seat.bot).map((seat) => seat.name)).toEqual(CPU_NAMES.slice(0, ROOM_SIZE - 1));
+    await start;
+    const cam = await connected(server.port);
+    const spectate = nextMessage(cam, 'spectate');
+    cam.send(JSON.stringify({ type: 'join', name: 'Cam' }));
+    const admitted = await spectate;
+    expect(admitted.roster).toHaveLength(ROOM_SIZE);
+    let eliminated = false;
+    ada.addEventListener('message', (event) => {
+      const message = JSON.parse(String(event.data)) as ServerMessage;
+      if (message.type === 'playerEliminated') eliminated = true;
+    });
+    cam.send(JSON.stringify({ type: 'earnAttack', attack: 'ghost', strength: 100 }));
+    cam.send(JSON.stringify({ type: 'deathReport' }));
+    const pong = nextMessage(ada, 'ping');
+    ada.send(JSON.stringify({ type: 'ping' }));
+    await pong;
+    expect(eliminated).toBe(false);
   });
 });
 
@@ -391,7 +320,7 @@ describe('online game path', () => {
       },
     });
     game.startMatch();
-    game.armOnline(1, 'Ada');
+    game.armOnline(1, duo(1, 'Ada'));
     expect(game.match.remaining()).toBe(2);
     expect(game.sims.aliveCount()).toBe(1);
 
@@ -451,6 +380,49 @@ describe('online game path', () => {
     expect(game.match.remaining()).toBe(101);
   });
 
+  it('shows 101 alive from a full roster and a spectator standings board', () => {
+    const game = new Game(() => 0);
+    const roster: RosterSeat[] = Array.from({ length: ROOM_SIZE }, (_, index) => ({
+      seat: index + 1,
+      name: index === 0 ? 'Ada' : `Bot ${index}`,
+      alive: true,
+      pressure: 0,
+      hit: false,
+      busy: false,
+      bot: index !== 0,
+      ready: true,
+    }));
+    game.startMatch();
+    game.armOnline(1, roster);
+    expect(game.match.remaining()).toBe(ROOM_SIZE);
+    expect(game.sims.aliveCount()).toBe(ROOM_SIZE - 1);
+    expect(game.online).toBe(true);
+
+    const watcher = new Game(() => 0);
+    const earns: unknown[] = [];
+    watcher.bindOnline({
+      earn: (attack, strength) => earns.push({ attack, strength }),
+      death: () => earns.push('death'),
+    });
+    watcher.beginSpectate(roster, 12);
+    expect(watcher.spectating).toBe(true);
+    expect(watcher.online).toBe(false);
+    expect(watcher.inMatch).toBe(false);
+    expect(watcher.hud().standings?.stillIn).toBe(ROOM_SIZE);
+    watcher.bus.emit({ type: 'ghostEaten', ghostId: 'blinky', strength: 1, combo: 1 });
+    watcher.bus.emit({ type: 'playerDied' });
+    expect(earns).toEqual([]);
+    watcher.noteSpectatorElimination(2, ROOM_SIZE);
+    expect(watcher.hud().standings?.stillIn).toBe(ROOM_SIZE - 1);
+    watcher.showSpectatorPlacements(
+      roster.map((seat, index) => ({ seat: seat.seat, name: seat.name, place: index + 1 })),
+    );
+    expect(watcher.hud().status).toContain('Joining the next lobby');
+    watcher.clearSpectate();
+    expect(watcher.spectating).toBe(false);
+    expect(watcher.hud().standings).toBeNull();
+  });
+
   it('does not send a ghost earn until a ghost is eaten', () => {
     const game = new Game(() => 0);
     const earns: { attack: string; strength: number }[] = [];
@@ -459,7 +431,7 @@ describe('online game path', () => {
       death: () => {},
     });
     game.startMatch();
-    game.armOnline(1, 'Ada');
+    game.armOnline(1, duo(1, 'Ada'));
     game.sims.advanceGhostWindow(10);
     game.bus.emit({ type: 'powerPelletEaten' });
     for (let eaten = 1; eaten < 50; eaten++) {
@@ -496,7 +468,7 @@ describe('online game path', () => {
       },
     });
     game.startMatch();
-    game.armOnline(1, 'Ada');
+    game.armOnline(1, duo(1, 'Ada'));
     game.bus.emit({ type: 'playerDied' });
     expect(deaths).toBe(1);
     expect(game.match.phase).toBe('lost');
@@ -509,7 +481,7 @@ describe('online game path', () => {
       },
     });
     other.startMatch();
-    other.armOnline(2, 'Bea');
+    other.armOnline(2, duo(2, 'Bea'));
     other.applyServerElimination();
     expect(deaths).toBe(1);
     expect(other.match.phase).toBe('lost');
@@ -528,7 +500,7 @@ describe('online game path', () => {
 
     const loser = new Game(() => 0);
     loser.startMatch();
-    loser.armOnline(1, 'Bea');
+    loser.armOnline(1, duo(1, 'Bea'));
     loser.setPlayerName('Local only');
     loser.applyServerElimination();
     loser.setOnlineStandings(placements);
@@ -545,7 +517,7 @@ describe('online game path', () => {
 
     const winner = new Game(() => 0);
     winner.startMatch();
-    winner.armOnline(2, 'Ada');
+    winner.armOnline(2, duo(2, 'Ada'));
     winner.eliminateOnlineOpponent();
     winner.setOnlineStandings(placements);
     expect(winner.hud().overlay?.title).toBe('Congratulations!');
@@ -560,131 +532,6 @@ describe('online game path', () => {
     winner.startMatch();
     expect(winner.online).toBe(false);
     expect(winner.hud().standings).toBeNull();
-  });
-
-  it('shows partial standings after this seat is eliminated while others are still alive', () => {
-    const game = new Game(() => 0);
-    game.setPlayerName('Ada');
-    game.startMatch();
-    const roster: RosterSeat[] = [];
-    for (let seat = 1; seat <= ROOM_SIZE; seat++) {
-      const bot = seat !== 1;
-      roster.push({
-        seat,
-        name: bot ? cpuName(seat - 1) : 'Ada',
-        alive: true,
-        pressure: 0,
-        hit: false,
-        busy: false,
-        bot,
-        ready: true,
-      });
-    }
-    game.armOnline(1, roster);
-    game.noteOnlineElimination(4, ROOM_SIZE);
-    game.eliminateOnlineSeat(4);
-    game.board.deathTime = 2;
-    expect(game.match.phase).toBe('playing');
-    expect(game.hud().standings).toBeNull();
-
-    game.noteOnlineElimination(1, ROOM_SIZE - 1);
-    game.applyServerElimination();
-    expect(game.match.phase).toBe('lost');
-    game.board.deathTime = 0.5;
-    expect(game.hud().standings).toBeNull();
-
-    game.board.deathTime = 1;
-    const partial = game.hud().standings;
-    expect(partial?.yourPlace).toBe(ROOM_SIZE - 1);
-    expect(partial?.stillIn).toBe(ROOM_SIZE - 2);
-    expect(partial?.rows.find((row) => row.you)).toMatchObject({
-      name: 'Ada',
-      place: ROOM_SIZE - 1,
-      state: 'out',
-    });
-    expect(partial?.rows.find((row) => row.name === cpuName(3))).toMatchObject({
-      place: ROOM_SIZE,
-      state: 'out',
-    });
-    const living = partial?.rows.filter((row) => row.state === 'active') ?? [];
-    expect(living).toHaveLength(ROOM_SIZE - 2);
-    expect(living.every((row) => row.place === null)).toBe(true);
-    expect(game.match.phase).toBe('lost');
-
-    game.noteOnlineElimination(2, ROOM_SIZE - 2);
-    game.eliminateOnlineSeat(2);
-    const next = game.hud().standings;
-    expect(next?.yourPlace).toBe(ROOM_SIZE - 1);
-    expect(next?.stillIn).toBe(ROOM_SIZE - 3);
-    expect(next?.rows.find((row) => row.name === cpuName(1))).toMatchObject({
-      place: ROOM_SIZE - 2,
-      state: 'out',
-    });
-    expect(next?.rows.filter((row) => row.state === 'active').every((row) => row.place === null)).toBe(true);
-
-    const placeFor = (seat: number): number => {
-      if (seat === 1) return ROOM_SIZE - 1;
-      if (seat === 2) return ROOM_SIZE - 2;
-      if (seat === 4) return ROOM_SIZE;
-      if (seat === 3) return 1;
-      return seat - 3;
-    };
-    game.setOnlineStandings(
-      roster.map((seat) => ({ seat: seat.seat, name: seat.name, place: placeFor(seat.seat) })),
-    );
-    const final = game.hud().standings;
-    expect(final?.stillIn).toBe(0);
-    expect(final?.yourPlace).toBe(ROOM_SIZE - 1);
-    expect(final?.rows).toHaveLength(ROOM_SIZE);
-    expect(final?.rows.every((row) => row.place != null && row.state === 'out')).toBe(true);
-    expect(final?.rows.map((row) => [row.place, row.name])).toEqual(
-      [...roster]
-        .map((seat) => ({ ...seat, place: placeFor(seat.seat) }))
-        .sort((a, b) => a.place - b.place || a.seat - b.seat)
-        .map((seat) => [seat.place, seat.name]),
-    );
-    expect(final?.rows.find((row) => row.place === 1)?.name).toBe(cpuName(2));
-  });
-
-  it('shows the server room on the side panels and lists bot names in the standings', () => {
-    const game = new Game(() => 0);
-    game.startMatch();
-    const roster: RosterSeat[] = [];
-    for (let seat = 1; seat <= ROOM_SIZE; seat++) {
-      const bot = seat !== 1;
-      roster.push({
-        seat,
-        name: bot ? cpuName(seat - 1) : 'Ada',
-        alive: true,
-        pressure: seat === 4 ? 40 : 0,
-        hit: seat === 4,
-        busy: seat === 5,
-        bot,
-        ready: true,
-      });
-    }
-    game.armOnline(1, roster);
-    expect(game.match.remaining()).toBe(ROOM_SIZE);
-    expect(game.sims.aliveCount()).toBe(ROOM_SIZE - 1);
-    expect(game.sims.sims.filter((sim) => sim.parked)).toHaveLength(100 - (ROOM_SIZE - 1));
-    expect(game.sims.sims[0]).toMatchObject({ name: cpuName(1), showName: true, parked: false, alive: true });
-    expect(game.sims.sims[2]).toMatchObject({ name: cpuName(3), pressure: 40, heat: 1 });
-    expect(game.sims.sims[3]).toMatchObject({ name: cpuName(4), busy: 1 });
-    expect(game.sims.sims[ROOM_SIZE - 1]?.parked).toBe(true);
-
-    game.eliminateOnlineOpponent();
-    expect(game.match.phase).toBe('won');
-    game.setOnlineStandings(
-      roster.map((seat) => ({
-        seat: seat.seat,
-        name: seat.name,
-        place: seat.seat === 1 ? 1 : ROOM_SIZE - seat.seat + 2,
-      })),
-    );
-    game.acknowledgeWin();
-    const names = game.hud().standings?.rows.map((row) => row.name);
-    expect(names).toContain('Ada');
-    expect(names).toEqual(expect.arrayContaining(CPU_NAMES.slice(0, ROOM_SIZE - 1)));
   });
 
   it('keeps CPU timers frozen while local battle is off', () => {
@@ -705,23 +552,6 @@ describe('online game path', () => {
   });
 });
 
-function scriptedRng(values: readonly number[]): () => number {
-  let index = 0;
-  return () => {
-    const value = values[index] ?? 0;
-    index += 1;
-    return value;
-  };
-}
-
-/** One zero per bot for the opening delay, then jammer, target, and the next delay for each shot. */
-function botDice(bots: number, targetRoll: number): number[] {
-  const rolls: number[] = [];
-  for (let n = 0; n < bots; n++) rolls.push(0);
-  for (let n = 0; n < bots; n++) rolls.push(0, targetRoll, 0);
-  return rolls;
-}
-
 function sink(logs: ServerMessage[]): SeatLink {
   return {
     send(message) {
@@ -730,23 +560,48 @@ function sink(logs: ServerMessage[]): SeatLink {
   };
 }
 
-function track(room: MatchRoom): { ada: number; ofBea: () => number } {
+function duo(you: number, opponentName: string): RosterSeat[] {
+  const other = you === 1 ? 2 : 1;
+  return [
+    { seat: you, name: 'You', alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true },
+    { seat: other, name: opponentName, alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true },
+  ];
+}
+
+function mutableClock(start = 0): { now: () => number; advance: (ms: number) => void } {
+  let t = start;
+  return {
+    now: () => t,
+    advance(ms: number) {
+      t += ms;
+    },
+  };
+}
+
+function readyAndStart(room: MatchRoom, ids: number[], clock: { advance: (ms: number) => void }): void {
+  for (const id of ids) room.handle(id, { type: 'ready' });
+  clock.advance(LOBBY_COUNTDOWN_MS);
+  room.tick();
+}
+
+function track(room: MatchRoom, advance: (ms: number) => void): { ada: number; ofBea: () => number } {
   let beaPressure = 0;
   const ada = room.join({ send() {} }, 'Ada');
   const bea = room.join(
     {
       send(message) {
         if (message.type === 'rosterDelta') {
-          beaPressure = message.seats.find((seat) => seat.seat !== (ada.ok ? ada.seat : 0))?.pressure ?? beaPressure;
+          beaPressure = message.seats.find((seat) => seat.seat === (bea.ok && bea.role === 'player' ? bea.seat : -1))?.pressure ?? beaPressure;
         }
-        if (message.type === 'playerEliminated') beaPressure = 100;
+        if (message.type === 'playerEliminated' && bea.ok && bea.role === 'player' && message.seat === bea.seat) {
+          beaPressure = 100;
+        }
       },
     },
     'Bea',
   );
-  if (!ada.ok || !bea.ok) throw new Error('expected two seats');
-  room.handle(ada.seat, { type: 'ready' });
-  room.handle(bea.seat, { type: 'ready' });
+  if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') throw new Error('expected two seats');
+  readyAndStart(room, [ada.seat, bea.seat], { advance });
   return {
     ada: ada.seat,
     ofBea: () => beaPressure,

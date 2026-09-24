@@ -1,17 +1,15 @@
 # N1 — two-player jammer loop
 
-Implemented. Local single-player is still the default. This phase shipped a dev loop: two browsers, one in-memory match, no bots.
-
-**N2a supersedes the two-seat cap.** The server now takes up to 8 humans and pads the rest with CPU bots. Follow [networking-n2a.md](networking-n2a.md) to play. The sections below are what N1 proved; where they say "two seats" or "a third join is rejected", that limit is gone.
+Implemented as the first online loop. The live room is no longer two seats. Lobby countdown, 16 humans, bot fill to 101, and roster spectate are [networking-n2b.md](networking-n2b.md). Local single-player is still the default.
 
 ## What works
 
 - `server/` is a Node + `ws` process. `npm run server` listens on `0.0.0.0` and `ws://localhost:8787` (`PORT` overrides the port). GET `/` returns 200 so a host health check can pass. WebSocket upgrades on that same port are the match.
-- One in-memory room. N1 allowed two human seats and rejected a third join. N2a raises that to 8 humans and pads empty seats with bots.
+- One in-memory room. N1 allowed two human seats and rejected a third join. That cap is gone; the live limits are in [networking-n2b.md](networking-n2b.md).
 - Messages: `join`, `ready`, `lobby`, `matchStart`, `earnAttack`, `jammerInbound`, `rosterDelta`, `deathReport`, `playerEliminated`, `matchEnd`, `ping`.
 - The client sends `earnAttack` only for a ghost batch: type `ghost` plus the ghost count. `dots` and `clear` are ignored, and so is a `target` field. Ghost strength below 1 is dropped. Other ghost strengths are clamped to 1–200. More than 12 earns in a second are dropped.
 - The server picks the other living seat, adds pressure, and sends `jammerInbound` only to that seat. The victim plays the existing inbound jammer (panel flight into the ghost house, then local chasers).
-- `rosterDelta` updates the live side panels (pressure, hit flash, busy). N1 parked the other 99 panels so the alive counter read 2. N2a parks down to the 8-seat roster instead.
+- `rosterDelta` updates side-panel 1 (pressure, hit flash, busy). The other 99 panels are parked out so the alive counter reads 2.
 - A local maze death sends `deathReport`. The server confirms with `playerEliminated`. Pressure at 100, or a disconnect during play, eliminates that seat and `matchEnd` names the other seat. The client then uses the existing win congratulations or death standings.
 - `join` stores each typed name (trimmed, 16 characters, blank becomes Pac). `matchEnd.placements` is the same list on every client: seat, that name, and place. The loser is 2nd; the winner is 1st. Online standings render that list. They do not invent CPU names for the human seats. A win still shows congratulations first. A loss still waits out the death pause. Offline standings stay the local 101.
 - Offline **Start match** never opens a socket. Online is **Online (dev)** on the title screen, or `?online=1`. `?ws=` overrides the socket URL.
@@ -26,7 +24,7 @@ A single eat used to send strength `48 + chain * 22`. The victim turned that int
 
 An empty window never sends. Time passing, a power pellet, ordinary dots, and a full clear do not open it and do not send an attack. Eating ghosts is the only player attack.
 
-Offline, that same window adds pressure equal to the ghost count on one living sim. Each CPU fires on its own 8–12 second timer. A shot is 1–16 jammers: that many sprites if it picks you, or that much pressure if it picks another sim. There was no bot clock in N1. N2a bots use this per-seat cadence. The `grace` field on `matchStart` stays 10 and is not a gate. Local CPU timers do not read it.
+Offline, that same window adds pressure equal to the ghost count on one living sim. Each CPU fires on its own 8–12 second timer. A shot is 1–16 jammers: that many sprites if it picks you, or that much pressure if it picks another sim. There is no bot clock in N1. Later bots should use this per-seat cadence. The `grace` field on `matchStart` stays 10 for that later phase. Local CPU timers do not read it.
 
 ## Run it
 
@@ -54,11 +52,11 @@ Both people open the Pages site: https://jbob007h.github.io/pacman-101/
 
 If that URL 404s, the README explains how to turn Pages on (branch `gh-pages` / root, or GitHub Actions).
 
-Each person types a name and clicks **Online** (on a local dev server the button says **Online (dev)**), then **Ready**. N1 started as soon as two humans were in. N2a waits until every human already in the lobby is Ready, then fills the room to 8. Eat a frightened ghost in one browser. The server picks one living seat. Dots and a full clear do not send an attack.
+Each person types a name and clicks **Online** (on a local dev server the button says **Online (dev)**), then **Ready**. N1 started as soon as two humans were in. The live room waits 10 seconds after the first Ready, then fills to 101. Eat a frightened ghost in one browser. The server picks one living seat. Dots and a full clear do not send an attack.
 
 That public page only connects after the steps below. Until `VITE_WS_URL` is baked into the Pages build, Online explains that this build has no match server.
 
-One room, in memory. N1 told a third person "Match is full". N2a says that only when a ninth human joins, or when a match is already going. Closing the tab during play eliminates that human seat. A server restart clears the room.
+One room, in memory. Closing the tab during play eliminates that seat. A server restart clears the room. A 17th human in the lobby is turned away. Someone who connects during play spectates.
 
 `?ws=` still overrides the URL for that page load, including on Pages: `?ws=wss://your-service.onrender.com`.
 
@@ -77,12 +75,12 @@ This repo cannot create the Render account or the service. Jason does that once 
 7. Redeploy Pages so Vite can inline the variable. **Actions → Deploy GitHub Pages → Run workflow** on this branch, or push a commit. Changing the variable does nothing until the next Pages build.
 8. If Pages is set to deploy the `gh-pages` branch instead of GitHub Actions, that branch is a copy of `dist`. Rebuild with `VITE_WS_URL` set in the environment, then update `gh-pages`. The Actions variable is only read by `.github/workflows/pages.yml`.
 
-A local `.env.example` shows the same variable. `npm run dev` ignores it and uses `ws://localhost:8787`. `npm run build` and `npm run preview` use `VITE_WS_URL`. Do not hardcode the Render host in the client.
+A local `.env.example` shows the same variable. `npm run dev` ignores it. `npm run build` and `npm run preview` use it.
 
 ### Free tier
 
-Render free web services spin down after about 15 minutes without traffic. The next visit has to boot the instance. That cold start is often 30–60 seconds and sometimes longer. The title line reads "Connecting to …" while it waits. If the first try fails, wait a minute and click Online again. Waking up restarts the process, so the in-memory room is empty afterward. There is no database. N2a is still one in-memory room. It holds 8 seats, not a directory of rooms.
+Render free web services spin down after about 15 minutes without traffic. The next visit has to boot the instance. That cold start is often 30–60 seconds and sometimes longer. The title line reads "Connecting to …" while it waits. If the first try fails, wait a minute and click Online again. Waking up restarts the process, so the in-memory room is empty afterward. There is no database. This is still one room and two seats, not a lobby.
 
 ## Not in N1
 
-Lobby fill, server bots, streamed mazes, client-chosen targets, and reconnect were out of N1. N2a now has the lobby, an 8-seat bot fill, and roster panels. See [networking-n2a.md](networking-n2a.md). Fill to 101 is N2b. Streamed mazes stay out. Reconnect stays N4 in [networking-n0.md](networking-n0.md). Finish order is still the server's list. N2a includes bot names, and an eliminated client shows partial standings from `playerEliminated` before `matchEnd` finalizes them.
+Lobby fill to 101, server bots, streamed mazes, client-chosen targets, and reconnect. Those stay N2–N4 in [networking-n0.md](networking-n0.md). The two-seat finish order is already the server's `matchEnd` list.

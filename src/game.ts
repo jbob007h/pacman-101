@@ -68,6 +68,8 @@ export class Game {
   onlineNote = '';
   /** Live online match. Local sim targeting stays off until the next reset. */
   online = false;
+  /** Roster-only view of a match already in play. There is no local maze. */
+  spectating = false;
   private onlineSeat = 0;
   /** Server seat → side-panel sim, for the seats that are not this client. */
   private onlinePanels = new Map<number, number>();
@@ -77,6 +79,9 @@ export class Game {
   private onlineFinal = false;
   /** Server finish list for this online match. Offline standings stay on {@link ranking}. */
   private onlineStandings: StandingSnapshot | null = null;
+  private spectatorRoster: RosterSeat[] = [];
+  private spectatorPlaces = new Map<number, number>();
+  private spectatorClock = 0;
   private earnSink: OnlineHandlers['earn'] | null = null;
   private deathSink: OnlineHandlers['death'] | null = null;
   private suppressDeathReport = false;
@@ -153,10 +158,11 @@ export class Game {
    * back on, and this parks every sim that is not in the server roster.
    * A string is the N1 one-opponent shorthand (tests and a single remote name).
    * A roster snapshot shows every other seat, human or bot, and hides the rest
-   * so the alive counter matches the room (8 in N2a, not 101).
+   * so the alive counter matches the room (101 in N2b).
    */
   armOnline(you: number, opponent: string | readonly RosterSeat[]): void {
     const roster = typeof opponent === 'string' ? oneOpponentRoster(you, opponent) : opponent;
+    this.spectating = false;
     this.online = true;
     this.onlineSeat = you;
     this.onlinePanels.clear();
@@ -193,7 +199,11 @@ export class Game {
     this.rememberRoster(roster);
   }
 
-  applyOnlineRoster(seats: readonly RosterSeat[]): void {
+  applyOnlineRoster(seats: readonly RosterSeat[], clock?: number): void {
+    if (this.spectating) {
+      this.applySpectateRoster(seats, clock);
+      return;
+    }
     if (!this.online) return;
     this.rememberRoster(seats);
     for (const seat of seats) {
@@ -220,6 +230,10 @@ export class Game {
    * pause still gates the overlay.
    */
   noteOnlineElimination(seat: number, place: number): void {
+    if (this.spectating) {
+      this.noteSpectatorElimination(seat, place);
+      return;
+    }
     if (!this.online || this.onlineFinal || !Number.isFinite(place)) return;
     const known = this.onlineSeats.get(seat) ?? { seat, name: '', alive: true, place: null };
     known.alive = false;
@@ -265,6 +279,62 @@ export class Game {
       });
     }
     this.refreshOnlineStandings();
+  }
+
+  /**
+   * Admit a late joiner as a spectator. The maze stays off.
+   * Roster and standings update; there is no playable board for this match.
+   */
+  beginSpectate(roster: readonly RosterSeat[], clock: number): void {
+    this.spectating = true;
+    this.online = false;
+    this.inMatch = false;
+    this.spectatorRoster = roster.map((seat) => ({ ...seat }));
+    this.spectatorPlaces.clear();
+    this.spectatorClock = clock;
+    this.onlineNote = this.spectateNote();
+  }
+
+  applySpectateRoster(seats: readonly RosterSeat[], clock?: number): void {
+    if (!this.spectating) return;
+    this.spectatorRoster = seats.map((seat) => ({ ...seat }));
+    if (clock != null) this.spectatorClock = clock;
+    for (const seatId of this.spectatorPlaces.keys()) {
+      const row = this.spectatorRoster.find((seat) => seat.seat === seatId);
+      if (row) row.alive = false;
+    }
+    this.onlineNote = this.spectateNote();
+  }
+
+  noteSpectatorElimination(seatId: number, place: number): void {
+    if (!this.spectating) return;
+    this.spectatorPlaces.set(seatId, place);
+    const row = this.spectatorRoster.find((seat) => seat.seat === seatId);
+    if (row) row.alive = false;
+    this.onlineNote = this.spectateNote();
+  }
+
+  showSpectatorPlacements(placements: readonly Placement[]): void {
+    if (!this.spectating) return;
+    this.spectatorRoster = placements.map((row) => ({
+      seat: row.seat,
+      name: row.name,
+      alive: false,
+      pressure: 0,
+      hit: false,
+      busy: false,
+      bot: false,
+      ready: false,
+    }));
+    this.spectatorPlaces = new Map(placements.map((row) => [row.seat, row.place]));
+    this.onlineNote = 'Match over. Joining the next lobby…';
+  }
+
+  clearSpectate(): void {
+    this.spectating = false;
+    this.spectatorRoster = [];
+    this.spectatorPlaces.clear();
+    this.spectatorClock = 0;
   }
 
   /** Server confirmed one other seat is out. The last living seat wins. */
@@ -347,7 +417,11 @@ export class Game {
     this.beatSound = -1;
     this.winAcknowledged = false;
     this.online = false;
+    this.spectating = false;
     this.onlineSeat = 0;
+    this.spectatorRoster = [];
+    this.spectatorPlaces.clear();
+    this.spectatorClock = 0;
     this.onlinePanels.clear();
     this.onlineSeats.clear();
     this.onlineFinal = false;
@@ -369,7 +443,7 @@ export class Game {
       status: this.statusLine(),
       countdown: this.countdownLabel(),
       overlay: this.overlay(),
-      standings: this.standingsOverlay(),
+      standings: this.spectating ? this.spectatorSnapshot() : this.standingsOverlay(),
     };
   }
 
@@ -559,6 +633,27 @@ export class Game {
       yourPlace: self?.place ?? null,
       stillIn: active.length,
     };
+  }
+
+  private spectateNote(): string {
+    const alive = this.spectatorRoster.filter((seat) => seat.alive).length;
+    return `Spectating · ${formatMatchTime(this.spectatorClock)} · ${alive} alive. No maze view — you join the next lobby when this match ends.`;
+  }
+
+  private spectatorSnapshot(): StandingSnapshot {
+    const active: StandingSnapshot['rows'] = [];
+    const out: StandingSnapshot['rows'] = [];
+    for (const seat of this.spectatorRoster) {
+      const place = this.spectatorPlaces.get(seat.seat) ?? null;
+      if (seat.alive && place == null) {
+        active.push({ place: null, name: seat.name, you: false, state: 'active' });
+      } else {
+        out.push({ place, name: seat.name, you: false, state: 'out' });
+      }
+    }
+    active.sort((a, b) => a.name.localeCompare(b.name));
+    out.sort((a, b) => (a.place ?? 9999) - (b.place ?? 9999) || a.name.localeCompare(b.name));
+    return { rows: [...active, ...out], yourPlace: null, stillIn: active.length };
   }
 
   private setBanner(text: string): void {

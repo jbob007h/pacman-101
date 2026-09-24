@@ -9,31 +9,25 @@ export interface MatchServer {
 }
 
 export interface MatchServerOptions {
-  /** Victim picks and bot dice. Tests pass a fixed roll. */
-  rng?: () => number;
+  /** Override the lobby wait. Production uses {@link LOBBY_COUNTDOWN_MS}. */
+  countdownMs?: number;
   now?: () => number;
+  rng?: () => number;
 }
 
 /**
  * One room, bound on `0.0.0.0`. `port` 0 asks the OS for a free port.
  * Plain HTTP (including GET /) returns 200 so a host health check can pass.
  * WebSocket upgrades on the same port are the match.
- * A 250ms clock advances server-side CPU bots. It is cleared on close.
  */
 export function startMatchServer(port = DEFAULT_PORT, options: MatchServerOptions = {}): Promise<MatchServer> {
-  const room = new MatchRoom(options.now ?? Date.now, options.rng ?? Math.random);
+  const room = new MatchRoom(options.now, options.rng, options.countdownMs);
   const httpServer = createServer(answerHttp);
-  let lastTick = Date.now();
-  const timer = setInterval(() => {
-    const now = Date.now();
-    const dt = Math.min(1, (now - lastTick) / 1000);
-    lastTick = now;
-    room.tick(dt);
-  }, 250);
   const wss = new WebSocketServer({ server: httpServer });
+  const timer = setInterval(() => room.tick(), 100);
 
   wss.on('connection', (socket) => {
-    let seat: number | null = null;
+    let joined = false;
     const link: SeatLink = {
       send(message) {
         if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(message));
@@ -42,21 +36,21 @@ export function startMatchServer(port = DEFAULT_PORT, options: MatchServerOption
     socket.on('message', (data) => {
       const raw = parseRaw(data);
       if (!raw) return;
-      if (seat == null) {
+      if (!joined) {
         if (raw.type !== 'join') return;
-        const joined = room.join(link, raw.name);
-        if (!joined.ok) {
-          link.send({ type: 'error', text: joined.text });
+        const result = room.join(link, raw.name);
+        if (!result.ok) {
+          link.send({ type: 'error', text: result.text });
           socket.close();
           return;
         }
-        seat = joined.seat;
+        joined = true;
         return;
       }
-      room.handle(seat, raw);
+      room.onMessage(link, raw);
     });
     socket.on('close', () => {
-      if (seat != null) room.leave(seat);
+      if (joined) room.disconnect(link);
     });
   });
 

@@ -3,6 +3,7 @@ import type { AttackKind, ClientMessage, RosterSeat, ServerMessage } from './pro
 export interface SessionHandlers {
   onNote(text: string): void;
   onLobby(message: Extract<ServerMessage, { type: 'lobby' }>): void;
+  onSpectate(message: Extract<ServerMessage, { type: 'spectate' }>): void;
   onMatchStart(message: Extract<ServerMessage, { type: 'matchStart' }>): void;
   onJammer(message: Extract<ServerMessage, { type: 'jammerInbound' }>): void;
   onRoster(message: Extract<ServerMessage, { type: 'rosterDelta' }>): void;
@@ -16,7 +17,9 @@ export interface SessionHandlers {
  */
 export class NetSession {
   seat = 0;
-  phase: 'idle' | 'connecting' | 'lobby' | 'playing' | 'done' = 'idle';
+  /** Roster-only viewer. Cannot earn or report a death. */
+  spectating = false;
+  phase: 'idle' | 'connecting' | 'lobby' | 'spectating' | 'playing' | 'done' = 'idle';
   private socket: WebSocket | null = null;
   private url = '';
   private name = 'Pac';
@@ -42,6 +45,7 @@ export class NetSession {
     this.intentional = false;
     this.failed = false;
     this.readied = false;
+    this.spectating = false;
     this.seat = 0;
     this.url = url;
     this.name = name;
@@ -87,24 +91,25 @@ export class NetSession {
 
   /** Lobby only. A solo human starting alone is a legal ready. */
   sendReady(): void {
-    if (this.phase !== 'lobby' || this.readied) return;
+    if (this.spectating || this.phase !== 'lobby' || this.readied) return;
     this.readied = true;
     this.send({ type: 'ready' });
   }
 
   sendEarn(attack: AttackKind, strength: number): void {
-    if (this.phase !== 'playing') return;
+    if (this.spectating || this.phase !== 'playing') return;
     this.send({ type: 'earnAttack', attack, strength });
   }
 
   sendDeath(): void {
-    if (this.phase !== 'playing') return;
+    if (this.spectating || this.phase !== 'playing') return;
     this.send({ type: 'deathReport' });
   }
 
   stop(): void {
     this.generation += 1;
     this.intentional = true;
+    this.spectating = false;
     this.phase = 'idle';
     if (this.pingTimer != null) {
       clearInterval(this.pingTimer);
@@ -117,6 +122,7 @@ export class NetSession {
   private fail(generation: number, text: string): void {
     if (generation !== this.generation) return;
     this.failed = true;
+    this.spectating = false;
     this.phase = 'idle';
     this.handlers.onNote(text);
     this.socket?.close();
@@ -136,15 +142,26 @@ export class NetSession {
     if (message.type === 'ping') return;
     if (message.type === 'error') {
       this.intentional = true;
+      this.spectating = false;
       this.phase = 'idle';
       this.handlers.onNote(message.text);
       return;
     }
     if (message.type === 'lobby') {
+      this.spectating = false;
       this.seat = message.you;
       this.phase = 'lobby';
-      this.handlers.onNote(describeLobby(message.seats, message.need));
+      this.handlers.onNote(describeLobby(message.seats, message.need, message.countdownMs));
       this.handlers.onLobby(message);
+      return;
+    }
+    if (message.type === 'spectate') {
+      this.spectating = true;
+      this.seat = 0;
+      this.phase = 'spectating';
+      this.readied = false;
+      this.handlers.onNote('Spectating this match. No maze view.');
+      this.handlers.onSpectate(message);
       return;
     }
     if (message.type === 'matchStart') {
@@ -167,20 +184,24 @@ export class NetSession {
       return;
     }
     if (message.type === 'matchEnd') {
-      this.phase = 'done';
       this.readied = false;
+      if (!this.spectating) this.phase = 'done';
       this.handlers.onMatchEnd(message);
     }
   }
 }
 
 /** Title-screen line while humans are still joining. Bots are not in the lobby yet. */
-export function describeLobby(seats: readonly RosterSeat[], roomSize: number): string {
+export function describeLobby(seats: readonly RosterSeat[], roomSize: number, countdownMs: number | null = null): string {
   const humans = seats.filter((seat) => !seat.bot);
   const ready = humans.filter((seat) => seat.ready).length;
   const names = humans.map((seat) => `${seat.name}${seat.ready ? ' (ready)' : ''}`).join(', ');
   const who = names.length > 0 ? names : 'Nobody yet';
-  return `${who}. ${ready} of ${humans.length} ready. Empty seats fill to ${roomSize} when everyone here is Ready. Join before you Ready if a friend is coming.`;
+  if (countdownMs == null) {
+    return `${who}. ${ready} of ${humans.length} ready. The first Ready starts a 10s countdown, then empty seats fill to ${roomSize}.`;
+  }
+  const secs = Math.max(0, Math.ceil(countdownMs / 1000));
+  return `${who}. Starting in ${secs}s. Empty seats fill to ${roomSize}.`;
 }
 
 function connectionFailureNote(url: string): string {

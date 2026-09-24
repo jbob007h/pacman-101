@@ -1,14 +1,12 @@
 import { KILL_PRESSURE, SIM_ATTACK_GRACE } from '../src/config';
+import { LOBBY_COUNTDOWN_MS, MAX_HUMANS, ROOM_SIZE } from '../src/net/protocol';
 import {
   EARN_RATE_LIMIT,
   EARN_RATE_WINDOW_MS,
-  MAX_HUMANS,
-  ROOM_SIZE,
   STRENGTH_MAX,
   STRENGTH_MIN,
   displayName,
   isAttackKind,
-  type AttackKind,
   type Placement,
   type RosterSeat,
   type ServerMessage,
@@ -23,68 +21,167 @@ export interface SeatLink {
 interface Seat {
   id: number;
   name: string;
-  bot: boolean;
   ready: boolean;
   alive: boolean;
   pressure: number;
   hit: boolean;
   busy: boolean;
   place: number | null;
-  connected: boolean;
+  bot: boolean;
   link: SeatLink;
   earns: number[];
-  /** Seconds until this bot's next shot. Humans leave it at 0. */
+  /** Seconds until this bot fires again. Humans leave this at 0. */
   attackIn: number;
 }
 
-export type JoinResult = { ok: true; seat: number } | { ok: false; text: string };
+interface Watcher {
+  id: number;
+  name: string;
+  link: SeatLink;
+}
 
-const silentLink: SeatLink = { send() {} };
+export type JoinResult =
+  | { ok: true; role: 'player'; seat: number }
+  | { ok: true; role: 'spectator'; id: number }
+  | { ok: false; text: string };
+
+const noopLink: SeatLink = { send() {} };
 
 /**
- * One in-memory match. N2a seats up to {@link MAX_HUMANS} humans and, at the
- * whistle, pads the empty chairs with server-side CPU bots until {@link ROOM_SIZE}.
- * The room picks every victim. Bots are pressure fillers: each has its own
- * 8–12s timer from match start and shoots 1–16 jammers at one other living seat.
+ * One in-memory room. The first Ready starts a lobby countdown. At 0 the
+ * empty seats fill with CPU bots up to {@link ROOM_SIZE}. Joining during
+ * play admits a spectator, not a playing seat.
  */
 export class MatchRoom {
   private readonly seats = new Map<number, Seat>();
-  private phase: 'lobby' | 'playing' | 'done' = 'lobby';
+  private readonly byLink = new Map<SeatLink, Seat>();
+  private readonly spectators = new Map<SeatLink, Watcher>();
+  /** Humans who finished a match and are not in the next lobby yet. */
+  private readonly retired = new Map<SeatLink, Watcher>();
+  private phase: 'lobby' | 'playing' = 'lobby';
+  private countdownEndsAt: number | null = null;
+  private lastAnnouncedSecond: number | null = null;
+  private matchStartedAt = 0;
+  private lastNow: number;
+  private watcherSeq = 0;
 
   constructor(
     private readonly now: () => number = Date.now,
     private readonly rng: () => number = Math.random,
-  ) {}
-
-  join(link: SeatLink, name: unknown): JoinResult {
-    if (this.phase === 'done') this.recycle();
-    if (this.phase === 'playing') return { ok: false, text: 'Match is full' };
-    if (this.humanCount() >= MAX_HUMANS) return { ok: false, text: 'Match is full' };
-    const id = this.nextSeatId();
-    if (id == null) return { ok: false, text: 'Match is full' };
-    const seat = this.makeSeat(id, displayName(name), false, link);
-    this.seats.set(id, seat);
-    this.pushLobby();
-    return { ok: true, seat: id };
+    private readonly countdownMs = LOBBY_COUNTDOWN_MS,
+  ) {
+    this.lastNow = now();
   }
 
+  join(link: SeatLink, name: unknown): JoinResult {
+    if (this.phase === 'playing') return this.admitSpectator(link, name);
+    if (this.humanCount() >= MAX_HUMANS) return { ok: false, text: 'Lobby is full' };
+    const id = this.nextSeatId();
+    if (id == null) return { ok: false, text: 'Lobby is full' };
+    const seat = this.makeHuman(id, displayName(name), link);
+    this.seats.set(id, seat);
+    this.byLink.set(link, seat);
+    this.pushLobby();
+    return { ok: true, role: 'player', seat: id };
+  }
+
+  /** Drop a playing seat by id. Spectators disconnect through {@link disconnect}. */
   leave(id: number): void {
     const seat = this.seats.get(id);
     if (!seat || seat.bot) return;
-    seat.connected = false;
-    seat.link = silentLink;
+    this.disconnect(seat.link);
+  }
+
+  disconnect(link: SeatLink): void {
+    const spectator = this.spectators.get(link);
+    if (spectator) {
+      this.spectators.delete(link);
+      return;
+    }
+    if (this.retired.delete(link)) return;
+    const seat = this.byLink.get(link);
+    if (!seat) return;
+    this.byLink.delete(link);
     if (this.phase === 'playing' && seat.alive) {
+      seat.link = noopLink;
       this.eliminate(seat);
       return;
     }
-    this.seats.delete(id);
-    if (this.seats.size === 0) this.phase = 'lobby';
-    else if (this.phase === 'lobby') this.maybeStart();
+    this.seats.delete(seat.id);
+    if (this.phase !== 'lobby') return;
+    if (this.humanCount() === 0) {
+      this.countdownEndsAt = null;
+      this.lastAnnouncedSecond = null;
+      return;
+    }
+    this.pushLobby();
   }
 
+  /** Messages from a playing human, keyed by seat id. */
   handle(id: number, raw: unknown): void {
     const seat = this.seats.get(id);
-    if (!seat || seat.bot || !isRecord(raw) || typeof raw.type !== 'string') return;
+    if (!seat || seat.bot) return;
+    this.handleSeat(seat, raw);
+  }
+
+  onMessage(link: SeatLink, raw: unknown): void {
+    if (!isRecord(raw) || typeof raw.type !== 'string') return;
+    const seat = this.byLink.get(link);
+    if (seat) {
+      this.handleSeat(seat, raw);
+      return;
+    }
+    if (this.spectators.has(link)) {
+      if (raw.type === 'ping') link.send({ type: 'ping' });
+      return;
+    }
+    const retired = this.retired.get(link);
+    if (!retired) return;
+    if (raw.type === 'ping') link.send({ type: 'ping' });
+    if (raw.type === 'ready') this.promoteRetired(retired);
+  }
+
+  /**
+   * Advance the lobby clock and bot attack timers.
+   * Pass seconds to step bots in tests. Otherwise the delta comes from {@link now}.
+   */
+  tick(dtSeconds?: number): void {
+    const t = this.now();
+    const dt = dtSeconds != null ? Math.max(0, dtSeconds) : Math.max(0, (t - this.lastNow) / 1000);
+    this.lastNow = t;
+    if (this.phase === 'lobby') {
+      this.announceCountdown();
+      if (this.countdownEndsAt != null && t >= this.countdownEndsAt) this.begin();
+      return;
+    }
+    this.tickBots(dt);
+  }
+
+  private admitSpectator(link: SeatLink, name: unknown): JoinResult {
+    const watcher: Watcher = { id: ++this.watcherSeq, name: displayName(name), link };
+    this.spectators.set(link, watcher);
+    link.send({ type: 'spectate', roster: this.roster(), clock: this.clock() });
+    return { ok: true, role: 'spectator', id: watcher.id };
+  }
+
+  private promoteRetired(retired: Watcher): void {
+    if (this.phase === 'playing') {
+      this.retired.delete(retired.link);
+      this.admitSpectator(retired.link, retired.name);
+      return;
+    }
+    if (this.humanCount() >= MAX_HUMANS) return;
+    const id = this.nextSeatId();
+    if (id == null) return;
+    this.retired.delete(retired.link);
+    const seat = this.makeHuman(id, retired.name, retired.link);
+    this.seats.set(id, seat);
+    this.byLink.set(retired.link, seat);
+    this.markReady(seat);
+  }
+
+  private handleSeat(seat: Seat, raw: unknown): void {
+    if (!isRecord(raw) || typeof raw.type !== 'string') return;
     if (raw.type === 'ping') {
       seat.link.send({ type: 'ping' });
       return;
@@ -102,57 +199,17 @@ export class MatchRoom {
     }
   }
 
-  /**
-   * Advance bot clocks. `dt` is seconds. The live server calls this on a short
-   * interval. Tests call it directly. Grace on `matchStart` is not a gate.
-   */
-  tick(dt: number): void {
-    if (this.phase !== 'playing' || !(dt > 0)) return;
-    const bots = [...this.seats.values()].filter((seat) => seat.bot && seat.alive).sort((a, b) => a.id - b.id);
-    for (const bot of bots) {
-      if (this.phase !== 'playing') return;
-      if (!bot.alive) continue;
-      bot.attackIn -= dt;
-      if (bot.attackIn > 0) continue;
-      this.botAttack(bot);
-      if (this.phase !== 'playing') return;
-      bot.attackIn = rollAttackDelay(this.rng);
-    }
-  }
-
-  private recycle(): void {
-    for (const seat of [...this.seats.values()]) {
-      if (seat.bot || !seat.connected) this.seats.delete(seat.id);
-    }
-    this.phase = 'lobby';
-    for (const seat of this.seats.values()) this.fresh(seat);
-  }
-
-  private humanCount(): number {
-    let count = 0;
-    for (const seat of this.seats.values()) if (!seat.bot) count += 1;
-    return count;
-  }
-
-  private nextSeatId(): number | null {
-    for (let id = 1; id <= ROOM_SIZE; id++) {
-      if (!this.seats.has(id)) return id;
-    }
-    return null;
-  }
-
-  private makeSeat(id: number, name: string, bot: boolean, link: SeatLink): Seat {
+  private makeHuman(id: number, name: string, link: SeatLink): Seat {
     return {
       id,
       name,
-      bot,
       ready: false,
       alive: true,
       pressure: 0,
       hit: false,
       busy: false,
       place: null,
-      connected: !bot,
+      bot: false,
       link,
       earns: [],
       attackIn: 0,
@@ -167,34 +224,58 @@ export class MatchRoom {
     seat.busy = false;
     seat.place = null;
     seat.earns = [];
-    seat.attackIn = 0;
   }
 
   private markReady(seat: Seat): void {
-    if (this.phase !== 'lobby') return;
+    if (this.phase !== 'lobby' || seat.bot) return;
     seat.ready = true;
-    this.maybeStart();
+    if (this.countdownEndsAt == null) {
+      this.countdownEndsAt = this.now() + this.countdownMs;
+      this.lastAnnouncedSecond = null;
+    }
+    this.pushLobby();
   }
 
-  /** Every human already in the lobby is ready, and there is at least one. Solo ready is enough. */
-  private maybeStart(): void {
-    if (this.phase !== 'lobby') return;
-    const humans = [...this.seats.values()].filter((seat) => !seat.bot);
-    if (humans.length === 0) return;
-    if (humans.every((seat) => seat.ready)) this.begin();
-    else this.pushLobby();
+  private announceCountdown(): void {
+    if (this.countdownEndsAt == null) return;
+    const left = Math.max(0, this.countdownEndsAt - this.now());
+    const sec = Math.ceil(left / 1000);
+    if (sec === this.lastAnnouncedSecond) return;
+    this.lastAnnouncedSecond = sec;
+    this.pushLobby();
   }
 
   private begin(): void {
-    this.fillBots();
+    this.countdownEndsAt = null;
+    this.lastAnnouncedSecond = null;
     this.phase = 'playing';
+    const humans = [...this.seats.values()].filter((seat) => !seat.bot);
+    const used = new Set(humans.map((seat) => seat.id));
+    for (let id = 1; id <= ROOM_SIZE; id++) {
+      if (used.has(id)) continue;
+      this.seats.set(id, {
+        id,
+        name: cpuName(id),
+        ready: true,
+        alive: true,
+        pressure: 0,
+        hit: false,
+        busy: false,
+        place: null,
+        bot: true,
+        link: noopLink,
+        earns: [],
+        attackIn: 0,
+      });
+    }
     for (const seat of this.seats.values()) {
       this.fresh(seat);
-      seat.ready = true;
       if (seat.bot) seat.attackIn = rollAttackDelay(this.rng);
+      else seat.ready = true;
     }
+    this.matchStartedAt = this.now();
     const roster = this.roster();
-    for (const seat of this.seats.values()) {
+    for (const seat of humans) {
       seat.link.send({
         type: 'matchStart',
         you: seat.id,
@@ -204,70 +285,50 @@ export class MatchRoom {
     }
   }
 
-  /** Pad empty ids with cute CPU names. No-op when the room is already full of humans. */
-  private fillBots(): void {
-    let nameIndex = 1;
-    while (this.seats.size < ROOM_SIZE) {
-      const id = this.nextSeatId();
-      if (id == null) break;
-      const seat = this.makeSeat(id, cpuName(nameIndex), true, silentLink);
-      nameIndex += 1;
-      this.seats.set(id, seat);
+  private tickBots(dt: number): void {
+    if (!(dt > 0)) return;
+    for (const seat of [...this.seats.values()]) {
+      if (this.phase !== 'playing') return;
+      if (!seat.bot || !seat.alive) continue;
+      seat.attackIn -= dt;
+      if (seat.attackIn > 0) continue;
+      this.botFire(seat);
+      if (!seat.alive || this.phase !== 'playing') continue;
+      seat.attackIn = rollAttackDelay(this.rng);
     }
   }
 
-  private earn(seat: Seat, raw: Record<string, unknown>): void {
+  private botFire(seat: Seat): void {
     if (this.phase !== 'playing' || !seat.alive) return;
+    const strength = rollJammerCount(this.rng);
+    this.applyHit(seat, strength, 'ghost');
+  }
+
+  private earn(seat: Seat, raw: Record<string, unknown>): void {
+    if (this.phase !== 'playing' || !seat.alive || seat.bot) return;
     if ('target' in raw || 'targetId' in raw || 'targetSeat' in raw) return;
     if (!isAttackKind(raw.attack) || raw.attack !== 'ghost') return;
     if (typeof raw.strength !== 'number' || !Number.isFinite(raw.strength)) return;
     const rounded = Math.round(raw.strength);
-    // A ghost earn is a sprite count. Zero means the batch was empty; do not
-    // clamp that up to one jammer.
     if (rounded < 1) return;
     const strength = Math.min(STRENGTH_MAX, Math.max(STRENGTH_MIN, rounded));
     if (!this.allowEarn(seat)) return;
-    const victim = this.pickVictim(seat.id);
+    this.applyHit(seat, strength, raw.attack);
+  }
+
+  private applyHit(seat: Seat, strength: number, attack: 'ghost'): void {
+    const victims = [...this.seats.values()].filter((other) => other.alive && other.id !== seat.id);
+    if (victims.length === 0) return;
+    const victim = victims[Math.floor(this.rng() * victims.length)];
     if (!victim) return;
-    this.strike(seat, victim, strength, raw.attack);
-  }
-
-  private botAttack(bot: Seat): void {
-    if (!bot.alive || this.phase !== 'playing') return;
-    const jammers = rollJammerCount(this.rng);
-    const victim = this.pickVictim(bot.id);
-    if (!victim) return;
-    this.strike(bot, victim, jammers, 'ghost');
-  }
-
-  /** Uniform among other living seats, lowest id first so a zero roll is stable. */
-  private pickVictim(attackerId: number): Seat | null {
-    const victims = this.livingOthers(attackerId);
-    if (victims.length === 0) return null;
-    const index = Math.min(victims.length - 1, Math.floor(this.rng() * victims.length));
-    return victims[index] ?? null;
-  }
-
-  private livingOthers(id: number): Seat[] {
-    return [...this.seats.values()]
-      .filter((seat) => seat.alive && seat.id !== id)
-      .sort((a, b) => a.id - b.id);
-  }
-
-  /**
-   * Human → bot is pressure and a roster flash only.
-   * Bot → human also sends `jammerInbound`.
-   * Bot → bot is pressure only.
-   */
-  private strike(attacker: Seat, victim: Seat, strength: number, attack: AttackKind): void {
     victim.pressure += strength;
     victim.hit = true;
-    attacker.busy = true;
+    seat.busy = true;
     if (!victim.bot) {
       victim.link.send({
         type: 'jammerInbound',
-        fromSeat: attacker.id,
-        fromName: attacker.name,
+        fromSeat: seat.id,
+        fromName: seat.name,
         strength,
         attack,
       });
@@ -304,7 +365,6 @@ export class MatchRoom {
   private finish(winner: Seat | null): void {
     if (this.phase !== 'playing') return;
     if (winner) winner.place = 1;
-    this.phase = 'done';
     const placements: Placement[] = [...this.seats.values()]
       .sort((a, b) => a.id - b.id)
       .map((seat) => ({
@@ -317,10 +377,35 @@ export class MatchRoom {
       winnerSeat: winner?.id ?? null,
       placements,
     });
+    this.phase = 'lobby';
+    this.countdownEndsAt = null;
+    this.lastAnnouncedSecond = null;
+    const watching = [...this.spectators.values()];
+    this.spectators.clear();
+    for (const seat of [...this.seats.values()]) {
+      this.seats.delete(seat.id);
+      if (seat.bot) continue;
+      const stillLinked = this.byLink.get(seat.link) === seat;
+      this.byLink.delete(seat.link);
+      if (!stillLinked) continue;
+      this.retired.set(seat.link, { id: seat.id, name: seat.name, link: seat.link });
+    }
+    for (const watcher of watching) {
+      if (this.humanCount() >= MAX_HUMANS) {
+        watcher.link.send({ type: 'error', text: 'Lobby is full' });
+        continue;
+      }
+      const id = this.nextSeatId();
+      if (id == null) continue;
+      const seat = this.makeHuman(id, watcher.name, watcher.link);
+      this.seats.set(id, seat);
+      this.byLink.set(watcher.link, seat);
+    }
+    if (this.humanCount() > 0) this.pushLobby();
   }
 
   private publishRoster(): void {
-    this.broadcast({ type: 'rosterDelta', seats: this.roster() });
+    this.broadcast({ type: 'rosterDelta', seats: this.roster(), clock: this.clock() });
     for (const seat of this.seats.values()) {
       seat.hit = false;
       seat.busy = false;
@@ -329,9 +414,22 @@ export class MatchRoom {
 
   private pushLobby(): void {
     const seats = this.roster();
+    const countdownMs = this.countdownLeft();
+    if (countdownMs != null) this.lastAnnouncedSecond = Math.ceil(countdownMs / 1000);
     for (const seat of this.seats.values()) {
-      seat.link.send({ type: 'lobby', you: seat.id, seats, need: ROOM_SIZE });
+      if (seat.bot) continue;
+      seat.link.send({ type: 'lobby', you: seat.id, seats, need: ROOM_SIZE, countdownMs });
     }
+  }
+
+  private countdownLeft(): number | null {
+    if (this.countdownEndsAt == null) return null;
+    return Math.max(0, this.countdownEndsAt - this.now());
+  }
+
+  private clock(): number {
+    if (this.phase !== 'playing') return 0;
+    return Math.max(0, (this.now() - this.matchStartedAt) / 1000);
   }
 
   private roster(): RosterSeat[] {
@@ -350,7 +448,21 @@ export class MatchRoom {
   }
 
   private broadcast(message: ServerMessage): void {
-    for (const seat of this.seats.values()) seat.link.send(message);
+    for (const seat of this.byLink.values()) seat.link.send(message);
+    for (const watcher of this.spectators.values()) watcher.link.send(message);
+  }
+
+  private humanCount(): number {
+    let count = 0;
+    for (const seat of this.seats.values()) if (!seat.bot) count += 1;
+    return count;
+  }
+
+  private nextSeatId(): number | null {
+    for (let id = 1; id <= ROOM_SIZE; id++) {
+      if (!this.seats.has(id)) return id;
+    }
+    return null;
   }
 }
 

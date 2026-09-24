@@ -79,7 +79,7 @@ function syncHud(): void {
   readyButton!.textContent = session.hasReadied ? 'Waiting…' : 'Ready';
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
-  titleEl!.hidden = game.inMatch;
+  titleEl!.hidden = game.inMatch || game.spectating;
   countdownEl!.hidden = !hud.countdown;
   countdownEl!.textContent = hud.countdown ?? '';
   hudName!.textContent = game.playerName;
@@ -125,7 +125,9 @@ function advanceWin(): void {
 
 function renderStandings(rows: readonly StandingRow[], yourPlace: number | null, stillIn: number): void {
   const sig = `${stillIn}|${yourPlace ?? ''}|${rows.map((row) => `${row.place ?? ''}:${row.name}:${row.state}`).join(';')}`;
-  rankingBlurb!.textContent = yourPlace
+  rankingBlurb!.textContent = game.spectating
+    ? `Spectating. ${stillIn} still in. No remote maze — the next lobby opens when this match ends.`
+    : yourPlace
     ? stillIn > 0
       ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
       : `You placed ${yourPlace}.`
@@ -282,6 +284,7 @@ const session = new NetSession({
     syncHud();
   },
   onLobby: () => {
+    game.clearSpectate();
     if (game.inMatch) {
       direction = null;
       standingsSig = '';
@@ -290,10 +293,18 @@ const session = new NetSession({
     }
     syncHud();
   },
+  onSpectate: (message) => {
+    direction = null;
+    standingsSig = '';
+    scrolledToYou = false;
+    game.beginSpectate(message.roster, message.clock);
+    syncHud();
+  },
   onMatchStart: (message) => {
     direction = null;
     standingsSig = '';
     scrolledToYou = false;
+    game.clearSpectate();
     game.startMatch();
     game.armOnline(message.you, message.roster);
     game.applyOnlineRoster(message.roster);
@@ -303,14 +314,25 @@ const session = new NetSession({
     game.receiveOnlineJammer(message.strength, message.fromName, message.attack, message.fromSeat);
   },
   onRoster: (message) => {
-    game.applyOnlineRoster(message.seats);
+    if (session.spectating) game.applySpectateRoster(message.seats, message.clock);
+    else game.applyOnlineRoster(message.seats);
   },
   onEliminated: (message) => {
+    if (session.spectating) {
+      game.noteSpectatorElimination(message.seat, message.place);
+      syncHud();
+      return;
+    }
     game.noteOnlineElimination(message.seat, message.place);
     if (message.seat === session.seat) game.applyServerElimination();
     else game.eliminateOnlineSeat(message.seat);
   },
   onMatchEnd: (message) => {
+    if (session.spectating) {
+      game.showSpectatorPlacements(message.placements);
+      syncHud();
+      return;
+    }
     const mine = message.placements.find((row) => row.seat === session.seat);
     if (mine && mine.place !== 1) game.applyServerElimination();
     else game.eliminateOnlineOpponent();
