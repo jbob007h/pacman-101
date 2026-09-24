@@ -25,7 +25,10 @@ export type SystemsEvent =
   | { type: 'simEliminated'; simId: number; remainingPlayers: number }
   | { type: 'jammersSent'; targets: number[]; strength: number; reason: JamReason; fromSimId?: number }
   | { type: 'incomingJammer'; fromSimId: number; strength: number; exact?: boolean }
-  /** One batched ghost attack. `count` is ghosts eaten in the window, and jammer count. */
+  /**
+   * One batched ghost attack. `count` is the strength sent when the window closes:
+   * ghosts eaten, then the active power mode (Stronger ×2, Speed ceil/2, otherwise unchanged).
+   */
   | { type: 'ghostVolley'; count: number }
   | { type: 'matchWon' }
   | { type: 'matchLost' };

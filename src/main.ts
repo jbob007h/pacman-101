@@ -3,6 +3,7 @@ import { Game } from './game';
 import { planSimSteps } from './loop';
 import { NetSession } from './net/session';
 import { resolveSocketUrl } from './net/socketUrl';
+import { modeFromKey } from './gameplay/powerMode';
 import { dirFromKey, type Dir } from './shared/types';
 import type { StandingRow } from './systems/ranking';
 import { loadPlayerName, savePlayerName } from './systems/names';
@@ -261,6 +262,12 @@ function onKeyDown(event: KeyboardEvent): void {
   if ((event.key === 'Enter' || event.key === ' ') && winCardUp()) {
     event.preventDefault();
     advanceWin();
+    return;
+  }
+  const queued = modeFromKey(event.key);
+  if (queued) {
+    event.preventDefault();
+    game.queuePower(queued);
     return;
   }
   const next = dirFromKey(event.key);

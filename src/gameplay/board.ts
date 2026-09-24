@@ -28,8 +28,9 @@ import { DIR_NONE } from '../shared/types';
 import { createGhosts, updateGhost, type Ghost, type GhostMode } from './ghosts';
 import { InboundField } from './inbound';
 import { Maze } from './maze';
-import { GhostTrain } from './train';
 import { advanceMover, applyQueuedTurn, type Mover } from './movement';
+import { frightSecondsFor, ghostsPerWake, speedLevelsFor, TRAIN_WHITE_EVERY, type PacMode } from './powerMode';
+import { GhostTrain } from './train';
 
 export interface Pac extends Mover {
   alive: boolean;
@@ -68,6 +69,20 @@ export class Board {
   score = 0;
   time = 0;
   frightened = 0;
+  /**
+   * Length of the pellet that set {@link frightened}. The ring drains against this,
+   * so a Stronger pellet (4s) starts full instead of 4/9 of the normal timer.
+   */
+  pelletDuration = FRIGHT_SECONDS;
+  /** Mode in effect. Starts as Standard and changes only when a power pellet is eaten. */
+  powerActive: PacMode = 'standard';
+  /** Mode that will become active on the next power pellet. */
+  powerQueued: PacMode = 'standard';
+  /**
+   * Sleeping ghosts woken while Train is the active mode.
+   * Reset when Train is left and on {@link Board.reset}. Not cleared by another Train pellet.
+   */
+  trainWakes = 0;
   /** Match clock, copied from the composition root. Slow duration reads it. */
   matchTime = 0;
   deathTime = 0;
@@ -148,19 +163,24 @@ export class Board {
     return speedsForBoard(this.boardIndex);
   }
 
-  /** Board pace plus the permanent full-clear bonus. The HUD Speed number is {@link displayedSpeed}. */
+  /** Temporary Speed-mode levels. Zero unless Speed is the active mode. */
+  modeSpeedLevels(): number {
+    return speedLevelsFor(this.powerActive);
+  }
+
+  /** Board pace plus permanent clears and the temporary Speed-mode levels. */
   pacSpeed(): number {
-    const base = this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
+    const base = this.chaseSpeed();
     if (this.inbound.slow <= 0) return base;
     return base * this.inbound.slowFactor;
   }
 
   /**
-   * Pac's board pace plus full-clear bonuses, before the white-jammer slow.
+   * Pac's board pace plus full-clear bonuses and Speed-mode levels, before the white-jammer slow.
    * Jammers scale off this. Ghosts and Elroy do not — they use {@link basePacPace}.
    */
   chaseSpeed(): number {
-    return this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
+    return this.speeds().pac + (this.clearBoost + this.modeSpeedLevels()) * CLEAR_SPEED_BONUS;
   }
 
   /**
@@ -180,6 +200,11 @@ export class Board {
   setDirection(dir: Dir | null): void {
     if (!this.pac.alive) return;
     this.pac.queued = dir;
+  }
+
+  /** Queue the mode that the next power pellet will turn on. Does not change the active mode. */
+  queuePower(mode: PacMode): void {
+    this.powerQueued = mode;
   }
 
   /**
@@ -250,6 +275,10 @@ export class Board {
     this.score = 0;
     this.time = 0;
     this.frightened = 0;
+    this.pelletDuration = FRIGHT_SECONDS;
+    this.powerActive = 'standard';
+    this.powerQueued = 'standard';
+    this.trainWakes = 0;
     this.deathTime = 0;
     this.clearPause = 0;
     this.eatPause = 0;
@@ -415,8 +444,10 @@ export class Board {
   }
 
   private frighten(): void {
+    this.activateQueuedPower();
     this.inbound.killWhites();
-    this.frightened = FRIGHT_SECONDS;
+    this.pelletDuration = frightSecondsFor(this.powerActive);
+    this.frightened = this.pelletDuration;
     for (const ghost of this.ghosts) {
       ghost.skipFright = false;
       if (isHuntable(ghost.mode) || ghost.mode === 'frightened') {
@@ -455,9 +486,35 @@ export class Board {
   }
 
   private stepTrain(step: number): void {
-    const woke = this.train.touch(this.pac.x, this.pac.y, this.ghosts, this.maze);
+    const woke = this.train.touch(
+      this.pac.x,
+      this.pac.y,
+      this.ghosts,
+      this.maze,
+      ghostsPerWake(this.powerActive),
+    );
     for (let i = 0; i < woke; i++) this.bus.emit({ type: 'sleeperWoken' });
+    if (this.powerActive === 'train' && woke > 0) this.noteTrainWakes(woke);
     this.train.update(step, this.ghosts, this.maze);
+  }
+
+  /** The queued mode becomes active. Leaving Train clears its white-jammer counter. */
+  private activateQueuedPower(): void {
+    const next = this.powerQueued;
+    if (this.powerActive === 'train' && next !== 'train') this.trainWakes = 0;
+    this.powerActive = next;
+  }
+
+  /**
+   * Each sleeper woken under Train counts toward a white jammer.
+   * Every {@link TRAIN_WHITE_EVERY} wakes try to spawn one white, under the jammer cap.
+   */
+  private noteTrainWakes(woke: number): void {
+    const before = this.trainWakes;
+    this.trainWakes += woke;
+    const due = Math.floor(this.trainWakes / TRAIN_WHITE_EVERY) - Math.floor(before / TRAIN_WHITE_EVERY);
+    if (due <= 0) return;
+    this.inbound.spawnWhites(due, this.maze, this.pac.x, this.pac.y, this.rng);
   }
 
   /**

@@ -103,6 +103,22 @@ describe('playfield layer order', () => {
     expect(log.some((entry) => entry.kind === 'clip' && entry.layer === 'overlay')).toBe(false);
     expect(log.indexOf(popup!)).toBeGreaterThan(log.indexOf(panel!));
   });
+
+  it('paints the power-mode list on the unclipped overlay', () => {
+    const log: { kind: string; layer: string; clipped: boolean; text?: string }[] = [];
+    const ctx = recordingContext(log);
+    const input = frameAtTunnel();
+    input.powerActive = 'stronger';
+    input.powerQueued = 'speed';
+    drawFrame(ctx, input);
+    const standard = log.find((entry) => entry.text === '1  Standard');
+    const next = log.find((entry) => entry.text === 'NEXT');
+    const active = log.find((entry) => entry.text === 'ACTIVE');
+    expect(standard?.layer).toBe('overlay');
+    expect(standard?.clipped).toBe(false);
+    expect(next?.layer).toBe('overlay');
+    expect(active?.layer).toBe('overlay');
+  });
 });
 
 function frameAtTunnel(): DrawInput {
@@ -132,6 +148,9 @@ function frameAtTunnel(): DrawInput {
     shake: 0,
     mazeFlash: 0,
     frightened: 0,
+    pelletDuration: 9,
+    powerActive: 'standard',
+    powerQueued: 'standard',
     deathTime: 0,
     time: 0.4,
     eatPause: 0.2,

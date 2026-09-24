@@ -68,6 +68,8 @@ export class SimWorld {
    */
   private localBattle = true;
   private readonly ghostWindow = new GhostAttackWindow();
+  /** Maps a closed ghost window's eat count to attack strength. Identity unless a power mode scales it. */
+  private attackScale: (count: number) => number = (count) => count;
   /** Match time already rolled for a mistake, so a frozen clock cannot repeat. */
   private mistakeMark = Number.NaN;
 
@@ -124,6 +126,14 @@ export class SimWorld {
     this.ghostWindow.reset();
   }
 
+  /**
+   * Strength reported when a ghost window closes.
+   * The active Pac mode is applied here, at earn time, not when each ghost is eaten.
+   */
+  setAttackScale(scale: (count: number) => number): void {
+    this.attackScale = scale;
+  }
+
   /** Advance only the ghost-eat window. Does not run CPU attacks or relief. */
   advanceGhostWindow(dt: number): void {
     let left = Math.max(0, dt);
@@ -171,8 +181,10 @@ export class SimWorld {
   }
 
   private releaseGhostWindow(dt: number): void {
-    const count = this.ghostWindow.tick(dt);
-    if (count == null || count <= 0) return;
+    const eaten = this.ghostWindow.tick(dt);
+    if (eaten == null || eaten <= 0) return;
+    const count = this.attackScale(eaten);
+    if (count <= 0) return;
     if (this.localBattle) this.apply(ghostVolley(count, this.snapshot(), this.rng));
     this.bus.emit({ type: 'ghostVolley', count });
   }

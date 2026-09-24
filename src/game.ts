@@ -1,6 +1,7 @@
 import { Sfx } from './audio/sfx';
 import { COUNTDOWN_BEAT_FRAMES, COUNTDOWN_BEATS, KILL_PRESSURE, PAC_LAUNCH_DIR } from './config';
 import { Board } from './gameplay/board';
+import { scaleGhostAttack, type PacMode } from './gameplay/powerMode';
 import { formatMatchTime } from './gameplay/inbound';
 import type { AttackKind, Placement, RosterSeat } from './net/protocol';
 import { drawFrame, type DrawInput } from './render/draw';
@@ -93,6 +94,7 @@ export class Game {
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
     this.sims = new SimWorld(this.bus, rng);
+    this.sims.setAttackScale((count) => scaleGhostAttack(this.board.powerActive, count));
     this.match = new Match(this.bus, this.sims);
     this.ranking = new Ranking(this.bus, this.playerName);
     this.bus.on('jammersSent', (event) => {
@@ -147,6 +149,12 @@ export class Game {
   setDirection(dir: Dir | null): void {
     if (!this.acceptsInput) return;
     this.board.setDirection(dir);
+  }
+
+  /** Queue the next power mode. It turns on when Pac next eats a power pellet. */
+  queuePower(mode: PacMode): void {
+    if (!this.inMatch) return;
+    this.board.queuePower(mode);
   }
 
   /** Title screen. The match clock and the sims stay paused until {@link startMatch}. */
@@ -475,7 +483,7 @@ export class Game {
       score: this.board.score,
       board: this.board.speeds().board,
       remaining: this.match.remaining(),
-      speed: this.board.displayedSpeed,
+      speed: this.board.displayedSpeed + this.board.modeSpeedLevels(),
       time: formatMatchTime(this.matchTime),
       phase,
       status: this.statusLine(),
@@ -498,6 +506,9 @@ export class Game {
       shake: this.fx.shake,
       mazeFlash: this.fx.flash,
       frightened: this.board.frightened,
+      pelletDuration: this.board.pelletDuration,
+      powerActive: this.board.powerActive,
+      powerQueued: this.board.powerQueued,
       deathTime: this.board.deathTime,
       time: this.elapsed,
       eatPause: this.board.eatPause,

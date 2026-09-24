@@ -22,8 +22,13 @@ describe('inbound jammers', () => {
   it('grows the white slow every 30s and caps it at 7:00', () => {
     const early = slowProfile(0);
     const later = slowProfile(60);
+    expect(early).toEqual({ seconds: 0.35, factor: 0.42 });
+    expect(slowProfile(29.9).seconds).toBeCloseTo(0.35);
+    expect(slowProfile(30).seconds).toBeCloseTo(0.43);
+    expect(later.seconds).toBeCloseTo(0.35 + 2 * 0.08);
     expect(later.seconds).toBeGreaterThan(early.seconds);
-    expect(early.factor).toBeCloseTo(0.42);
+    expect(later.factor).toBeCloseTo(0.42);
+    expect(slowProfile(420).seconds).toBeCloseTo(0.35 + 14 * 0.08);
     expect(slowProfile(10_000).seconds).toBe(slowProfile(420).seconds);
   });
 
@@ -95,7 +100,7 @@ describe('inbound jammers', () => {
     white.phase = 'live';
     expect(field.touch(10, 20, 0)).toBe(false);
     expect(white.phase).toBe('dying');
-    expect(field.slow).toBeCloseTo(0.6);
+    expect(field.slow).toBeCloseTo(0.35);
     expect(field.slowFactor).toBeCloseTo(0.42);
 
     const reds = new InboundField();

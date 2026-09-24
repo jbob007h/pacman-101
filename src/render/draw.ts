@@ -1,4 +1,5 @@
-import { FRUIT_DRAW_SCALE, pelletFill, SPEED_POPUP_SECONDS, TILE } from '../config';
+import { FRUIT_DRAW_SCALE, pelletFill, SIDE_W, SPEED_POPUP_SECONDS, TILE } from '../config';
+import { PAC_MODES, type PacMode } from '../gameplay/powerMode';
 import type { Ghost, GhostMode } from '../gameplay/ghosts';
 import { frightenedFlash } from '../gameplay/ghosts';
 import { TRAIN_CALM_SCALE, trainMemberColor, type TrainFollower } from '../gameplay/train';
@@ -38,6 +39,10 @@ export interface DrawInput {
   shake: number;
   mazeFlash: number;
   frightened: number;
+  /** Duration of the pellet that started {@link frightened}. The ring drains against this. */
+  pelletDuration: number;
+  powerActive: PacMode;
+  powerQueued: PacMode;
   deathTime: number;
   time: number;
   eatPause: number;
@@ -261,7 +266,7 @@ function drawMazeWorld(ctx: CanvasRenderingContext2D, input: DrawInput, board: {
     });
   });
   drawPac(ctx, input, board.x, board.y);
-  drawPelletClock(ctx, input.frightened);
+  drawPelletClock(ctx, input.frightened, input.pelletDuration);
   for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   ctx.restore();
 }
@@ -308,6 +313,7 @@ function drawPlayfieldCallouts(
   drawEatScore(ctx, input, board.x, board.y);
   drawSpeedPopup(ctx, input, board.x, board.y);
   drawEatCountPopup(ctx, input, board.x, board.y);
+  drawPowerModes(ctx, input);
 }
 
 function drawMaze(ctx: CanvasRenderingContext2D, maze: Maze, ox: number, oy: number, time: number, flash: number): void {
@@ -614,8 +620,52 @@ function drawGhostSprite(
  * Open ring over the ghost house. Full when a pellet is eaten, empty when the
  * timer ends. The center stays clear so the house shows through. No digits.
  */
-function drawPelletClock(ctx: CanvasRenderingContext2D, frightened: number): void {
-  const fill = pelletFill(frightened);
+/**
+ * Power-mode list over the left side grids. Semi-transparent so the panels
+ * still read through it. Stays in the left gutter and never crosses the maze.
+ */
+function drawPowerModes(ctx: CanvasRenderingContext2D, input: DrawInput): void {
+  const x = 6;
+  const y = 6;
+  const row = 16;
+  const w = SIDE_W - 12;
+  const h = 8 + PAC_MODES.length * row + 6;
+  ctx.save();
+  ctx.fillStyle = 'rgba(7, 11, 20, 0.72)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(186, 206, 255, 0.55)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.font = '12px sans-serif';
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+  for (let i = 0; i < PAC_MODES.length; i++) {
+    const mode = PAC_MODES[i];
+    if (!mode) continue;
+    const active = input.powerActive === mode.id;
+    const queued = input.powerQueued === mode.id && input.powerQueued !== input.powerActive;
+    const ry = y + 6 + i * row;
+    if (active) {
+      ctx.fillStyle = 'rgba(255, 214, 74, 0.38)';
+      ctx.fillRect(x + 3, ry, w - 6, row - 2);
+    } else if (queued) {
+      ctx.strokeStyle = 'rgba(120, 210, 255, 0.95)';
+      ctx.strokeRect(x + 4, ry + 1, w - 8, row - 4);
+    }
+    ctx.fillStyle = active ? '#ffe14a' : queued ? '#b7e6ff' : 'rgba(236, 240, 255, 0.92)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${mode.key}  ${mode.label}`, x + 8, ry + (row - 2) / 2);
+    const tag = active ? 'ACTIVE' : queued ? 'NEXT' : '';
+    if (tag) {
+      ctx.textAlign = 'right';
+      ctx.fillText(tag, x + w - 8, ry + (row - 2) / 2);
+    }
+  }
+  ctx.restore();
+}
+
+function drawPelletClock(ctx: CanvasRenderingContext2D, frightened: number, duration: number): void {
+  const fill = pelletFill(frightened, duration);
   if (fill <= 0) return;
   const { x: cx, y: cy } = ghostHouseCenter();
   const radius = 30;
