@@ -67,7 +67,7 @@ Clients are not trusted for win, death, or pressure totals.
 
 - Target choice, applied pressure, elimination order, placement, and the winner are server state.
 - `deathReport` is a claim. `playerEliminated` is the confirmation. Placement is whatever the server locked (`place = survivors + 1`, same rule as the local standings).
-- The last confirmed living seat wins. The client shows the congratulations card, then the rankings, from `matchEnd`. It does not decide that it won.
+- The last confirmed living seat wins. That client shows the congratulations card, then the rankings, from `matchEnd`. It does not decide that it won. An eliminated seat shows partial standings after its own `playerEliminated` (locked places only; living seats stay blank) and refreshes that list until `matchEnd` finalizes it.
 
 ## Match flow
 
@@ -76,7 +76,7 @@ Clients are not trusted for win, death, or pressure totals.
 3. **Countdown.** `matchStart` carries the shared clock. Each client runs its own maze from then on.
 4. **Opening.** Each bot's first attack waits for its own 8–12s timer. Earn-attacks may be sent immediately.
 5. **Play.** Earn → validate → pick → apply → roster delta and inbound jammer, until one seat is left.
-6. **End.** `matchEnd` names the winner and the locked placements. The client shows **Congratulations!**, then one click (or Space / Enter) opens the rankings. That screen already exists locally; online it renders the server's placements instead of the local ranking set.
+6. **End.** `matchEnd` names the winner and the locked placements. The last survivor sees **Congratulations!**, then one click (or Space / Enter) opens the rankings. Anyone already out has had that list open since their own elimination; `matchEnd` refreshes it to the final order. Online renders the server's placements instead of the local ranking set.
 
 ## Messages
 
