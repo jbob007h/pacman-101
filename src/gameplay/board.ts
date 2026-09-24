@@ -1,5 +1,7 @@
 import {
   CLEAR_SPEED_BONUS,
+  GHOST_SCATTER_BUMP,
+  JAMMER_CHASE_GATE,
   COLLIDE_DISTANCE,
   SPEED_POPUP_SECONDS,
   DOT_SCORE,
@@ -83,6 +85,11 @@ export class Board {
   /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
   clearBoost = 0;
   /**
+   * Scatter phases entered this match, including the opening scatter.
+   * Each one adds {@link GHOST_SCATTER_BUMP} to chase and scatter for the rest of the match.
+   */
+  ghostPaceBoost = 1;
+  /**
    * Seconds left on the "Speed Up!" callout. Set when the last pellet is eaten
    * and ticked even while the clear pause holds Pac still.
    */
@@ -159,10 +166,15 @@ export class Board {
   /**
    * Pac's board pace with no full-clear Speed bonus.
    * Elroy 1 matches this number. Elroy 2 is 1.1× it. Ghost chase and fright
-   * come from the board table alone, so a Speed Up never speeds the ghosts.
+   * come from the board table plus {@link ghostPaceBoost}, so a Speed Up never speeds the ghosts.
    */
   basePacPace(): number {
     return this.speeds().pac;
+  }
+
+  /** Chase/scatter tiles per second before Elroy and the tunnel slow. */
+  ghostCruise(): number {
+    return this.speeds().ghost + this.ghostPaceBoost * GHOST_SCATTER_BUMP;
   }
 
   setDirection(dir: Dir | null): void {
@@ -196,7 +208,15 @@ export class Board {
     this.sinceGhostEat += step;
     const pacX0 = this.pac.x;
     const pacY0 = this.pac.y;
-    this.inbound.update(step, this.maze, this.pac.x, this.pac.y, this.chaseSpeed(), this.redsFrozen());
+    this.inbound.update(
+      step,
+      this.maze,
+      this.pac.x,
+      this.pac.y,
+      this.chaseSpeed(),
+      this.redsFrozen(),
+      this.matchTime >= JAMMER_CHASE_GATE,
+    );
     if (this.clearPause > 0) {
       this.clearPause -= step;
       this.spendBite(step);
@@ -238,6 +258,7 @@ export class Board {
     this.boardIndex = 0;
     this.displayedSpeed = 0;
     this.clearBoost = 0;
+    this.ghostPaceBoost = 1;
     this.speedPopup = 0;
     this.eatPopup = 0;
     this.eatPopupCount = 0;
@@ -284,6 +305,7 @@ export class Board {
     if (!wave) return;
     this.wave = wave.mode;
     this.waveTime = wave.duration;
+    if (wave.mode === 'scatter') this.ghostPaceBoost += 1;
     for (const ghost of this.ghosts) {
       if (ghost.mode === 'chase' || ghost.mode === 'scatter') {
         ghost.mode = wave.mode;
@@ -409,6 +431,8 @@ export class Board {
   private moveGhosts(dt: number, idle: boolean): void {
     const elroy = elroyLevel(this.boardIndex, this.maze.remaining());
     const pacPace = this.basePacPace();
+    const table = this.speeds();
+    const speeds = { ...table, ghost: this.ghostCruise() };
     for (const ghost of this.ghosts) {
       if (idle && ghost.mode !== 'house') continue;
       const blinky = this.ghosts[0];
@@ -419,7 +443,7 @@ export class Board {
         wave: this.wave,
         frightenedLeft: this.frightened,
         incoming: false,
-        speeds: this.speeds(),
+        speeds,
         pacX: this.pac.x,
         pacY: this.pac.y,
         pacDir: this.pac.dir,
