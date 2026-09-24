@@ -9,7 +9,7 @@ import {
   DOT_STOP_FRAMES,
   EAT_CHAIN_RESET,
   eatPauseForChain,
-  FRIGHT_SECONDS,
+  frightSecondsForBoard,
   GHOST_SCORE_BASE,
   PELLET_EXTEND_SECONDS,
   PELLET_EXTEND_THRESHOLD,
@@ -28,8 +28,9 @@ import { DIR_NONE } from '../shared/types';
 import { createGhosts, updateGhost, type Ghost, type GhostMode } from './ghosts';
 import { InboundField } from './inbound';
 import { Maze } from './maze';
-import { GhostTrain } from './train';
 import { advanceMover, applyQueuedTurn, type Mover } from './movement';
+import { frightSecondsFor, ghostsPerWake, speedLevelsFor, TRAIN_WHITE_EVERY, type PacMode } from './powerMode';
+import { GhostTrain } from './train';
 
 export interface Pac extends Mover {
   alive: boolean;
@@ -68,6 +69,20 @@ export class Board {
   score = 0;
   time = 0;
   frightened = 0;
+  /**
+   * Length of the pellet that set {@link frightened}. The ring drains against this,
+   * so a Stronger pellet (4s) starts full instead of 4/9 of the normal timer.
+   */
+  pelletDuration = frightSecondsForBoard(1);
+  /** Mode in effect. Starts as Standard and changes only when a power pellet is eaten. */
+  powerActive: PacMode = 'standard';
+  /** Mode that will become active on the next power pellet. */
+  powerQueued: PacMode = 'standard';
+  /**
+   * Sleeping ghosts woken while Train is the active mode.
+   * Reset when Train is left and on {@link Board.reset}. Not cleared by another Train pellet.
+   */
+  trainWakes = 0;
   /** Match clock, copied from the composition root. Slow duration reads it. */
   matchTime = 0;
   deathTime = 0;
@@ -80,9 +95,13 @@ export class Board {
   /**
    * Player-facing Speed. Starts at 0. Goes up by 1 on every full pellet clear,
    * and by 1 again when fruit advances off an even board (2, 4, 6…).
+   * Each Stronger activation subtracts 1, floored at 0.
    */
   displayedSpeed = 0;
-  /** Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart. */
+  /**
+   * Full pellet clears this match. Each one adds {@link CLEAR_SPEED_BONUS} to Pac until restart.
+   * Each Stronger activation subtracts 1, floored at 0. Speed mode adds its levels on top.
+   */
   clearBoost = 0;
   /**
    * Scatter re-entries after the opening wave. The match starts in scatter with no bump.
@@ -148,19 +167,24 @@ export class Board {
     return speedsForBoard(this.boardIndex);
   }
 
-  /** Board pace plus the permanent full-clear bonus. The HUD Speed number is {@link displayedSpeed}. */
+  /** Temporary Speed-mode levels. Zero unless Speed is the active mode. */
+  modeSpeedLevels(): number {
+    return speedLevelsFor(this.powerActive);
+  }
+
+  /** Board pace plus permanent clears and the temporary Speed-mode levels. */
   pacSpeed(): number {
-    const base = this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
+    const base = this.chaseSpeed();
     if (this.inbound.slow <= 0) return base;
     return base * this.inbound.slowFactor;
   }
 
   /**
-   * Pac's board pace plus full-clear bonuses, before the white-jammer slow.
+   * Pac's board pace plus full-clear bonuses and Speed-mode levels, before the white-jammer slow.
    * Jammers scale off this. Ghosts and Elroy do not — they use {@link basePacPace}.
    */
   chaseSpeed(): number {
-    return this.speeds().pac + this.clearBoost * CLEAR_SPEED_BONUS;
+    return this.speeds().pac + (this.clearBoost + this.modeSpeedLevels()) * CLEAR_SPEED_BONUS;
   }
 
   /**
@@ -180,6 +204,11 @@ export class Board {
   setDirection(dir: Dir | null): void {
     if (!this.pac.alive) return;
     this.pac.queued = dir;
+  }
+
+  /** Queue the mode that the next power pellet will turn on. Does not change the active mode. */
+  queuePower(mode: PacMode): void {
+    this.powerQueued = mode;
   }
 
   /**
@@ -250,6 +279,10 @@ export class Board {
     this.score = 0;
     this.time = 0;
     this.frightened = 0;
+    this.pelletDuration = frightSecondsForBoard(1);
+    this.powerActive = 'standard';
+    this.powerQueued = 'standard';
+    this.trainWakes = 0;
     this.deathTime = 0;
     this.clearPause = 0;
     this.eatPause = 0;
@@ -415,14 +448,17 @@ export class Board {
   }
 
   private frighten(): void {
+    this.activateQueuedPower();
     this.inbound.killWhites();
-    this.frightened = FRIGHT_SECONDS;
+    const seconds = frightSecondsFor(this.powerActive, this.boardIndex + 1, this.matchTime);
+    this.pelletDuration = seconds;
+    this.frightened = seconds;
     for (const ghost of this.ghosts) {
       ghost.skipFright = false;
-      if (isHuntable(ghost.mode) || ghost.mode === 'frightened') {
-        ghost.mode = 'frightened';
-        ghost.reversePending = true;
-      }
+      if (!(isHuntable(ghost.mode) || ghost.mode === 'frightened')) continue;
+      if (seconds > 0) ghost.mode = 'frightened';
+      else if (ghost.mode === 'frightened') ghost.mode = this.wave;
+      ghost.reversePending = true;
     }
   }
 
@@ -455,9 +491,45 @@ export class Board {
   }
 
   private stepTrain(step: number): void {
-    const woke = this.train.touch(this.pac.x, this.pac.y, this.ghosts, this.maze);
+    const woke = this.train.touch(
+      this.pac.x,
+      this.pac.y,
+      this.ghosts,
+      this.maze,
+      ghostsPerWake(this.powerActive),
+    );
     for (let i = 0; i < woke; i++) this.bus.emit({ type: 'sleeperWoken' });
+    if (this.powerActive === 'train' && woke > 0) this.noteTrainWakes(woke);
     this.train.update(step, this.ghosts, this.maze);
+  }
+
+  /**
+   * The queued mode becomes active. Leaving Train clears its white-jammer counter.
+   * Each Stronger activation, including a re-apply, permanently drops one speed level.
+   */
+  private activateQueuedPower(): void {
+    const next = this.powerQueued;
+    if (this.powerActive === 'train' && next !== 'train') this.trainWakes = 0;
+    this.powerActive = next;
+    if (next === 'stronger') this.dropSpeedLevel();
+  }
+
+  /** One permanent speed level, shared by the readout and the clear-bonus pace. Never below 0. */
+  private dropSpeedLevel(): void {
+    this.displayedSpeed = Math.max(0, this.displayedSpeed - 1);
+    this.clearBoost = Math.max(0, this.clearBoost - 1);
+  }
+
+  /**
+   * Each sleeper woken under Train counts toward a white jammer.
+   * Every {@link TRAIN_WHITE_EVERY} wakes try to spawn one white, under the jammer cap.
+   */
+  private noteTrainWakes(woke: number): void {
+    const before = this.trainWakes;
+    this.trainWakes += woke;
+    const due = Math.floor(this.trainWakes / TRAIN_WHITE_EVERY) - Math.floor(before / TRAIN_WHITE_EVERY);
+    if (due <= 0) return;
+    this.inbound.spawnWhites(due, this.maze, this.pac.x, this.pac.y, this.rng);
   }
 
   /**

@@ -509,8 +509,8 @@ describe('sleeping ghosts and the train', () => {
     fresh.board.pac.y = 23;
     fresh.board.pac.dir = { x: 1, y: 0 };
     fresh.update(1 / 60);
-    expect(fresh.board.frightened).toBe(FRIGHT_SECONDS);
-    expect(pelletFill(fresh.board.frightened)).toBe(1);
+    expect(fresh.board.frightened).toBe(6);
+    expect(pelletFill(fresh.board.frightened, fresh.board.pelletDuration)).toBe(1);
 
     const game = new Game(() => 0.5);
     const blinky = game.board.ghosts[0];

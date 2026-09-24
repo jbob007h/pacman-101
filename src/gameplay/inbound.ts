@@ -84,12 +84,13 @@ export function splitJammerColors(
 }
 
 /**
- * White slow starts at 0.6s and 42% speed, then grows by 0.12s every 30s of
- * match time, capped at the 7:00 step. Red jammers do not slow Pac; they kill him.
+ * White slow starts at 0.35s and 42% speed, then grows by 0.08s every 30s of
+ * match time. The step cap is 14, so the ramp ends at 7:00 (0.35 + 14×0.08 = 1.47s).
+ * Red jammers do not slow Pac; they kill him.
  */
 export function slowProfile(elapsed: number): { seconds: number; factor: number } {
   const steps = Math.min(14, Math.floor(Math.max(0, elapsed) / 30));
-  return { seconds: 0.6 + steps * 0.12, factor: 0.42 };
+  return { seconds: 0.35 + steps * 0.08, factor: 0.42 };
 }
 
 export function formatMatchTime(seconds: number): string {
@@ -140,6 +141,21 @@ export class InboundField {
       const kind: JammerKind = redsLeft > 0 ? 'red' : 'white';
       if (kind === 'red') redsLeft -= 1;
       this.jammers.push(createJammer(kind, tile.x, tile.y, pacX, pacY, maze));
+    }
+    return tiles.length;
+  }
+
+  /**
+   * Spawn white jammers on open tiles away from Pac, same placement as an inbound attack.
+   * Anything past {@link JAMMER_CAP} is dropped. These are always white: no red share.
+   */
+  spawnWhites(count: number, maze: Maze, pacX: number, pacY: number, rng: Rng): number {
+    const room = Math.max(0, JAMMER_CAP - this.jammers.length);
+    const wanted = Math.min(room, Math.max(0, Math.floor(count)));
+    if (wanted <= 0) return 0;
+    const tiles = pickSpawnTiles(maze, pacX, pacY, wanted, this.jammers, rng);
+    for (const tile of tiles) {
+      this.jammers.push(createJammer('white', tile.x, tile.y, pacX, pacY, maze));
     }
     return tiles.length;
   }

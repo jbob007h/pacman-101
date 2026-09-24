@@ -137,10 +137,12 @@ export class GhostTrain {
   }
 
   /**
-   * Wake every sleeper Pac is touching. Returns how many woke.
+   * Wake every sleeper Pac is touching. Returns how many sleepers woke.
+   * `perWake` is how many train ghosts each of those sleepers adds (1, or 2 under Train).
    * At {@link TRAIN_MAX_FOLLOWERS} a touch does nothing and the sleeper stays down.
+   * A wake that would pass the cap adds only the ghosts that still fit.
    */
-  touch(pacX: number, pacY: number, ghosts: readonly Ghost[], maze: Maze): number {
+  touch(pacX: number, pacY: number, ghosts: readonly Ghost[], maze: Maze, perWake = 1): number {
     const hits = this.sleepers.filter(
       (sleeper) => !sleeper.awake && Math.hypot(sleeper.x - pacX, sleeper.y - pacY) < COLLIDE_DISTANCE,
     );
@@ -148,8 +150,10 @@ export class GhostTrain {
       (a, b) => Math.hypot(a.x - pacX, a.y - pacY) - Math.hypot(b.x - pacX, b.y - pacY),
     );
     let woke = 0;
+    const copies = Math.max(1, Math.floor(perWake));
     for (const sleeper of hits) {
-      if (this.followers.length >= TRAIN_MAX_FOLLOWERS) break;
+      const room = TRAIN_MAX_FOLLOWERS - this.followers.length;
+      if (room <= 0) break;
       if (ghosts.length === 0) break;
       if (this.followers.length === 0) {
         const leader = closestMain(sleeper.x, sleeper.y, ghosts, maze);
@@ -159,19 +163,22 @@ export class GhostTrain {
         this.pathSource = '';
         this.holdUntilMove = null;
       }
+      const add = Math.min(copies, room);
       sleeper.awake = true;
-      this.followers.push({
-        id: this.nextFollowerId++,
-        x: sleeper.x,
-        y: sleeper.y,
-        dir: { ...DIR_LEFT },
-        queued: null,
-        centerKey: -1,
-        reversePending: false,
-        joined: false,
-        wakeX: sleeper.x,
-        wakeY: sleeper.y,
-      });
+      for (let n = 0; n < add; n++) {
+        this.followers.push({
+          id: this.nextFollowerId++,
+          x: sleeper.x,
+          y: sleeper.y,
+          dir: { ...DIR_LEFT },
+          queued: null,
+          centerKey: -1,
+          reversePending: false,
+          joined: false,
+          wakeX: sleeper.x,
+          wakeY: sleeper.y,
+        });
+      }
       woke += 1;
     }
     return woke;

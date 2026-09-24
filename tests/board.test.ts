@@ -102,7 +102,7 @@ describe('main board', () => {
     game.board.pac.y = 23;
     game.board.pac.dir = { x: 1, y: 0 };
     game.update(1 / 60);
-    expect(game.board.frightened).toBeGreaterThan(8);
+    expect(game.board.frightened).toBe(6);
     expect(blinky.skipFright).toBe(false);
     expect(blinky.mode).toBe('frightened');
   });
@@ -145,7 +145,7 @@ describe('main board', () => {
     game.update(1 / 60);
     expect(blinky.mode).toBe('house');
     expect(blinky.skipFright).toBe(false);
-    expect(game.board.frightened).toBeGreaterThan(8);
+    expect(game.board.frightened).toBe(6);
     expect(ghostDrawMode(blinky.mode, blinky.skipFright, game.board.frightened)).toBe('frightened');
 
     const score = game.board.score;
@@ -276,7 +276,7 @@ describe('main board', () => {
     game.board.pac.y = 23;
     game.board.pac.dir = { x: 1, y: 0 };
     game.update(1 / 60);
-    expect(game.board.frightened).toBeGreaterThan(8);
+    expect(game.board.frightened).toBe(6);
     expect(game.board.eatPopupCount).toBe(2);
 
     game.board.pac.dir = { x: 0, y: 0 };
