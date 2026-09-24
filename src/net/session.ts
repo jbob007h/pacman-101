@@ -106,6 +106,12 @@ export class NetSession {
     this.send({ type: 'deathReport' });
   }
 
+  /** Ask the server to finish a match that only bots are still playing. */
+  sendEndMatch(): void {
+    if (this.phase !== 'playing' && this.phase !== 'spectating') return;
+    this.send({ type: 'endMatch' });
+  }
+
   stop(): void {
     this.generation += 1;
     this.intentional = true;

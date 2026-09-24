@@ -232,6 +232,56 @@ describe('match room', () => {
     expect(lobby.seats.some((seat) => seat.name === 'Cam')).toBe(true);
     expect(lobby.you).toBeGreaterThan(0);
   });
+
+  it('rejects end match while a human is alive, then places bots and ends', () => {
+    let now = 0;
+    const adaLog: ServerMessage[] = [];
+    const beaLog: ServerMessage[] = [];
+    const watchLog: ServerMessage[] = [];
+    const watchLink = sink(watchLog);
+    const room = new MatchRoom(() => now, () => 0.25);
+    const ada = room.join(sink(adaLog), 'Ada');
+    const bea = room.join(sink(beaLog), 'Bea');
+    if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') throw new Error('expected two seats');
+    readyAndStart(room, [ada.seat, bea.seat], {
+      advance(ms) {
+        now += ms;
+      },
+    });
+    const watch = room.join(watchLink, 'Cam');
+    expect(watch).toMatchObject({ ok: true, role: 'spectator' });
+
+    room.handle(ada.seat, { type: 'endMatch' });
+    room.onMessage(watchLink, { type: 'endMatch' });
+    expect(adaLog.some((message) => message.type === 'matchEnd')).toBe(false);
+    expect(watchLog.some((message) => message.type === 'matchEnd')).toBe(false);
+
+    room.handle(ada.seat, { type: 'deathReport' });
+    room.handle(ada.seat, { type: 'endMatch' });
+    room.onMessage(watchLink, { type: 'endMatch' });
+    expect(adaLog.some((message) => message.type === 'matchEnd')).toBe(false);
+
+    room.handle(bea.seat, { type: 'deathReport' });
+    room.handle(bea.seat, { type: 'endMatch' });
+    const ended = beaLog.find((message) => message.type === 'matchEnd');
+    expect(ended?.type).toBe('matchEnd');
+    if (ended?.type !== 'matchEnd') return;
+    expect(ended.placements).toHaveLength(ROOM_SIZE);
+    expect(ended.placements.find((row) => row.seat === ada.seat)?.place).toBe(ROOM_SIZE);
+    expect(ended.placements.find((row) => row.seat === bea.seat)?.place).toBe(ROOM_SIZE - 1);
+    const livingPlaces = ended.placements
+      .filter((row) => row.seat !== ada.seat && row.seat !== bea.seat)
+      .map((row) => row.place)
+      .sort((a, b) => a - b);
+    expect(livingPlaces).toEqual(Array.from({ length: ROOM_SIZE - 2 }, (_, index) => index + 1));
+    expect(new Set(ended.placements.map((row) => row.place)).size).toBe(ROOM_SIZE);
+    expect(watchLog.some((message) => message.type === 'matchEnd')).toBe(true);
+
+    const before = adaLog.filter((message) => message.type === 'matchEnd').length;
+    room.handle(bea.seat, { type: 'endMatch' });
+    room.onMessage(watchLink, { type: 'endMatch' });
+    expect(adaLog.filter((message) => message.type === 'matchEnd').length).toBe(before);
+  });
 });
 
 describe('match server', () => {
@@ -425,6 +475,57 @@ describe('online game path', () => {
     watcher.clearSpectate();
     expect(watcher.spectating).toBe(false);
     expect(watcher.hud().standings).toBeNull();
+  });
+
+  it('offers end match only when every living seat is a bot', () => {
+    const roster = (humansAlive: number[]): RosterSeat[] =>
+      Array.from({ length: ROOM_SIZE }, (_, index) => {
+        const seat = index + 1;
+        const human = seat <= 2;
+        return {
+          seat,
+          name: human ? (seat === 1 ? 'Ada' : 'Bea') : `Bot ${index}`,
+          alive: human ? humansAlive.includes(seat) : true,
+          pressure: seat,
+          hit: false,
+          busy: false,
+          bot: !human,
+          ready: true,
+        };
+      });
+
+    const playing = new Game(() => 0);
+    playing.startMatch();
+    playing.armOnline(1, roster([1, 2]));
+    expect(playing.hud().canEndMatch).toBe(false);
+
+    playing.applyServerElimination();
+    playing.noteOnlineElimination(1, ROOM_SIZE);
+    playing.board.deathTime = 1;
+    playing.applyOnlineRoster(roster([2]));
+    expect(playing.hud().canEndMatch).toBe(false);
+
+    playing.noteOnlineElimination(2, ROOM_SIZE - 1);
+    playing.applyOnlineRoster(roster([]));
+    expect(playing.hud().canEndMatch).toBe(true);
+    const ends: string[] = [];
+    playing.bindOnline({
+      earn: () => {},
+      death: () => {},
+      end: () => ends.push('end'),
+    });
+    playing.requestEndMatch();
+    expect(ends).toEqual(['end']);
+
+    const watcher = new Game(() => 0);
+    watcher.beginSpectate(roster([1]), 4);
+    expect(watcher.hud().canEndMatch).toBe(false);
+    watcher.applySpectateRoster(roster([]));
+    expect(watcher.hud().canEndMatch).toBe(true);
+    watcher.showSpectatorPlacements(
+      roster([]).map((seat, index) => ({ seat: seat.seat, name: seat.name, place: index + 1 })),
+    );
+    expect(watcher.hud().canEndMatch).toBe(false);
   });
 
   it('shows every eliminated place on a spectator who joined mid-match', () => {

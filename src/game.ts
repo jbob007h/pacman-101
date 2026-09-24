@@ -19,6 +19,7 @@ import { SimWorld } from './systems/sims';
 export interface OnlineHandlers {
   earn(attack: AttackKind, strength: number): void;
   death(): void;
+  end?(): void;
 }
 
 export interface HudState {
@@ -34,6 +35,8 @@ export interface HudState {
   overlay: { title: string; body: string; hint: string | null } | null;
   /** Death rankings after the collapse, or the win rankings after congratulations. */
   standings: StandingSnapshot | null;
+  /** True when every living seat is a bot and this viewer may end the match. */
+  canEndMatch: boolean;
 }
 
 /**
@@ -84,6 +87,7 @@ export class Game {
   private spectatorClock = 0;
   private earnSink: OnlineHandlers['earn'] | null = null;
   private deathSink: OnlineHandlers['death'] | null = null;
+  private endSink: OnlineHandlers['end'] | null = null;
   private suppressDeathReport = false;
 
   constructor(rng: Rng = Math.random) {
@@ -151,6 +155,28 @@ export class Game {
   bindOnline(handlers: OnlineHandlers | null): void {
     this.earnSink = handlers?.earn ?? null;
     this.deathSink = handlers?.death ?? null;
+    this.endSink = handlers?.end ?? null;
+  }
+
+  /**
+   * Finish a match that only bots are still playing.
+   * Online and spectate ask the server. Local seals the remaining CPU places.
+   */
+  requestEndMatch(): void {
+    if (!this.mayEndMatch()) return;
+    if (this.online || this.spectating) {
+      this.endSink?.();
+      return;
+    }
+    const survivors = this.sims.sims
+      .filter((sim) => sim.alive && !sim.parked)
+      .sort((a, b) => a.pressure - b.pressure || a.id - b.id);
+    this.ranking.sealSims(survivors.map((sim) => ({ id: sim.id, name: sim.name })));
+    for (const sim of survivors) {
+      sim.alive = false;
+      sim.pressure = KILL_PRESSURE;
+      sim.busy = 0;
+    }
   }
 
   /**
@@ -235,7 +261,7 @@ export class Game {
       return;
     }
     if (!this.online || this.onlineFinal || !Number.isFinite(place)) return;
-    const known = this.onlineSeats.get(seat) ?? { seat, name: '', alive: true, place: null };
+    const known = this.onlineSeats.get(seat) ?? { seat, name: '', alive: true, place: null, bot: false };
     known.alive = false;
     known.place = place;
     if (seat === this.onlineSeat && !known.name) known.name = this.playerName;
@@ -276,6 +302,7 @@ export class Game {
         name: row.name,
         alive: false,
         place: row.place,
+        bot: false,
       });
     }
     this.refreshOnlineStandings();
@@ -446,6 +473,7 @@ export class Game {
       countdown: this.countdownLabel(),
       overlay: this.overlay(),
       standings: this.spectating ? this.spectatorSnapshot() : this.standingsOverlay(),
+      canEndMatch: this.mayEndMatch(),
     };
   }
 
@@ -564,6 +592,20 @@ export class Game {
     return null;
   }
 
+  /**
+   * End-match control: an in-progress match whose living seats are all bots.
+   * A living human, a finished match, and the pre-standings death pause hide it.
+   */
+  private mayEndMatch(): boolean {
+    if (this.spectating) return botsOnly(this.spectatorRoster);
+    if (this.online) {
+      if (this.onlineFinal || this.match.phase !== 'lost' || this.board.deathTime <= 0.85) return false;
+      return botsOnly([...this.onlineSeats.values()]);
+    }
+    if (this.match.phase !== 'lost' || this.board.deathTime <= 0.85) return false;
+    return this.ranking.snapshot().stillIn > 0;
+  }
+
   /** Death rankings wait out the collapse. A win shows them after the congratulations card. */
   private standingsOverlay(): StandingSnapshot | null {
     if (this.match.phase === 'won' && this.winAcknowledged) return this.finalStandings();
@@ -591,6 +633,7 @@ export class Game {
         name,
         alive: place != null ? false : seat.alive,
         place,
+        bot: seat.bot,
       });
     }
   }
@@ -701,6 +744,13 @@ interface OnlineSeat {
   alive: boolean;
   /** Null while the server has not locked a finish. */
   place: number | null;
+  bot: boolean;
+}
+
+/** Living seats are all CPU bots, so a waiting human may close the match. */
+function botsOnly(seats: readonly { alive: boolean; bot: boolean }[]): boolean {
+  const living = seats.filter((seat) => seat.alive);
+  return living.length > 0 && living.every((seat) => seat.bot);
 }
 
 function oneOpponentRoster(you: number, name: string): RosterSeat[] {
