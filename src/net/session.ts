@@ -1,8 +1,8 @@
-import type { AttackKind, ClientMessage, ServerMessage } from './protocol';
+import type { AttackKind, ClientMessage, RosterSeat, ServerMessage } from './protocol';
 
 export interface SessionHandlers {
   onNote(text: string): void;
-  onLobby(): void;
+  onLobby(message: Extract<ServerMessage, { type: 'lobby' }>): void;
   onMatchStart(message: Extract<ServerMessage, { type: 'matchStart' }>): void;
   onJammer(message: Extract<ServerMessage, { type: 'jammerInbound' }>): void;
   onRoster(message: Extract<ServerMessage, { type: 'rosterDelta' }>): void;
@@ -30,6 +30,11 @@ export class NetSession {
 
   get active(): boolean {
     return this.phase !== 'idle';
+  }
+
+  /** True after this seat has sent `ready` for the current lobby. */
+  get hasReadied(): boolean {
+    return this.readied;
   }
 
   connect(url: string, name: string): void {
@@ -78,6 +83,13 @@ export class NetSession {
   rejoin(): void {
     if (!this.url) return;
     this.connect(this.url, this.name);
+  }
+
+  /** Lobby only. A solo human starting alone is a legal ready. */
+  sendReady(): void {
+    if (this.phase !== 'lobby' || this.readied) return;
+    this.readied = true;
+    this.send({ type: 'ready' });
   }
 
   sendEarn(attack: AttackKind, strength: number): void {
@@ -131,13 +143,8 @@ export class NetSession {
     if (message.type === 'lobby') {
       this.seat = message.you;
       this.phase = 'lobby';
-      const waiting = message.seats.length < message.need;
-      this.handlers.onNote(waiting ? 'Waiting for the other player…' : 'Both players in. Starting…');
-      this.handlers.onLobby();
-      if (!this.readied) {
-        this.readied = true;
-        this.send({ type: 'ready' });
-      }
+      this.handlers.onNote(describeLobby(message.seats, message.need));
+      this.handlers.onLobby(message);
       return;
     }
     if (message.type === 'matchStart') {
@@ -165,6 +172,15 @@ export class NetSession {
       this.handlers.onMatchEnd(message);
     }
   }
+}
+
+/** Title-screen line while humans are still joining. Bots are not in the lobby yet. */
+export function describeLobby(seats: readonly RosterSeat[], roomSize: number): string {
+  const humans = seats.filter((seat) => !seat.bot);
+  const ready = humans.filter((seat) => seat.ready).length;
+  const names = humans.map((seat) => `${seat.name}${seat.ready ? ' (ready)' : ''}`).join(', ');
+  const who = names.length > 0 ? names : 'Nobody yet';
+  return `${who}. ${ready} of ${humans.length} ready. Empty seats fill to ${roomSize} when everyone here is Ready. Join before you Ready if a friend is coming.`;
 }
 
 function connectionFailureNote(url: string): string {

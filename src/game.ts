@@ -69,12 +69,13 @@ export class Game {
   /** Live online match. Local sim targeting stays off until the next reset. */
   online = false;
   private onlineSeat = 0;
+  /** Server seat → side-panel sim, for the seats that are not this client. */
+  private onlinePanels = new Map<number, number>();
   /** Server finish list for this online match. Offline standings stay on {@link ranking}. */
   private onlineStandings: StandingSnapshot | null = null;
   private earnSink: OnlineHandlers['earn'] | null = null;
   private deathSink: OnlineHandlers['death'] | null = null;
   private suppressDeathReport = false;
-  private muteEliminations = false;
 
   constructor(rng: Rng = Math.random) {
     this.board = new Board(this.bus, rng);
@@ -92,11 +93,8 @@ export class Game {
       this.setBanner(`${reasonLabel(event.reason)} ${event.strength} → ${formatTargets(event.targets)}`);
     });
     this.bus.on('simEliminated', (event) => {
-      if (this.muteEliminations) return;
-      const name =
-        this.online && event.simId === 1
-          ? (this.sims.sims[0]?.name ?? this.ranking.nameForSim(event.simId))
-          : this.ranking.nameForSim(event.simId);
+      const named = this.online ? this.sims.sims.find((sim) => sim.id === event.simId) : undefined;
+      const name = named?.name ?? this.ranking.nameForSim(event.simId);
       this.setBanner(`Eliminated ${name}`);
     });
     this.bus.on('incomingJammer', (event) => {
@@ -147,49 +145,74 @@ export class Game {
   }
 
   /**
-   * Two-seat match. Call after {@link startMatch}: reset turns local battle
-   * back on, and this parks every sim except the one remote human.
+   * Online match. Call after {@link startMatch}: reset turns local battle
+   * back on, and this parks every sim that is not in the server roster.
+   * A string is the N1 one-opponent shorthand (tests and a single remote name).
+   * A roster snapshot shows every other seat, human or bot, and hides the rest
+   * so the alive counter matches the room (8 in N2a, not 101).
    */
-  armOnline(you: number, opponentName: string): void {
+  armOnline(you: number, opponent: string | readonly RosterSeat[]): void {
+    const roster = typeof opponent === 'string' ? oneOpponentRoster(you, opponent) : opponent;
     this.online = true;
     this.onlineSeat = you;
+    this.onlinePanels.clear();
     this.sims.setLocalBattle(false);
-    const opponent = this.sims.sims[0];
-    if (opponent) {
-      opponent.name = opponentName || 'Opponent';
-      opponent.alive = true;
-      opponent.pressure = 0;
-      opponent.heat = 0;
-      opponent.busy = 0;
-    }
-    this.muteEliminations = true;
-    for (const sim of this.sims.sims) {
-      if (sim.id === 1 || !sim.alive) continue;
+    const others = roster
+      .filter((seat) => seat.seat !== you)
+      .sort((a, b) => a.seat - b.seat);
+    others.forEach((seat, index) => {
+      const sim = this.sims.sims[index];
+      if (!sim) return;
+      this.onlinePanels.set(seat.seat, sim.id);
+      sim.parked = false;
+      sim.showName = true;
+      sim.name = seat.name || 'Opponent';
+      sim.alive = seat.alive;
+      sim.pressure = seat.alive ? seat.pressure : KILL_PRESSURE;
+      sim.heat = seat.hit ? 1 : 0;
+      sim.busy = seat.busy ? 1 : 0;
+      sim.relief = 0;
+    });
+    for (let index = others.length; index < this.sims.sims.length; index++) {
+      const sim = this.sims.sims[index];
+      if (!sim) continue;
+      sim.parked = true;
+      sim.showName = false;
       sim.alive = false;
-      this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 2 });
+      sim.pressure = 0;
+      sim.heat = 0;
+      sim.busy = 0;
     }
-    this.muteEliminations = false;
   }
 
   applyOnlineRoster(seats: readonly RosterSeat[]): void {
     if (!this.online) return;
-    const other = seats.find((seat) => seat.seat !== this.onlineSeat);
-    const sim = this.sims.sims[0];
-    if (!other || !sim || !sim.alive || !other.alive) return;
-    sim.name = other.name;
-    sim.pressure = other.pressure;
-    if (other.hit) sim.heat = 1;
-    if (other.busy) sim.busy = 1;
+    for (const seat of seats) {
+      if (seat.seat === this.onlineSeat) continue;
+      const sim = this.simForSeat(seat.seat);
+      if (!sim || sim.parked) continue;
+      sim.name = seat.name;
+      sim.showName = true;
+      if (!seat.alive) {
+        if (sim.alive) this.markSimOut(sim);
+        continue;
+      }
+      if (!sim.alive) continue;
+      sim.pressure = seat.pressure;
+      if (seat.hit) sim.heat = 1;
+      if (seat.busy) sim.busy = 1;
+    }
   }
 
   /**
-   * Inbound jammer chosen by the server. Panel 1 is the other human.
+   * Inbound jammer chosen by the server. The bolt leaves that seat's panel.
    * Only a ghost earn spawns sprites: one per ghost eaten. Dot and clear
-   * messages are ignored.
+   * messages are ignored. Bot shots use the same ghost count.
    */
-  receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'ghost'): void {
+  receiveOnlineJammer(strength: number, fromName: string, attack: AttackKind = 'ghost', fromSeat?: number): void {
     if (attack !== 'ghost' || !(strength > 0)) return;
-    this.fx.queueIncoming(panelCenter(1), ghostHouseCenter(), strength, true);
+    const simId = fromSeat != null ? (this.onlinePanels.get(fromSeat) ?? 1) : 1;
+    this.fx.queueIncoming(panelCenter(simId), ghostHouseCenter(), strength, true);
     this.setBanner(`Ghost jam from ${fromName}`);
   }
 
@@ -221,15 +244,18 @@ export class Game {
     };
   }
 
-  /** Server confirmed the other human is out. The last local seat wins. */
+  /** Server confirmed one other seat is out. The last living seat wins. */
+  eliminateOnlineSeat(seat: number): void {
+    if (!this.online) return;
+    const sim = this.simForSeat(seat);
+    if (!sim) return;
+    this.markSimOut(sim);
+  }
+
+  /** Mark every other online seat out. Used when the server says this client won. */
   eliminateOnlineOpponent(): void {
     if (!this.online) return;
-    const sim = this.sims.sims[0];
-    if (!sim?.alive) return;
-    sim.alive = false;
-    sim.pressure = KILL_PRESSURE;
-    sim.busy = 0;
-    this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 });
+    for (const seat of [...this.onlinePanels.keys()]) this.eliminateOnlineSeat(seat);
   }
 
   startMatch(): void {
@@ -299,6 +325,7 @@ export class Game {
     this.winAcknowledged = false;
     this.online = false;
     this.onlineSeat = 0;
+    this.onlinePanels.clear();
     this.onlineStandings = null;
     this.suppressDeathReport = false;
     this.sfx.resetWatch();
@@ -454,6 +481,20 @@ export class Game {
     this.bannerT = 2.2;
   }
 
+  private simForSeat(seat: number) {
+    const simId = this.onlinePanels.get(seat);
+    if (simId == null) return undefined;
+    return this.sims.sims.find((sim) => sim.id === simId);
+  }
+
+  private markSimOut(sim: { id: number; alive: boolean; pressure: number; busy: number }): void {
+    if (!sim.alive) return;
+    sim.alive = false;
+    sim.pressure = KILL_PRESSURE;
+    sim.busy = 0;
+    this.bus.emit({ type: 'simEliminated', simId: sim.id, remainingPlayers: 1 + this.sims.aliveCount() });
+  }
+
   private forwardDeath(): void {
     if (this.suppressDeathReport) {
       this.suppressDeathReport = false;
@@ -462,6 +503,15 @@ export class Game {
     if (!this.online || !this.deathSink) return;
     this.deathSink();
   }
+}
+
+function oneOpponentRoster(you: number, name: string): RosterSeat[] {
+  const other = you === 1 ? 2 : 1;
+  const blank = { alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true };
+  return [
+    { ...blank, seat: you, name: '' },
+    { ...blank, seat: other, name: name || 'Opponent' },
+  ];
 }
 
 function reasonLabel(reason: JamReason): string {

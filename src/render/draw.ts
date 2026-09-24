@@ -126,7 +126,10 @@ export function drawFrame(ctx: CanvasRenderingContext2D, input: DrawInput): void
     ctx.translate(Math.sin(input.time * 48) * mag, Math.cos(input.time * 37) * mag);
   }
 
-  for (const sim of input.sims) drawPanel(ctx, sim, input.time);
+  for (const sim of input.sims) {
+    if (sim.parked) continue;
+    drawPanel(ctx, sim, input.time);
+  }
   ctx.textAlign = 'left';
   ctx.textBaseline = 'alphabetic';
 
@@ -550,6 +553,7 @@ function drawEyes(
 }
 
 function drawPanel(ctx: CanvasRenderingContext2D, sim: Sim, time: number): void {
+  if (sim.parked) return;
   const rect = panelRect(sim.id);
   const press = sim.alive ? Math.min(1, sim.pressure / 100) : 0;
   ctx.fillStyle = sim.alive ? '#101624' : '#141414';
@@ -598,7 +602,19 @@ function drawPanel(ctx: CanvasRenderingContext2D, sim: Sim, time: number): void 
   ctx.font = '10px ui-monospace, monospace';
   ctx.textAlign = 'right';
   ctx.textBaseline = 'top';
-  ctx.fillText(String(sim.id), rect.x + rect.w - 4, rect.y + 3);
+  if (sim.showName) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(rect.x + 2, rect.y + rect.h - 13, rect.w - 4, 11);
+    ctx.clip();
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.font = '9px ui-monospace, monospace';
+    ctx.fillText(sim.name, rect.x + 3, rect.y + rect.h - 2);
+    ctx.restore();
+  } else {
+    ctx.fillText(String(sim.id), rect.x + rect.w - 4, rect.y + 3);
+  }
 }
 
 function wallColor(border: boolean, flash: number): string {
