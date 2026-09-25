@@ -156,6 +156,12 @@ export class MatchRoom {
   /**
    * Advance the lobby clock and bot attack timers.
    * Pass seconds to step bots in tests. Otherwise the delta comes from {@link now}.
+   *
+   * Human mazes run on the client and report back with `deathReport`. A seat
+   * that stops sending (hidden tab, no earns) stays in the match: this clock
+   * does not pause, bots keep firing, and `jammerInbound` is still delivered.
+   * Silence is not a stall and not an elimination. The client simulates the
+   * missed wall time and reports the death if those jammers catch Pac.
    */
   tick(dtSeconds?: number): void {
     const t = this.now();

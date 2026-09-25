@@ -42,6 +42,11 @@ export const GHOST_LEAVE_SPEED = 3.24;
 /** Eyes dropping back into the house. Not used for the exit. */
 export const GHOST_DOOR_SPEED = 7.02;
 /**
+ * Seconds an eaten ghost waits in the house after its eyes arrive.
+ * Opening releases stay Pinky 4s, Inky 12s, Clyde 18s. Jammers do not use this.
+ */
+export const EATEN_HOUSE_SECONDS = 5;
+/**
  * Fallback denominator for {@link pelletFill} when a caller does not pass the pellet's own duration.
  * Live pellets use {@link frightSecondsForBoard}, not this constant.
  */
@@ -114,8 +119,14 @@ export function pelletFill(remaining: number, duration = FRIGHT_SECONDS): number
 /** Logic rate. Drawing may follow the display; simulation steps are this long. */
 export const SIM_FPS = 60;
 export const SIM_FRAME_SEC = 1 / SIM_FPS;
-/** Catch-up cap so a stalled tab cannot run the maze in a burst. */
+/**
+ * Most fixed steps one slice will run before yielding.
+ * Leftover time stays queued. A hidden tab catches up in later slices
+ * instead of dropping the gap.
+ */
 export const MAX_SIM_STEPS = 5;
+/** Milliseconds of simulation work per wake, so a long catch-up does not freeze the tab. */
+export const SIM_CATCHUP_BUDGET_MS = 12;
 /** Frames Pac stands still after eating a normal dot. Counted in simulation steps. */
 export const DOT_STOP_FRAMES = 1;
 /** Frames Pac stands still after eating a power pellet. */

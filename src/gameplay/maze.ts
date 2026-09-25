@@ -101,6 +101,18 @@ export class Maze {
     return this.cells[y * this.cols + x] as TileId;
   }
 
+  /**
+   * True when the cleared starting layout had a normal dot here.
+   * Power pellets, empty paths, the house, the door, and stripped dots are false.
+   * Eating the dot does not change this.
+   */
+  startingDot(x: number, y: number): boolean {
+    const col = Math.round(x);
+    const row = Math.round(y);
+    if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) return false;
+    return this.initial[row * this.cols + col] === Tile.Dot;
+  }
+
   blocks(x: number, y: number, who: Passer): boolean {
     if (y < 0 || y >= this.rows) return true;
     let xx = x;
