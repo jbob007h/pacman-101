@@ -11,7 +11,7 @@ import {
   type RosterSeat,
   type ServerMessage,
 } from '../src/net/protocol';
-import { cpuAttackCancelled, cpuCancelPercent, rollAttackDelay, rollJammerCount, scaleCpuJammers } from '../src/systems/jammers';
+import { cpuAttackCancelled, cpuCancelPercent, rollAttackDelay, rollJammerCount, rollOpeningAttackDelay, scaleCpuJammers } from '../src/systems/jammers';
 import { cpuMistakeChance } from '../src/systems/mistakes';
 import { cpuName } from '../src/systems/names';
 import { resolveKnockout, type DeathCause } from '../src/systems/knockouts';
@@ -305,7 +305,7 @@ export class MatchRoom {
     }
     for (const seat of this.seats.values()) {
       this.fresh(seat);
-      if (seat.bot) seat.attackIn = rollAttackDelay(this.rng);
+      if (seat.bot) seat.attackIn = rollOpeningAttackDelay(this.rng);
       else seat.ready = true;
     }
     this.matchStartedAt = this.now();

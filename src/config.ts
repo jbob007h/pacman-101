@@ -259,10 +259,10 @@ export const DOT_PRESSURE = 22;
 export const CLEAR_PRESSURE = 42;
 export const CLEAR_TARGETS = 8;
 /**
- * Each living CPU attacks on its own clock. The first shot is
- * {@link SIM_ATTACK_MIN}–{@link SIM_ATTACK_MAX} seconds after the match clock
- * starts, and each later shot rolls that same range again. There is no shared
- * ticker and no multi-shot burst.
+ * Each living CPU attacks on its own clock. The first shot is the
+ * {@link SIM_ATTACK_MIN}–{@link SIM_ATTACK_MAX} roll shifted out of
+ * {@link SIM_ATTACK_GRACE}, and each later shot rolls that range again.
+ * There is no shared ticker and no multi-shot burst.
  * One shot rolls {@link SIM_JAMMER_MIN}–{@link SIM_JAMMER_MAX} jammers, then
  * {@link cpuCancelPercent} may cancel it or scale that roll down. The target
  * is one living seat (every other living sim, plus the human) with equal odds.
@@ -300,9 +300,10 @@ export const CPU_MISTAKE_START = 15;
 export const CPU_MISTAKE_END = 150;
 export const CPU_MISTAKE_EXPECTED = 10;
 /**
- * Opening quiet carried on `matchStart` for a later bot phase.
- * Local CPUs do not use this as a shared gate. Their own 5–15s timer is the wait.
- * N2 bots should copy that per-seat cadence, not a fast global clock after this grace.
+ * No CPU or bot attack lands before this many seconds. The opening 5–15s roll
+ * is shifted so its earliest land is this grace. Later shots stay on 5–15s.
+ * Local sims and server bots share that opening roll. It is not a clock that
+ * starts when the grace ends.
  */
 export const SIM_ATTACK_GRACE = 10;
 export const SIM_RELIEF_INTERVAL = 2.5;
