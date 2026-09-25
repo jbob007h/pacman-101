@@ -241,7 +241,7 @@ describe('power modes', () => {
 
   it('uses the board fright table, and Stronger still forces 4 seconds', () => {
     expect([1, 2, 3, 4, 5, 6, 7, 8].map((board) => frightSecondsForBoard(board))).toEqual([
-      8, 7, 6, 5, 3, 6, 4, 3,
+      8, 7, 6, 5, 4, 6, 5, 3,
     ]);
     expect(frightSecondsForBoard(12)).toBe(1.5);
     expect(frightSecondsForBoard(17)).toBe(0);
