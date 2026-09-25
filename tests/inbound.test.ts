@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { JAMMER_CAP, JAMMER_SPAWN_SECONDS } from '../src/config';
+import { JAMMER_CAP, JAMMER_HIT_DISTANCE, JAMMER_SPAWN_SECONDS } from '../src/config';
 import { Game } from '../src/game';
-import { InboundField, quadrantOf, redWeight, slowProfile, splitJammerColors, type InboundJammer } from '../src/gameplay/inbound';
-import { Tile } from '../src/gameplay/maze';
-import { DIR_NONE } from '../src/shared/types';
+import { InboundField, quadrantOf, redUnfreezeDirection, redWeight, slowProfile, splitJammerColors, type InboundJammer } from '../src/gameplay/inbound';
+import { Maze, Tile } from '../src/gameplay/maze';
+import { DIR_DOWN, DIR_LEFT, DIR_NONE, DIR_RIGHT, DIR_UP, type Dir } from '../src/shared/types';
 
 describe('inbound jammers', () => {
   it('ramps the red share every 30s and is red-only at 7:00', () => {
@@ -248,6 +248,76 @@ describe('inbound jammers', () => {
     expect(red.phase).toBe('live');
   });
 
+  it('sends a thawing red right, then up, then back to chase', () => {
+    const maze = new Maze();
+    const rightOpen = { x: 10, y: 5 };
+    const upOnly = { x: 6, y: 8 };
+    const bothBlocked = { x: 26, y: 1 };
+    const pac = { x: 1, y: 1 };
+
+    expect(maze.blocks(rightOpen.x + 1, rightOpen.y, 'pac')).toBe(false);
+    expect(maze.blocks(upOnly.x + 1, upOnly.y, 'pac')).toBe(true);
+    expect(maze.blocks(upOnly.x, upOnly.y - 1, 'pac')).toBe(false);
+    expect(maze.blocks(bothBlocked.x + 1, bothBlocked.y, 'pac')).toBe(true);
+    expect(maze.blocks(bothBlocked.x, bothBlocked.y - 1, 'pac')).toBe(true);
+
+    expect(redUnfreezeDirection(maze, rightOpen.x, rightOpen.y, pac.x, pac.y, DIR_DOWN)).toEqual(DIR_RIGHT);
+    expect(redUnfreezeDirection(maze, upOnly.x, upOnly.y, pac.x, pac.y, DIR_DOWN)).toEqual(DIR_UP);
+    const chase = redUnfreezeDirection(maze, bothBlocked.x, bothBlocked.y, pac.x, pac.y, DIR_DOWN);
+    expect(chase).toEqual(DIR_LEFT);
+    expect(chase).not.toEqual(DIR_RIGHT);
+    expect(chase).not.toEqual(DIR_UP);
+
+    const right = thaw(maze, rightOpen, pac, DIR_DOWN);
+    expect(right.red.dir).toEqual(DIR_RIGHT);
+    expect(right.red.x).toBeGreaterThan(rightOpen.x);
+    expect(right.white.dir).toEqual(DIR_LEFT);
+    expect(right.white.x).toBeLessThan(14);
+
+    const up = thaw(maze, upOnly, pac, DIR_DOWN);
+    expect(up.red.dir).toEqual(DIR_UP);
+    expect(up.red.y).toBeLessThan(upOnly.y);
+
+    const fallback = thaw(maze, bothBlocked, pac, DIR_DOWN);
+    expect(fallback.red.dir).toEqual(DIR_LEFT);
+    expect(fallback.red.x).toBeLessThan(bothBlocked.x);
+
+    const stayed = new InboundField();
+    const still = liveAt('red', rightOpen.x, rightOpen.y, DIR_DOWN);
+    stayed.jammers.push(still);
+    stayed.update(1 / 60, maze, pac.x, rightOpen.y, 8, false, true);
+    expect(still.dir).toEqual(DIR_LEFT);
+  });
+
+  it('does not kill Pac when an attack arrives, even if that attack includes reds', () => {
+    const game = new Game(() => 0);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    game.board.pac.x = 1;
+    game.board.pac.y = 1;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.matchTime = 120;
+    game.board.matchTime = 120;
+    const spawned = game.board.spawnInbound(16, true, 4);
+    expect(spawned).toBeGreaterThan(0);
+    expect(game.board.inbound.jammers.some((jammer) => jammer.kind === 'red')).toBe(true);
+    expect(game.board.pac.alive).toBe(true);
+    for (const jammer of game.board.inbound.jammers) {
+      expect(Math.hypot(jammer.x - game.board.pac.x, jammer.y - game.board.pac.y)).toBeGreaterThan(JAMMER_HIT_DISTANCE);
+    }
+
+    const steps = Math.ceil(JAMMER_SPAWN_SECONDS / 0.05) + 2;
+    for (let i = 0; i < steps; i++) {
+      game.board.inbound.update(0.05, game.board.maze, game.board.pac.x, game.board.pac.y, 8, false, false);
+    }
+    expect(game.board.inbound.jammers.every((jammer) => jammer.phase === 'live')).toBe(true);
+    expect(game.board.inbound.touch(game.board.pac.x, game.board.pac.y, 120)).toBe(false);
+    expect(game.board.pac.alive).toBe(true);
+    expect(game.match.phase).toBe('playing');
+  });
+
   it('starts the match clock at 0:00 and counts up after the first step', () => {
     const game = new Game(() => 0);
     game.update(0.05);
@@ -257,6 +327,38 @@ describe('inbound jammers', () => {
     expect(game.hud().time).toBe('0:01');
   });
 });
+
+function thaw(
+  maze: Maze,
+  tile: { x: number; y: number },
+  pac: { x: number; y: number },
+  facing: Dir,
+): { red: InboundJammer; white: InboundJammer } {
+  const field = new InboundField();
+  const red = liveAt('red', tile.x, tile.y, facing);
+  const white = liveAt('white', 14, 5, DIR_DOWN);
+  field.jammers.push(red, white);
+  field.update(1 / 60, maze, pac.x, pac.y, 8, true, true);
+  expect(red.x).toBe(tile.x);
+  expect(red.y).toBe(tile.y);
+  field.update(1 / 60, maze, pac.x, pac.y, 8, false, true);
+  return { red, white };
+}
+
+function liveAt(kind: 'white' | 'red', x: number, y: number, dir: Dir): InboundJammer {
+  return {
+    kind,
+    phase: 'live',
+    anim: 1,
+    centerKey: -1,
+    prevX: x,
+    prevY: y,
+    x,
+    y,
+    dir: { ...dir },
+    queued: null,
+  };
+}
 
 function idle(kind: 'white' | 'red'): InboundJammer {
   return {

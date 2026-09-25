@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { GHOST_ATTACK_WINDOW, SIM_ATTACK_GRACE } from '../src/config';
+import { GHOST_ATTACK_WINDOW, KILL_PRESSURE, SIM_ATTACK_GRACE } from '../src/config';
 import { Game } from '../src/game';
 import type { RosterSeat, ServerMessage } from '../src/net/protocol';
 import { EARN_RATE_LIMIT, LOBBY_COUNTDOWN_MS, MAX_HUMANS, ROOM_SIZE } from '../src/net/protocol';
@@ -37,6 +37,43 @@ describe('match room', () => {
     expect(ended?.type).toBe('matchEnd');
     if (ended?.type !== 'matchEnd') return;
     expect(ended.winnerSeat).toBe(human.seat);
+  });
+
+  it('does not pressure-kill a human when an inbound attack arrives', () => {
+    const logs: ServerMessage[] = [];
+    const clock = mutableClock();
+    const room = new MatchRoom(clock.now, () => 0);
+    const ada = room.join({ send: (message) => logs.push(message) }, 'Ada');
+    const bea = room.join({ send: () => undefined }, 'Bea');
+    expect(ada.ok && bea.ok).toBe(true);
+    if (!ada.ok || ada.role !== 'player' || !bea.ok || bea.role !== 'player') return;
+    readyAndStart(room, [ada.seat, bea.seat], clock);
+    logs.length = 0;
+
+    room.handle(bea.seat, { type: 'earnAttack', attack: 'ghost', strength: KILL_PRESSURE });
+
+    expect(logs.some((message) => message.type === 'playerEliminated' || message.type === 'matchEnd')).toBe(false);
+    expect(logs.some((message) => message.type === 'jammerInbound')).toBe(true);
+    const roster = [...logs].reverse().find((message) => message.type === 'rosterDelta');
+    expect(roster?.type).toBe('rosterDelta');
+    if (roster?.type !== 'rosterDelta') return;
+    expect(roster.seats.find((seat) => seat.seat === ada.seat)).toMatchObject({
+      alive: true,
+      pressure: KILL_PRESSURE,
+    });
+
+    logs.length = 0;
+    const bots = new MatchRoom(clock.now, () => 0);
+    const attacker = bots.join({ send: (message) => logs.push(message) }, 'Ada');
+    expect(attacker.ok && attacker.role === 'player').toBe(true);
+    if (!attacker.ok || attacker.role !== 'player') return;
+    readyAndStart(bots, [attacker.seat], clock);
+    logs.length = 0;
+    bots.handle(attacker.seat, { type: 'earnAttack', attack: 'ghost', strength: KILL_PRESSURE });
+    const eliminated = logs.find((message) => message.type === 'playerEliminated');
+    expect(eliminated?.type).toBe('playerEliminated');
+    if (eliminated?.type !== 'playerEliminated') return;
+    expect(eliminated.seat).not.toBe(attacker.seat);
   });
 
   it('sends a jammer only to the other living seat', () => {
@@ -150,7 +187,8 @@ describe('match room', () => {
         now += ms;
       },
     });
-    for (let i = 0; i < ROOM_SIZE - 1; i++) {
+    room.handle(bea.seat, { type: 'deathReport' });
+    for (let i = 0; i < ROOM_SIZE - 2; i++) {
       now += 1_000;
       room.handle(ada.seat, { type: 'earnAttack', attack: 'ghost', strength: 100 });
     }

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { TILE, VIEW_H, VIEW_W } from '../src/config';
+import { createGhosts } from '../src/gameplay/ghosts';
+import type { InboundJammer, JammerKind } from '../src/gameplay/inbound';
 import { Maze, Tile } from '../src/gameplay/maze';
 import { TRAIN_CALM_SCALE } from '../src/gameplay/train';
+import { DIR_LEFT } from '../src/shared/types';
 import type { DrawInput } from '../src/render/draw';
 import {
   drawFrame,
@@ -104,6 +107,44 @@ describe('playfield layer order', () => {
     expect(log.indexOf(popup!)).toBeGreaterThan(log.indexOf(panel!));
   });
 
+  it('paints Blinky, Pinky, Inky, and Clyde above white and red jammers, with Pac still above the ghosts', () => {
+    const log: { kind: string; layer: string; clipped: boolean; text?: string; actor?: string }[] = [];
+    const ctx = recordingContext(log);
+    const input = frameAtTunnel();
+    const ghosts = createGhosts();
+    const blinky = ghosts[0];
+    const pinky = ghosts[1];
+    const inky = ghosts[2];
+    const clyde = ghosts[3];
+    if (!blinky || !pinky || !inky || !clyde) throw new Error('missing ghosts');
+    blinky.mode = 'chase';
+    pinky.mode = 'frightened';
+    inky.mode = 'eaten';
+    clyde.mode = 'scatter';
+    input.ghosts = ghosts;
+    input.frightened = 5;
+    input.jammers = [liveJammer('white', 4, 14), liveJammer('red', 10, 14)];
+    drawFrame(ctx, input);
+
+    const actors = log.filter((entry) => entry.kind === 'actor' && entry.layer === 'maze').map((entry) => entry.actor);
+    const lastJammer = actors.lastIndexOf('jammer');
+    const ghostMarks = actors
+      .map((actor, index) => (actor === 'ghost' || actor === 'eyes' ? index : -1))
+      .filter((index) => index >= 0);
+    const firstGhost = ghostMarks[0] ?? -1;
+    const lastGhost = ghostMarks[ghostMarks.length - 1] ?? -1;
+    const pac = actors.indexOf('pac');
+    expect(actors.filter((actor) => actor === 'jammer')).toHaveLength(2);
+    expect(actors.filter((actor) => actor === 'ghost').length).toBeGreaterThanOrEqual(3);
+    expect(actors).toContain('eyes');
+    expect(firstGhost).toBeGreaterThan(lastJammer);
+    expect(pac).toBeGreaterThan(lastGhost);
+
+    const popup = log.find((entry) => entry.kind === 'text' && entry.text === SPEED_POPUP_TEXT);
+    expect(popup?.layer).toBe('overlay');
+    expect(popup?.clipped).toBe(false);
+  });
+
   it('paints the power-mode list on the unclipped overlay', () => {
     const log: { kind: string; layer: string; clipped: boolean; text?: string }[] = [];
     const ctx = recordingContext(log);
@@ -170,7 +211,34 @@ function frameAtTunnel(): DrawInput {
   };
 }
 
-function recordingContext(log: { kind: string; layer: string; clipped: boolean; text?: string }[]): CanvasRenderingContext2D {
+/** Body radii from the maze painter: jammer disc, ghost body, eaten eyes, Pac. */
+function mazeActor(radius: number): 'jammer' | 'ghost' | 'eyes' | 'pac' | null {
+  if (Math.abs(radius - 6.4 * SPRITE_SCALE) < 0.05) return 'jammer';
+  if (Math.abs(radius - 7 * SPRITE_SCALE) < 0.05) return 'ghost';
+  if (Math.abs(radius - 3.1 * SPRITE_SCALE) < 0.05) return 'eyes';
+  if (Math.abs(radius - 7.1 * SPRITE_SCALE) < 0.05) return 'pac';
+  return null;
+}
+
+function liveJammer(kind: JammerKind, x: number, y: number): InboundJammer {
+  return {
+    kind,
+    phase: 'live',
+    anim: 0,
+    centerKey: -1,
+    prevX: x,
+    prevY: y,
+    x,
+    y,
+    dir: { ...DIR_LEFT },
+    queued: null,
+    sender: 1,
+  };
+}
+
+function recordingContext(
+  log: { kind: string; layer: string; clipped: boolean; text?: string; actor?: string }[],
+): CanvasRenderingContext2D {
   const names = ['panels', 'maze', 'overlay'];
   let made = 0;
   const rootCanvas = {
@@ -183,7 +251,10 @@ function recordingContext(log: { kind: string; layer: string; clipped: boolean; 
   return makeCtx(log, 'root', rootCanvas);
 }
 
-function layerCanvas(log: { kind: string; layer: string; clipped: boolean; text?: string }[], layer: string): {
+function layerCanvas(
+  log: { kind: string; layer: string; clipped: boolean; text?: string; actor?: string }[],
+  layer: string,
+): {
   width: number;
   height: number;
   __layer: string;
@@ -199,7 +270,7 @@ function layerCanvas(log: { kind: string; layer: string; clipped: boolean; text?
 }
 
 function makeCtx(
-  log: { kind: string; layer: string; clipped: boolean; text?: string }[],
+  log: { kind: string; layer: string; clipped: boolean; text?: string; actor?: string }[],
   layer: string,
   canvas: { width: number; height: number; __layer?: string },
 ): CanvasRenderingContext2D {
@@ -241,6 +312,8 @@ function makeCtx(
     },
     arc: (x: number, _y: number, radius: number) => {
       if (radius === 3.2 && x > 0) log.push({ kind: 'bolt', layer, clipped: clipped > 0 });
+      const actor = mazeActor(radius);
+      if (actor) log.push({ kind: 'actor', layer, clipped: clipped > 0, actor });
     },
   };
   return new Proxy(ctx, {

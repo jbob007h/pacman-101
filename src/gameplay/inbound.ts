@@ -123,6 +123,8 @@ export class InboundField {
   /** Multiplier applied to Pac's speed while {@link slow} is positive. */
   slowFactor = 1;
   private firstRedPending = true;
+  /** Live reds held by the current pellet. Their first step after it ends is biased. */
+  private readonly thawing = new Set<InboundJammer>();
 
   get count(): number {
     return this.jammers.length;
@@ -208,9 +210,17 @@ export class InboundField {
         if (jammer.anim < 1) next.push(jammer);
         continue;
       }
-      if (!chase || (jammer.kind === 'red' && freezeReds)) {
+      if (jammer.kind === 'red' && freezeReds) {
+        if (jammer.phase === 'live') this.thawing.add(jammer);
         next.push(jammer);
         continue;
+      }
+      if (!chase) {
+        next.push(jammer);
+        continue;
+      }
+      if (jammer.kind === 'red' && this.thawing.delete(jammer)) {
+        aimRedUnfreeze(jammer, maze, pacX, pacY);
       }
       const speed = chaseSpeed * (jammer.kind === 'red' ? RED_CHASE_MULT : WHITE_CHASE_MULT);
       const traveled = advanceMover(
@@ -285,6 +295,7 @@ export class InboundField {
     this.slow = 0;
     this.slowFactor = 1;
     this.firstRedPending = true;
+    this.thawing.clear();
   }
 
   private applySlow(elapsed: number): void {
@@ -344,10 +355,38 @@ function steer(jammer: InboundJammer, maze: Maze, pacX: number, pacY: number): v
   const key = cy * maze.cols + cx;
   if (jammer.centerKey === key) return;
   jammer.centerKey = key;
+  const best = chaseDir(maze, cx, cy, jammer.dir, pacX, pacY);
+  if (best) jammer.dir = { ...best };
+}
+
+/**
+ * Heading for a red jammer on the step the pellet lets it move again.
+ * Right if that tile is open, otherwise up, otherwise the usual chase pick.
+ */
+export function redUnfreezeDirection(maze: Maze, x: number, y: number, pacX: number, pacY: number, facing: Dir): Dir {
+  const cx = Math.round(x);
+  const cy = Math.round(y);
+  if (!maze.blocks(cx + DIR_RIGHT.x, cy + DIR_RIGHT.y, 'pac')) return { ...DIR_RIGHT };
+  if (!maze.blocks(cx + DIR_UP.x, cy + DIR_UP.y, 'pac')) return { ...DIR_UP };
+  return chaseDir(maze, cx, cy, facing, pacX, pacY) ?? { ...facing };
+}
+
+function aimRedUnfreeze(jammer: InboundJammer, maze: Maze, pacX: number, pacY: number): void {
+  const dir = redUnfreezeDirection(maze, jammer.x, jammer.y, pacX, pacY, jammer.dir);
+  const cx = Math.round(jammer.x);
+  const cy = Math.round(jammer.y);
+  jammer.x = cx;
+  jammer.y = cy;
+  jammer.dir = dir;
+  jammer.centerKey = cy * maze.cols + cx;
+}
+
+/** Same intersection choice {@link steer} uses after the unfreeze step. */
+function chaseDir(maze: Maze, cx: number, cy: number, facing: Dir, pacX: number, pacY: number): Dir | null {
   let best: Dir | null = null;
   let bestDist = Infinity;
   for (const dir of DIRS) {
-    if (isOpposite(dir, jammer.dir)) continue;
+    if (isOpposite(dir, facing)) continue;
     if (maze.blocks(cx + dir.x, cy + dir.y, 'pac')) continue;
     const dist = Math.hypot(cx + dir.x - pacX, cy + dir.y - pacY);
     if (dist < bestDist) {
@@ -356,10 +395,10 @@ function steer(jammer: InboundJammer, maze: Maze, pacX: number, pacY: number): v
     }
   }
   if (!best) {
-    const back = opposite(jammer.dir);
+    const back = opposite(facing);
     if (!maze.blocks(cx + back.x, cy + back.y, 'pac')) best = back;
   }
-  if (best) jammer.dir = { ...best };
+  return best ? { ...best } : null;
 }
 
 function pickSpawnTiles(

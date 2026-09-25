@@ -386,7 +386,9 @@ export class MatchRoom {
         attack,
       });
     }
-    if (victim.pressure >= KILL_PRESSURE) this.eliminate(victim);
+    // Pressure and mistake rolls eliminate CPUs only. A human dies when their
+    // client reports a real maze hit (a hunting ghost or a red jammer).
+    if (victim.bot && victim.pressure >= KILL_PRESSURE) this.eliminate(victim);
     else this.publishRoster();
   }
 
