@@ -373,9 +373,12 @@ button:disabled {
 }
 
 .ko-total {
+  min-width: 4.6ch;
   color: #8ea0c8;
   font-family: ui-monospace, "Cascadia Code", monospace;
   font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .rank-row .tag {
