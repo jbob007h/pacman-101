@@ -3,9 +3,11 @@ import {
   CLEAR_SPEED_BONUS,
   DOT_SCORE,
   EAT_GHOST_PAUSE,
+  FRIGHT_GHOST_SPEED,
   FRUIT_TILE,
   GHOST_DOOR_SPEED,
   GHOST_LEAVE_SPEED,
+  GHOST_SCATTER_BUMP,
   speedsForBoard,
   TUNNEL_GHOST_MULT,
 } from '../src/config';
@@ -22,14 +24,16 @@ describe('board pace', () => {
     expect(first.board).toBe(1);
     expect(first.pac).toBeCloseTo(7.78);
     expect(first.ghost).toBeCloseTo(5.47);
-    expect(first.fright).toBeCloseTo(2.49);
+    expect(first.fright).toBe(FRIGHT_GHOST_SPEED);
     expect(first.ghost).toBeLessThan(first.pac * 0.8);
     expect(first.fright).toBeLessThan(first.ghost * 0.5);
     expect(second.pac).toBeGreaterThan(first.pac);
     expect(second.ghost).toBeGreaterThan(first.ghost);
-    expect(second.fright).toBeLessThan(second.ghost * 0.5);
+    expect(second.fright).toBe(FRIGHT_GHOST_SPEED);
+    expect(capped.fright).toBe(FRIGHT_GHOST_SPEED);
     expect(capped).toEqual(speedsForBoard(5));
-    expect(ghostSpeed('frightened', true, first)).toBe(first.fright);
+    expect(ghostSpeed('frightened', true, first)).toBe(FRIGHT_GHOST_SPEED);
+    expect(ghostSpeed('frightened', false, capped)).toBe(FRIGHT_GHOST_SPEED);
     expect(ghostSpeed('chase', false, first)).toBe(first.ghost);
     expect(ghostSpeed('chase', false, first)).toBeLessThan(first.pac);
     expect(ghostSpeed('leaving', false, first)).toBe(GHOST_LEAVE_SPEED);
@@ -187,10 +191,25 @@ describe('board pace', () => {
     expect(second.board.clearBoost).toBe(0);
   });
 
+  it('keeps frightened speed flat across boards, boosts, and Elroy, except in a tunnel', () => {
+    const late = speedsForBoard(5);
+    const boosted = {
+      ...late,
+      ghost: late.ghost + 4 * GHOST_SCATTER_BUMP,
+      pac: late.pac + 4 * CLEAR_SPEED_BONUS,
+      fright: 9,
+    };
+    expect(ghostMoveSpeed('frightened', true, boosted, false, 2, boosted.pac)).toBe(FRIGHT_GHOST_SPEED);
+    expect(ghostMoveSpeed('frightened', true, boosted, true, 2, boosted.pac)).toBeCloseTo(
+      FRIGHT_GHOST_SPEED * TUNNEL_GHOST_MULT,
+    );
+    expect(ghostMoveSpeed('chase', true, boosted, false, 0, boosted.pac)).toBeGreaterThan(FRIGHT_GHOST_SPEED);
+  });
+
   it('slows chase and frightened ghosts in the side tunnel and leaves eyes alone', () => {
     const speeds = speedsForBoard(0);
     expect(ghostMoveSpeed('chase', false, speeds, true)).toBeCloseTo(speeds.ghost * TUNNEL_GHOST_MULT);
-    expect(ghostMoveSpeed('frightened', true, speeds, true)).toBeCloseTo(speeds.fright * TUNNEL_GHOST_MULT);
+    expect(ghostMoveSpeed('frightened', true, speeds, true)).toBeCloseTo(FRIGHT_GHOST_SPEED * TUNNEL_GHOST_MULT);
     expect(ghostMoveSpeed('eaten', false, speeds, true)).toBe(ghostSpeed('eaten', false, speeds));
     expect(ghostMoveSpeed('chase', false, speeds, false)).toBe(speeds.ghost);
 

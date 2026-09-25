@@ -21,7 +21,7 @@ describe('gameplay feel', () => {
     expect(board1.fright).toBeCloseTo(2.49);
     expect(board2.pac - board1.pac).toBeCloseTo((9.315 - 8.64) * (2 / 3));
     expect(board2.ghost - board1.ghost).toBeCloseTo((6.84 - 6.075) * (2 / 3));
-    expect(board2.fright - board1.fright).toBeCloseTo((3.0375 - 2.7675) * (2 / 3));
+    expect(board2.fright).toBeCloseTo(board1.fright);
     expect(board2.fright).toBeLessThan(board2.ghost * 0.5);
     expect(GHOST_SCATTER_BUMP).toBeCloseTo(0.765 * (2 / 3));
   });

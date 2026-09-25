@@ -5,9 +5,9 @@ import { frightSecondsForBoard, frightTimeModifier } from '../config';
  * The queue becomes active only when Pac eats a power pellet, and that
  * pellet uses the newly active mode.
  *
- * Normal fright time comes from {@link frightSecondsForBoard}. The pace
- * table's `fright` column is how fast a frightened ghost walks, not how long
- * the pellet lasts. Stronger is always a flat 4 seconds: no board table and
+ * Normal fright time comes from {@link frightSecondsForBoard}. How fast a
+ * frightened ghost walks is {@link FRIGHT_GHOST_SPEED} on every board, not
+ * how long the pellet lasts. Stronger is always a flat 4 seconds: no board table and
  * no match-time modifier. Each time Stronger activates it also permanently
  * drops one speed level (the clear-bonus counter and the Speed readout), floored
  * at 0. That drop stays after Stronger ends. Speed mode's +3 sits on top of

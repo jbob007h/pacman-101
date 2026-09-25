@@ -1,5 +1,6 @@
 import {
   ELROY2_MULT,
+  FRIGHT_GHOST_SPEED,
   GHOST_DOOR_SPEED,
   GHOST_EATEN_SPEED,
   GHOST_HOUSE_SPEED,
@@ -110,7 +111,8 @@ export function ghostSpeed(mode: GhostMode, incoming: boolean, speeds: BoardSpee
     case 'eaten':
       return GHOST_EATEN_SPEED;
     case 'frightened':
-      return speeds.fright;
+      // Flat for the match. Incoming, Elroy, clears, and scatter bumps do not apply.
+      return FRIGHT_GHOST_SPEED;
     case 'house':
       return GHOST_HOUSE_SPEED;
     case 'leaving':

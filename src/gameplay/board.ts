@@ -190,8 +190,9 @@ export class Board {
 
   /**
    * Pac's board pace with no full-clear Speed bonus.
-   * Elroy 1 matches this number. Elroy 2 is 1.1× it. Ghost chase and fright
-   * come from the board table plus {@link ghostPaceBoost}, so a Speed Up never speeds the ghosts.
+   * Elroy 1 matches this number. Elroy 2 is 1.1× it. Chase uses the board ghost
+   * column plus {@link ghostPaceBoost}. Fright stays {@link FRIGHT_GHOST_SPEED}.
+   * A Speed Up never speeds the ghosts.
    */
   basePacPace(): number {
     return this.speeds().pac;
