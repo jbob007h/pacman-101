@@ -240,8 +240,14 @@ describe('power modes', () => {
   });
 
   it('uses the board fright table, and Stronger still forces 4 seconds', () => {
-    expect(frightSecondsForBoard(1)).toBe(6);
-    expect(frightSecondsForBoard(7)).toBe(3);
+    expect(frightSecondsForBoard(1)).toBe(8);
+    expect(frightSecondsForBoard(2)).toBe(7);
+    expect(frightSecondsForBoard(3)).toBe(6);
+    expect(frightSecondsForBoard(4)).toBe(5);
+    expect(frightSecondsForBoard(5)).toBe(3);
+    expect(frightSecondsForBoard(6)).toBe(6);
+    expect(frightSecondsForBoard(7)).toBe(4);
+    expect(frightSecondsForBoard(8)).toBe(3);
     expect(frightSecondsForBoard(12)).toBe(1.5);
     expect(frightSecondsForBoard(17)).toBe(0);
     expect(frightSecondsForBoard(18)).toBe(2);
@@ -296,8 +302,8 @@ describe('power modes', () => {
     const board = new Game(() => 0);
     board.matchTime = 90;
     eatPellet(board);
-    expect(board.board.frightened).toBeCloseTo(6 * 0.9);
-    expect(board.board.pelletDuration).toBeCloseTo(5.4);
+    expect(board.board.frightened).toBeCloseTo(8 * 0.9);
+    expect(board.board.pelletDuration).toBeCloseTo(7.2);
 
     const stronger = new Game(() => 0);
     stronger.matchTime = 90;

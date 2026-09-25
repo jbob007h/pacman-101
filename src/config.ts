@@ -56,13 +56,13 @@ export const FRIGHT_SECONDS = 9;
  * How fast a frightened ghost walks is {@link FRIGHT_GHOST_SPEED}, not this duration.
  */
 const FRIGHT_DURATION_BY_BOARD: readonly number[] = [
-  6, 5, 4, 3, 2, 5, 3, 2, 1, 5, 2, 1.5, 1, 3, 1, 1, 0, 2,
+  8, 7, 6, 5, 3, 6, 4, 3, 1, 5, 2, 1.5, 1, 3, 1, 1, 0, 2,
 ];
 
 /** Fright seconds for a 1-based board number. Does not follow the 6-row pace cap. */
 export function frightSecondsForBoard(board: number): number {
   const n = Math.floor(board);
-  if (!Number.isFinite(n) || n < 1) return FRIGHT_DURATION_BY_BOARD[0] ?? 6;
+  if (!Number.isFinite(n) || n < 1) return FRIGHT_DURATION_BY_BOARD[0] ?? 8;
   if (n <= FRIGHT_DURATION_BY_BOARD.length) return FRIGHT_DURATION_BY_BOARD[n - 1] ?? 0;
   return n >= 22 && (n - 22) % 4 === 0 ? 2 : 0;
 }
