@@ -30,17 +30,43 @@ describe('maze', () => {
     expect(maze.inSideTunnel(14, maze.tunnelRow)).toBe(false);
     expect(maze.blocks(14, 17, 'pac')).toBe(false);
     const counted = new Maze();
-    expect(counted.dotCount()).toBe(232);
+    expect(counted.dotCount()).toBe(216);
     expect(counted.pelletCount()).toBe(4);
+    const opened = [
+      [6, 9],
+      [21, 9],
+      [13, 5],
+      [14, 5],
+      [12, 9],
+      [12, 10],
+      [15, 9],
+      [15, 10],
+      [6, 19],
+      [21, 19],
+      [12, 18],
+      [12, 19],
+      [15, 18],
+      [15, 19],
+      [13, 29],
+      [14, 29],
+    ] as const;
+    for (const [x, y] of opened) {
+      expect(counted.tile(x, y)).toBe(Tile.Empty);
+      expect(counted.blocks(x, y, 'pac')).toBe(false);
+    }
     for (const tile of sleeperTiles()) {
       expect(counted.tile(tile.x, tile.y)).toBe(Tile.Empty);
     }
     const spawnY = Math.round(PAC_START.y);
     expect(counted.consume(Math.floor(PAC_START.x), spawnY)).toBe('dot');
     expect(counted.consume(Math.ceil(PAC_START.x), spawnY)).toBe('dot');
-    expect(counted.remaining()).toBe(234);
+    expect(counted.remaining()).toBe(218);
     counted.resetDots();
-    expect(counted.remaining()).toBe(236);
+    expect(counted.remaining()).toBe(220);
+    for (const [x, y] of opened) {
+      expect(counted.tile(x, y)).toBe(Tile.Empty);
+      expect(counted.blocks(x, y, 'pac')).toBe(false);
+    }
     for (const tile of sleeperTiles()) {
       expect(counted.tile(tile.x, tile.y)).toBe(Tile.Empty);
     }
