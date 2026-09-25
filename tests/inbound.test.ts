@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { JAMMER_CAP, JAMMER_SPAWN_SECONDS } from '../src/config';
+import { JAMMER_CAP, JAMMER_HIT_DISTANCE, JAMMER_SPAWN_SECONDS } from '../src/config';
 import { Game } from '../src/game';
 import { InboundField, quadrantOf, redUnfreezeDirection, redWeight, slowProfile, splitJammerColors, type InboundJammer } from '../src/gameplay/inbound';
 import { Maze, Tile } from '../src/gameplay/maze';
@@ -287,6 +287,35 @@ describe('inbound jammers', () => {
     stayed.jammers.push(still);
     stayed.update(1 / 60, maze, pac.x, rightOpen.y, 8, false, true);
     expect(still.dir).toEqual(DIR_LEFT);
+  });
+
+  it('does not kill Pac when an attack arrives, even if that attack includes reds', () => {
+    const game = new Game(() => 0);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    game.board.pac.x = 1;
+    game.board.pac.y = 1;
+    game.board.pac.dir = { ...DIR_NONE };
+    game.matchTime = 120;
+    game.board.matchTime = 120;
+    const spawned = game.board.spawnInbound(16, true, 4);
+    expect(spawned).toBeGreaterThan(0);
+    expect(game.board.inbound.jammers.some((jammer) => jammer.kind === 'red')).toBe(true);
+    expect(game.board.pac.alive).toBe(true);
+    for (const jammer of game.board.inbound.jammers) {
+      expect(Math.hypot(jammer.x - game.board.pac.x, jammer.y - game.board.pac.y)).toBeGreaterThan(JAMMER_HIT_DISTANCE);
+    }
+
+    const steps = Math.ceil(JAMMER_SPAWN_SECONDS / 0.05) + 2;
+    for (let i = 0; i < steps; i++) {
+      game.board.inbound.update(0.05, game.board.maze, game.board.pac.x, game.board.pac.y, 8, false, false);
+    }
+    expect(game.board.inbound.jammers.every((jammer) => jammer.phase === 'live')).toBe(true);
+    expect(game.board.inbound.touch(game.board.pac.x, game.board.pac.y, 120)).toBe(false);
+    expect(game.board.pac.alive).toBe(true);
+    expect(game.match.phase).toBe('playing');
   });
 
   it('starts the match clock at 0:00 and counts up after the first step', () => {

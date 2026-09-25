@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CPU_MISTAKE_END, CPU_MISTAKE_EXPECTED, CPU_MISTAKE_START, KILL_PRESSURE, SIM_COUNT } from '../src/config';
+import { Game } from '../src/game';
 import { EventBus } from '../src/shared/events';
 import { cpuMistakeChance, cpuMistakeRatePerSecond, CPU_MISTAKE_WINDOW } from '../src/systems/mistakes';
 import { Ranking } from '../src/systems/ranking';
@@ -47,6 +48,27 @@ describe('cpu mistake deaths', () => {
     expect(snapshot.rows.some((row) => row.place === SIM_COUNT + 1 && !row.you)).toBe(true);
     expect(snapshot.yourPlace).toBe(1);
     expect(snapshot.stillIn).toBe(0);
+  });
+
+  it('does not apply CPU pressure or mistake deaths to the human board', () => {
+    const game = new Game(() => 0.999999);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    game.board.pac.dir = { x: 0, y: 0 };
+    for (const sim of game.sims.sims) sim.attackIn = 0;
+    game.sims.update(20, 20);
+    expect(game.sims.aliveCount()).toBe(0);
+    expect(game.board.pac.alive).toBe(true);
+    expect(game.match.phase).not.toBe('lost');
+
+    game.bus.emit({ type: 'incomingJammer', fromSimId: 3, strength: 16, exact: true });
+    for (let frame = 0; frame < 12; frame++) game.update(0.05);
+    expect(game.board.inbound.jammers.length).toBeGreaterThan(0);
+    expect(game.board.inbound.jammers.every((jammer) => jammer.phase === 'spawn')).toBe(true);
+    expect(game.board.pac.alive).toBe(true);
+    expect(game.match.phase).not.toBe('lost');
   });
 });
 

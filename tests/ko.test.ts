@@ -244,14 +244,11 @@ describe('server knockout credit', () => {
     const pressure = startedRoom();
     pressure.logs.length = 0;
     pressure.room.handle(pressure.ada, { type: 'earnAttack', attack: 'ghost', strength: KILL_PRESSURE });
-    expect(pressure.logs.find((message) => message.type === 'ko')).toMatchObject({
-      killer: pressure.ada,
-      victim: pressure.bea,
-    });
+    expect(pressure.logs.some((message) => message.type === 'ko' || message.type === 'playerEliminated')).toBe(false);
+    expect(pressure.logs.some((message) => message.type === 'jammerInbound')).toBe(true);
     const roster = [...pressure.logs].reverse().find((message) => message.type === 'rosterDelta');
-    expect(roster?.type === 'rosterDelta' ? roster.seats.find((seat) => seat.seat === pressure.ada)?.kos : 0).toBe(1);
-    expect(roster?.type === 'rosterDelta' ? roster.seats.find((seat) => seat.seat === pressure.bea)?.kodBy : 0).toBe(
-      pressure.ada,
+    expect(roster?.type === 'rosterDelta' ? roster.seats.find((seat) => seat.seat === pressure.bea)?.alive : false).toBe(
+      true,
     );
   });
 });
