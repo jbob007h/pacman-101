@@ -1,5 +1,6 @@
 import { SIM_COUNT } from '../config';
 import type { EventBus } from '../shared/events';
+import { activeTheme } from '../theme';
 import { cpuName } from './names';
 
 const YOU = 'you';
@@ -44,11 +45,12 @@ export function koCountLabel(kos: number): string {
  */
 export function standingMarks(row: Pick<StandingRow, 'kos' | 'koByYou' | 'koYou'>): StandingMark[] {
   const marks: StandingMark[] = [];
+  const copy = activeTheme().strings;
   if (row.koByYou) {
-    marks.push({ className: 'ko-icon', text: '✕', title: 'You knocked them out' });
+    marks.push({ className: 'ko-icon', text: '✕', title: copy.koByYou });
   }
   if (row.koYou) {
-    marks.push({ className: 'kod-icon', text: '◉', title: 'Knocked you out' });
+    marks.push({ className: 'kod-icon', text: '◉', title: copy.koYou });
   }
   const label = koCountLabel(row.kos);
   marks.push({ className: 'ko-total', text: label, title: label });

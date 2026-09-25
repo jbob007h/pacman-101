@@ -15,6 +15,7 @@ import {
   trainFollowerLook,
   wallFill,
 } from '../src/render/draw';
+import { setActiveTheme } from '../src/theme';
 import { panelRect } from '../src/render/layout';
 import type { Sim } from '../src/systems/sims';
 
@@ -84,6 +85,30 @@ describe('maze wall paint', () => {
 });
 
 describe('playfield layer order', () => {
+  it('keeps maze ghosts above jammers when the theme changes silhouettes', () => {
+    setActiveTheme('deep-sea', false);
+    try {
+      const log: { kind: string; layer: string; clipped: boolean; text?: string; actor?: string }[] = [];
+      const ctx = recordingContext(log);
+      const input = frameAtTunnel();
+      const ghosts = createGhosts();
+      for (const ghost of ghosts) ghost.mode = ghost.id === 'inky' ? 'eaten' : 'chase';
+      input.ghosts = ghosts;
+      input.frightened = 5;
+      input.jammers = [liveJammer('white', 4, 14), liveJammer('red', 10, 14)];
+      drawFrame(ctx, input);
+      const actors = log.filter((entry) => entry.kind === 'actor' && entry.layer === 'maze').map((entry) => entry.actor);
+      const lastJammer = actors.lastIndexOf('jammer');
+      const firstGhost = actors.findIndex((actor) => actor === 'ghost' || actor === 'eyes');
+      expect(actors.filter((actor) => actor === 'jammer')).toHaveLength(2);
+      expect(actors).toContain('eyes');
+      expect(firstGhost).toBeGreaterThan(lastJammer);
+      expect(actors.indexOf('pac')).toBeGreaterThan(firstGhost);
+    } finally {
+      setActiveTheme('classic', false);
+    }
+  });
+
   it('blits an unclipped overlay after the grids so Speed Up covers them', () => {
     const log: { kind: string; layer: string; clipped: boolean; text?: string }[] = [];
     const ctx = recordingContext(log);
@@ -211,15 +236,6 @@ function frameAtTunnel(): DrawInput {
   };
 }
 
-/** Body radii from the maze painter: jammer disc, ghost body, eaten eyes, Pac. */
-function mazeActor(radius: number): 'jammer' | 'ghost' | 'eyes' | 'pac' | null {
-  if (Math.abs(radius - 6.4 * SPRITE_SCALE) < 0.05) return 'jammer';
-  if (Math.abs(radius - 7 * SPRITE_SCALE) < 0.05) return 'ghost';
-  if (Math.abs(radius - 3.1 * SPRITE_SCALE) < 0.05) return 'eyes';
-  if (Math.abs(radius - 7.1 * SPRITE_SCALE) < 0.05) return 'pac';
-  return null;
-}
-
 function liveJammer(kind: JammerKind, x: number, y: number): InboundJammer {
   return {
     kind,
@@ -310,11 +326,12 @@ function makeCtx(
     drawImage: (image: { __layer?: string }) => {
       log.push({ kind: 'blit', layer: image.__layer ?? layer, clipped: clipped > 0 });
     },
-    arc: (x: number, _y: number, radius: number) => {
-      if (radius === 3.2 && x > 0) log.push({ kind: 'bolt', layer, clipped: clipped > 0 });
-      const actor = mazeActor(radius);
-      if (actor) log.push({ kind: 'actor', layer, clipped: clipped > 0, actor });
+    markActor: (actor: string) => {
+      if (actor === 'bolt') log.push({ kind: 'bolt', layer, clipped: clipped > 0 });
+      else log.push({ kind: 'actor', layer, clipped: clipped > 0, actor });
     },
+    createLinearGradient: () => ({ addColorStop() {} }),
+    createRadialGradient: () => ({ addColorStop() {} }),
   };
   return new Proxy(ctx, {
     get(target, prop) {

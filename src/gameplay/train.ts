@@ -385,14 +385,6 @@ export function sleeperTiles(): { x: number; y: number }[] {
   return tiles;
 }
 
-/** Cyan at the front of the train, magenta at the tail. */
-export function trainMemberColor(index: number, total: number): string {
-  const t = total <= 1 ? 0 : index / (total - 1);
-  const hue = 168 + t * 152;
-  const light = 78 - t * 16;
-  return `hsl(${hue} 88% ${light}%)`;
-}
-
 /**
  * Points one spacing behind the head, then one spacing behind that, and so on.
  * `path` is oldest first. A short trail stacks extras on the oldest point.

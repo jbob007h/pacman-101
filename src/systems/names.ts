@@ -112,8 +112,25 @@ export const CPU_NAMES: readonly string[] = [
   'clippy cousin',
 ];
 
+/**
+ * Client themes replace these. The server never calls {@link bindPresentedNames},
+ * so roster bots stay on the classic list.
+ */
+let presentedNames: readonly string[] = CPU_NAMES;
+let presentedDefault = DEFAULT_PLAYER_NAME;
+
+export function bindPresentedNames(names: readonly string[], playerDefault: string): void {
+  presentedNames = names;
+  presentedDefault = playerDefault;
+}
+
+/** Theme names on the client. The server never binds a theme, so bots stay on the classic list. */
 export function cpuName(simId: number): string {
-  return CPU_NAMES[simId - 1] ?? `bot ${simId}`;
+  return presentedNames[simId - 1] ?? `bot ${simId}`;
+}
+
+export function defaultPlayerName(): string {
+  return presentedDefault;
 }
 
 export function sanitizePlayerName(raw: string | null | undefined): string {
@@ -132,19 +149,19 @@ function browserStore(): NameStore | null {
   }
 }
 
-/** Saved name, or {@link DEFAULT_PLAYER_NAME} when the field is blank or storage is missing. */
+/** Saved name, or the active theme's default when the field is blank or storage is missing. */
 export function loadPlayerName(store: NameStore | null = browserStore()): string {
   try {
     const saved = sanitizePlayerName(store?.getItem(NAME_KEY));
-    return saved || DEFAULT_PLAYER_NAME;
+    return saved || defaultPlayerName();
   } catch {
-    return DEFAULT_PLAYER_NAME;
+    return defaultPlayerName();
   }
 }
 
-/** Persist a trimmed name. Blank becomes {@link DEFAULT_PLAYER_NAME}. */
+/** Persist a trimmed name. Blank becomes the active theme's default. */
 export function savePlayerName(raw: string, store: NameStore | null = browserStore()): string {
-  const name = sanitizePlayerName(raw) || DEFAULT_PLAYER_NAME;
+  const name = sanitizePlayerName(raw) || defaultPlayerName();
   try {
     store?.setItem(NAME_KEY, name);
   } catch {
