@@ -61,7 +61,7 @@ export const FRIGHT_SECONDS = 9;
  * How fast a frightened ghost walks is {@link FRIGHT_GHOST_SPEED}, not this duration.
  */
 const FRIGHT_DURATION_BY_BOARD: readonly number[] = [
-  8, 7, 6, 5, 3, 6, 4, 3, 1, 5, 2, 1.5, 1, 3, 1, 1, 0, 2,
+  8, 7, 6, 5, 4, 6, 5, 3, 1, 5, 2, 1.5, 1, 3, 1, 1, 0, 2,
 ];
 
 /** Fright seconds for a 1-based board number. Does not follow the 6-row pace cap. */
