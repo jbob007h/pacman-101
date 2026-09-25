@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   GHOST_ATTACK_WINDOW,
   KILL_PRESSURE,
+  SIM_ATTACK_GRACE,
   SIM_ATTACK_MAX,
   SIM_ATTACK_MIN,
   SIM_CLEAR_RELIEF,
@@ -19,6 +20,7 @@ import {
   pickSimIds,
   rollAttackDelay,
   rollJammerCount,
+  rollOpeningAttackDelay,
   scaleCpuJammers,
 } from '../src/systems/jammers';
 import { mulberry32 } from '../src/shared/rng';
@@ -212,9 +214,9 @@ describe('jammers', () => {
       shots += 1;
     });
     for (const sim of early.sims.sims) {
-      expect(sim.attackIn).toBe(SIM_ATTACK_MIN);
+      expect(sim.attackIn).toBe(rollOpeningAttackDelay(() => 0));
     }
-    early.sims.update(SIM_ATTACK_MIN - 0.05);
+    early.sims.update(rollOpeningAttackDelay(() => 0) - 0.05);
     expect(shots).toBe(0);
     early.sims.update(0.05);
     expect(cpuCancelPercent(SIM_ATTACK_MIN)).toBe(49);
@@ -224,10 +226,11 @@ describe('jammers', () => {
     const late = new Game(() => 0.999);
     const inbound: { strength: number; exact?: boolean }[] = [];
     late.bus.on('incomingJammer', (event) => inbound.push({ strength: event.strength, exact: event.exact }));
-    late.sims.update(SIM_ATTACK_MAX - 0.05);
+    const openAt = rollOpeningAttackDelay(() => 0.999);
+    late.sims.update(openAt - 0.05);
     expect(inbound).toEqual([]);
     late.sims.update(0.05);
-    const openingScale = scaleCpuJammers(SIM_JAMMER_MAX, cpuCancelPercent(SIM_ATTACK_MAX));
+    const openingScale = scaleCpuJammers(SIM_JAMMER_MAX, cpuCancelPercent(openAt));
     expect(inbound).toHaveLength(SIM_COUNT);
     expect(inbound.every((shot) => shot.strength === openingScale && shot.exact === true)).toBe(true);
 
@@ -244,8 +247,8 @@ describe('jammers', () => {
       spreadStrengths.push(event.strength);
     });
     for (const sim of spread.sims.sims) {
-      expect(sim.attackIn).toBeGreaterThanOrEqual(SIM_ATTACK_MIN);
-      expect(sim.attackIn).toBeLessThanOrEqual(SIM_ATTACK_MAX);
+      expect(sim.attackIn).toBeGreaterThanOrEqual(SIM_ATTACK_GRACE);
+      expect(sim.attackIn).toBeLessThanOrEqual(SIM_ATTACK_GRACE + (SIM_ATTACK_MAX - SIM_ATTACK_MIN));
     }
     spread.sims.update(SIM_ATTACK_MIN - 0.05);
     expect(spreadShots).toBe(0);
@@ -262,8 +265,9 @@ describe('jammers', () => {
     const game = new Game(() => 0.999);
     const inbound: { strength: number; exact?: boolean }[] = [];
     game.bus.on('incomingJammer', (event) => inbound.push({ strength: event.strength, exact: event.exact }));
-    game.sims.update(SIM_ATTACK_MAX);
-    const scaled = scaleCpuJammers(SIM_JAMMER_MAX, cpuCancelPercent(SIM_ATTACK_MAX));
+    const openAt = rollOpeningAttackDelay(() => 0.999);
+    game.sims.update(openAt);
+    const scaled = scaleCpuJammers(SIM_JAMMER_MAX, cpuCancelPercent(openAt));
     expect(inbound.length).toBe(SIM_COUNT);
     expect(inbound.every((shot) => shot.strength === scaled && shot.exact === true)).toBe(true);
   });
@@ -311,6 +315,26 @@ describe('jammers', () => {
     full.sims.update(156);
     expect(strengths.length).toBeGreaterThan(0);
     expect(strengths.every((strength) => strength === 1)).toBe(true);
+  });
+
+  it('fires no CPU attack before the 10s grace, locally', () => {
+    const roll = 0.49;
+    expect(rollAttackDelay(() => roll)).toBeLessThan(SIM_ATTACK_GRACE);
+    const game = new Game(() => roll);
+    let shots = 0;
+    game.bus.on('jammersSent', (event) => {
+      if (event.reason === 'sim') shots += 1;
+    });
+    game.bus.on('incomingJammer', () => {
+      shots += 1;
+    });
+    const openAt = rollOpeningAttackDelay(() => roll);
+    expect(openAt).toBeGreaterThanOrEqual(SIM_ATTACK_GRACE);
+    game.sims.update(SIM_ATTACK_GRACE - 0.01);
+    expect(shots).toBe(0);
+    expect(game.sims.sims.every((sim) => sim.pressure === 0)).toBe(true);
+    game.sims.update(openAt - (SIM_ATTACK_GRACE - 0.01));
+    expect(shots).toBeGreaterThan(0);
   });
 
   it('fires no CPU attacks before the 5 second minimum of match time', () => {

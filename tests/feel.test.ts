@@ -13,13 +13,13 @@ import { DIR_NONE } from '../src/shared/types';
 
 describe('gameplay feel', () => {
   it('cuts the clear bonus and the later-board steps to two thirds of the old deltas', () => {
-    expect(CLEAR_SPEED_BONUS).toBeCloseTo(1.6875 * (2 / 3));
+    expect(CLEAR_SPEED_BONUS).toBeCloseTo(1.125 * (2 / 3));
     const board2 = speedsForBoard(1);
-    expect(board2.pac).toBeCloseTo(8.64 + (9.6525 - 8.64) * (2 / 3));
-    expect(board2.ghost).toBeCloseTo(6.075 + (7.2225 - 6.075) * (2 / 3));
-    expect(board2.fright).toBeCloseTo(2.7675 + (3.1725 - 2.7675) * (2 / 3));
+    expect(board2.pac).toBeCloseTo(8.64 + (9.315 - 8.64) * (2 / 3));
+    expect(board2.ghost).toBeCloseTo(6.075 + (6.84 - 6.075) * (2 / 3));
+    expect(board2.fright).toBeCloseTo(2.7675 + (3.0375 - 2.7675) * (2 / 3));
     expect(board2.fright).toBeLessThan(board2.ghost * 0.5);
-    expect(GHOST_SCATTER_BUMP).toBeCloseTo((7.2225 - 6.075) * (2 / 3));
+    expect(GHOST_SCATTER_BUMP).toBeCloseTo(0.765 * (2 / 3));
     expect(speedsForBoard(0).ghost).toBeCloseTo(6.075);
   });
 

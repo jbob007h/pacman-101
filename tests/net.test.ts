@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { GHOST_ATTACK_WINDOW } from '../src/config';
+import { GHOST_ATTACK_WINDOW, SIM_ATTACK_GRACE } from '../src/config';
 import { Game } from '../src/game';
 import type { RosterSeat, ServerMessage } from '../src/net/protocol';
 import { EARN_RATE_LIMIT, LOBBY_COUNTDOWN_MS, MAX_HUMANS, ROOM_SIZE } from '../src/net/protocol';
 import { startMatchServer, type MatchServer } from '../server/index';
+import { rollAttackDelay, rollOpeningAttackDelay } from '../src/systems/jammers';
 import { MatchRoom, type SeatLink } from '../server/match';
 
 const servers: MatchServer[] = [];
@@ -709,6 +710,32 @@ describe('online game path', () => {
     winner.startMatch();
     expect(winner.online).toBe(false);
     expect(winner.hud().standings).toBeNull();
+  });
+
+  it('fires no bot attack before the 10s grace', () => {
+    const roll = 0.49;
+    expect(rollAttackDelay(() => roll)).toBeLessThan(SIM_ATTACK_GRACE);
+    const logs: ServerMessage[] = [];
+    const clock = mutableClock();
+    const room = new MatchRoom(clock.now, () => roll);
+    const ada = room.join(sink(logs), 'Ada');
+    if (!ada.ok || ada.role !== 'player') throw new Error('expected a seat');
+    readyAndStart(room, [ada.seat], clock);
+    logs.length = 0;
+
+    room.tick(SIM_ATTACK_GRACE - 0.01);
+    expect(logs.some((message) => message.type === 'jammerInbound' || message.type === 'playerEliminated')).toBe(false);
+    const quiet = logs.filter((message) => message.type === 'rosterDelta');
+    expect(quiet.every((message) => message.type === 'rosterDelta' && message.seats.every((seat) => seat.pressure === 0))).toBe(true);
+
+    room.tick(rollOpeningAttackDelay(() => roll) - (SIM_ATTACK_GRACE - 0.01));
+    const attacked =
+      logs.some((message) => message.type === 'jammerInbound' || message.type === 'playerEliminated') ||
+      logs.some(
+        (message) =>
+          message.type === 'rosterDelta' && message.seats.some((seat) => seat.pressure > 0 || seat.busy),
+      );
+    expect(attacked).toBe(true);
   });
 
   it('cancels server bot attacks until the ramp hits zero, then sends the rolled count', () => {

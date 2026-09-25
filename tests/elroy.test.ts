@@ -98,7 +98,7 @@ describe('Cruise Elroy', () => {
     const base = speedsForBoard(0).pac;
     const boosted = base + 4 * CLEAR_SPEED_BONUS;
     expect(blinky.x - blinkyX).toBeCloseTo(base / 60);
-    expect(Math.abs(blinky.x - blinkyX - boosted / 60)).toBeGreaterThan(0.05);
+    expect(Math.abs(blinky.x - blinkyX - boosted / 60)).toBeCloseTo((4 * CLEAR_SPEED_BONUS) / 60);
     expect(pinky.x - pinkyX).toBeCloseTo(speedsForBoard(0).ghost / 60);
     expect(game.board.pacSpeed()).toBeCloseTo(boosted);
   });

@@ -3,6 +3,7 @@ import {
   CPU_CANCEL_START,
   CPU_CANCEL_STEP,
   KILL_PRESSURE,
+  SIM_ATTACK_GRACE,
   SIM_ATTACK_MAX,
   SIM_ATTACK_MIN,
   SIM_JAMMER_MAX,
@@ -66,6 +67,15 @@ export function ghostVolley(count: number, sims: readonly JammerSim[], rng: Rng)
 /** Seconds until this CPU shoots again. Uniform on [{@link SIM_ATTACK_MIN}, {@link SIM_ATTACK_MAX}]. */
 export function rollAttackDelay(rng: Rng): number {
   return SIM_ATTACK_MIN + rng() * (SIM_ATTACK_MAX - SIM_ATTACK_MIN);
+}
+
+/**
+ * First shot of the match. Same 5–15s roll as {@link rollAttackDelay}, shifted
+ * so the earliest land is {@link SIM_ATTACK_GRACE}. Later shots are not shifted.
+ */
+export function rollOpeningAttackDelay(rng: Rng): number {
+  const lift = Math.max(0, SIM_ATTACK_GRACE - SIM_ATTACK_MIN);
+  return rollAttackDelay(rng) + lift;
 }
 
 /** Jammers in one CPU shot. Uniform integer on [{@link SIM_JAMMER_MIN}, {@link SIM_JAMMER_MAX}]. */

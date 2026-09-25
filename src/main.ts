@@ -5,7 +5,7 @@ import { NetSession } from './net/session';
 import { resolveSocketUrl } from './net/socketUrl';
 import { modeFromKey } from './gameplay/powerMode';
 import { dirFromKey, type Dir } from './shared/types';
-import type { StandingRow } from './systems/ranking';
+import { standingMarks, type StandingRow } from './systems/ranking';
 import { loadPlayerName, savePlayerName } from './systems/names';
 import './style.css';
 
@@ -171,26 +171,12 @@ function renderStandingRow(row: StandingRow): HTMLLIElement {
   name.textContent = row.name;
   const marks = document.createElement('span');
   marks.className = 'ko-marks';
-  if (row.koByYou) {
+  for (const mark of standingMarks(row)) {
     const icon = document.createElement('span');
-    icon.className = 'ko-icon';
-    icon.textContent = '✕';
-    icon.title = 'You knocked them out';
+    icon.className = mark.className;
+    icon.textContent = mark.text;
+    icon.title = mark.title;
     marks.append(icon);
-  }
-  if (row.koYou) {
-    const icon = document.createElement('span');
-    icon.className = 'kod-icon';
-    icon.textContent = '◉';
-    icon.title = 'Knocked you out';
-    marks.append(icon);
-  }
-  if (row.kos > 0) {
-    const total = document.createElement('span');
-    total.className = 'ko-total';
-    total.textContent = String(row.kos);
-    total.title = `${row.kos} KO`;
-    marks.append(total);
   }
   const tag = document.createElement('span');
   tag.className = 'tag';

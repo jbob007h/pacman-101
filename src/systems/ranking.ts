@@ -26,6 +26,35 @@ export interface KoRowMarks {
 
 const NO_MARKS: KoRowMarks = { kos: 0, koByYou: false, koYou: false };
 
+export interface StandingMark {
+  className: 'ko-icon' | 'kod-icon' | 'ko-total';
+  text: string;
+  title: string;
+}
+
+/** Visible KO count. Zero stays on the row so the column is never blank. */
+export function koCountLabel(kos: number): string {
+  const n = Number.isFinite(kos) ? Math.max(0, Math.floor(kos)) : 0;
+  return `KO ${n}`;
+}
+
+/**
+ * Red ✕ when you knocked them out, gold ◉ when they knocked you out,
+ * then the KO count on every row.
+ */
+export function standingMarks(row: Pick<StandingRow, 'kos' | 'koByYou' | 'koYou'>): StandingMark[] {
+  const marks: StandingMark[] = [];
+  if (row.koByYou) {
+    marks.push({ className: 'ko-icon', text: '✕', title: 'You knocked them out' });
+  }
+  if (row.koYou) {
+    marks.push({ className: 'kod-icon', text: '◉', title: 'Knocked you out' });
+  }
+  const label = koCountLabel(row.kos);
+  marks.push({ className: 'ko-total', text: label, title: label });
+  return marks;
+}
+
 export interface StandingSnapshot {
   rows: StandingRow[];
   /** Locked finish for the human, or null while they are still alive. */

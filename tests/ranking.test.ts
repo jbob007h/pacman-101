@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Game } from '../src/game';
 import { CPU_NAMES, DEFAULT_PLAYER_NAME, loadPlayerName, savePlayerName } from '../src/systems/names';
 import { SIM_COUNT } from '../src/config';
+import { koCountLabel, standingMarks } from '../src/systems/ranking';
 
 describe('names and standings', () => {
   it('keeps a fixed pool of 100 unique cpu names', () => {
@@ -147,5 +148,18 @@ describe('names and standings', () => {
     expect(ranked).toEqual(survivors.map((_, index) => index + 1));
     game.requestEndMatch();
     expect(game.hud().standings?.yourPlace).toBe(101);
+  });
+
+  it('labels the KO count on every standings row, including zero', () => {
+    expect(koCountLabel(0)).toBe('KO 0');
+    expect(koCountLabel(3)).toBe('KO 3');
+    expect(standingMarks({ kos: 0, koByYou: false, koYou: false })).toEqual([
+      { className: 'ko-total', text: 'KO 0', title: 'KO 0' },
+    ]);
+    expect(standingMarks({ kos: 3, koByYou: true, koYou: true })).toEqual([
+      { className: 'ko-icon', text: '✕', title: 'You knocked them out' },
+      { className: 'kod-icon', text: '◉', title: 'Knocked you out' },
+      { className: 'ko-total', text: 'KO 3', title: 'KO 3' },
+    ]);
   });
 });
