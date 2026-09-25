@@ -320,11 +320,10 @@ export class Board {
         this.frightened = 0;
         this.combo = 0;
         this.frightEats = 0;
+        // Arcade: the pellet wearing off does not reverse. Wave changes,
+        // eating a pellet (including a 0s pellet), and stuck recovery still do.
         for (const ghost of this.ghosts) {
-          if (ghost.mode === 'frightened') {
-            ghost.mode = this.wave;
-            ghost.reversePending = true;
-          }
+          if (ghost.mode === 'frightened') ghost.mode = this.wave;
         }
       }
       return;

@@ -73,14 +73,14 @@ Tiles per second, before the clear bonus:
 
 | Board | Pac | Ghost chase | Frightened |
 | --- | --- | --- | --- |
-| 1 | 8.64 | 6.075 | 2.7675 |
-| 2 | 9.6525 | 7.2225 | 3.1725 |
-| 3 | 10.665 | 8.4375 | 3.645 |
-| 4 | 11.6775 | 9.6525 | 4.1175 |
-| 5 | 12.6225 | 10.8675 | 4.59 |
-| 6+ | 13.5 | 12.015 | 5.0625 |
+| 1 | 7.78 | 5.47 | 2.49 |
+| 2 | 8.23 | 5.98 | 2.67 |
+| 3 | 8.68 | 6.52 | 2.88 |
+| 4 | 9.13 | 7.06 | 3.09 |
+| 5 | 9.55 | 7.6 | 3.3 |
+| 6+ | 9.94 | 8.11 | 3.51 |
 
-On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.6875 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. It does not add anything to ghost chase, fright, or Elroy. These paces are 90% of the previous 1.5× table (eyes 16.2, house bob 4.32, eyes entering the door 7.02). Leaving the house is slower still, 3.24 tiles/sec, until the ghost is fully out. Chase and scatter after that stay on the table. Elroy 1 matches the `Pac` column. Elroy 2 is 1.1× that column. Neither uses Pac's accumulated clear bonus.
+On board 1 the ghosts are well slower than Pac. Frightened ghosts stay under half of that board's chase speed, so a power pellet is a real opening. Later boards raise both speeds; chase closes on Pac, but a pellet still drops the ghosts to a crawl. Each full clear adds 1.6875 to Pac's tiles/sec on top of the row above, and adds 1 to the Speed readout. It does not add anything to ghost chase, fright, or Elroy. Board 1 is about 10% under the previous opening row; later boards keep the same steps. Eyes stay 16.2, the house bob 4.32, and eyes entering the door 7.02. Leaving the house is slower still, 3.24 tiles/sec, under the slowest chase (5.47), until the ghost is fully out. Chase and scatter after that stay on the table. Elroy 1 matches the `Pac` column. Elroy 2 is 1.1× that column. Neither uses Pac's accumulated clear bonus.
 
 ## Cruise Elroy
 

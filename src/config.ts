@@ -35,7 +35,7 @@ export const GHOST_EATEN_SPEED = 16.2;
 export const GHOST_HOUSE_SPEED = 4.32;
 /**
  * Walking out of the house, across the door, and onto the maze.
- * Slower than every board's chase speed (the slowest chase is 6.075) so the
+ * Slower than every board's chase speed (the slowest chase is 5.47) so the
  * exit is deliberate. Eyes still come home at {@link GHOST_DOOR_SPEED}.
  */
 export const GHOST_LEAVE_SPEED = 3.24;
@@ -157,24 +157,23 @@ export const SPEED_POPUP_SECONDS = 1.35;
 export const TUNNEL_GHOST_MULT = 0.55;
 
 /**
- * Tiles per second. Board 1 is the starting pace and is unchanged. Later rows
- * keep two thirds of the previous step off board 1 (Pac, chase, and fright).
- * Eating the fruit advances one row. Past the last row the pace stays capped.
- * Frightened speed stays under half of that board's chase speed. These columns
- * do not include {@link CLEAR_SPEED_BONUS} or {@link GHOST_SCATTER_BUMP}.
+ * Tiles per second. Board 1 is about 10% under the two-thirds opening row
+ * (8.64 / 6.075 / 2.7675 → 7.78 / 5.47 / 2.49). Every later row is that same
+ * absolute drop (pac −0.86, ghost −0.605, fright −0.2775), so the steps
+ * between boards stay #14's two-thirds shrink. Eating the fruit advances one
+ * row. Past the last row the pace stays capped. Frightened speed stays under
+ * half of that board's chase speed. These columns do not include
+ * {@link CLEAR_SPEED_BONUS} or {@link GHOST_SCATTER_BUMP}.
  * Elroy is a multiple of the `pac` column, not of Pac's accumulated clears.
- *
- * Previous rows, for this shrink: Pac 8.64 / 9.315 / 9.99 / 10.665 / 11.295 / 11.88,
- * ghost 6.075 / 6.84 / 7.65 / 8.46 / 9.27 / 10.035,
- * fright 2.7675 / 3.0375 / 3.3525 / 3.6675 / 3.9825 / 4.2975.
+ * Inbound jammers scale off Pac's unslowed pace, so they slow with this table.
  */
 const BOARD_PACE: readonly { pac: number; ghost: number; fright: number }[] = [
-  { pac: 8.64, ghost: 6.075, fright: 2.7675 },
-  { pac: 9.09, ghost: 6.585, fright: 2.9475 },
-  { pac: 9.54, ghost: 7.125, fright: 3.1575 },
-  { pac: 9.99, ghost: 7.665, fright: 3.3675 },
-  { pac: 10.41, ghost: 8.205, fright: 3.5775 },
-  { pac: 10.8, ghost: 8.715, fright: 3.7875 },
+  { pac: 7.78, ghost: 5.47, fright: 2.49 },
+  { pac: 8.23, ghost: 5.98, fright: 2.67 },
+  { pac: 8.68, ghost: 6.52, fright: 2.88 },
+  { pac: 9.13, ghost: 7.06, fright: 3.09 },
+  { pac: 9.55, ghost: 7.6, fright: 3.3 },
+  { pac: 9.94, ghost: 8.11, fright: 3.51 },
 ];
 
 export interface BoardSpeeds {
@@ -224,9 +223,9 @@ export function speedsForBoard(boardIndex: number): BoardSpeeds {
   const row = BOARD_PACE[index] ?? BOARD_PACE[0];
   return {
     board: index + 1,
-    pac: row?.pac ?? 8.64,
-    ghost: row?.ghost ?? 6.075,
-    fright: row?.fright ?? 2.7675,
+    pac: row?.pac ?? 7.78,
+    ghost: row?.ghost ?? 5.47,
+    fright: row?.fright ?? 2.49,
   };
 }
 export const INCOMING_GHOST_MULT = 1.28;

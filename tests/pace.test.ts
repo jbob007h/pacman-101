@@ -20,9 +20,9 @@ describe('board pace', () => {
     const capped = speedsForBoard(20);
 
     expect(first.board).toBe(1);
-    expect(first.pac).toBeCloseTo(8.64);
-    expect(first.ghost).toBeCloseTo(6.075);
-    expect(first.fright).toBeCloseTo(2.7675);
+    expect(first.pac).toBeCloseTo(7.78);
+    expect(first.ghost).toBeCloseTo(5.47);
+    expect(first.fright).toBeCloseTo(2.49);
     expect(first.ghost).toBeLessThan(first.pac * 0.8);
     expect(first.fright).toBeLessThan(first.ghost * 0.5);
     expect(second.pac).toBeGreaterThan(first.pac);
