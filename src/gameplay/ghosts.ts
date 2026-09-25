@@ -1,6 +1,7 @@
 import {
   ELROY2_MULT,
   FRIGHT_GHOST_SPEED,
+  EATEN_HOUSE_SECONDS,
   GHOST_DOOR_SPEED,
   GHOST_EATEN_SPEED,
   GHOST_HOUSE_SPEED,
@@ -63,8 +64,8 @@ export interface GhostWorld {
 
 /**
  * Opening release only, in seconds of simulation time. Pinky 4, Inky 12, Clyde 18.
- * Blinky starts outside. A ghost eaten and sent home re-releases after 1.4s
- * ({@link enterHouse}), not these times. A pellet clear does not rebuild ghosts.
+ * Blinky starts outside. A ghost eaten and sent home re-releases after
+ * {@link EATEN_HOUSE_SECONDS} ({@link enterHouse}), not these times. A pellet clear does not rebuild ghosts.
  * {@link Board.reset} does, so a restarted match uses this schedule again.
  */
 export function createGhosts(): Ghost[] {
@@ -260,7 +261,7 @@ function enterHouse(ghostActor: Ghost, world: GhostWorld): void {
     ghostActor.y = 14;
     ghostActor.mode = 'house';
     ghostActor.dir = { ...DIR_UP };
-    ghostActor.releaseAt = world.time + 1.4;
+    ghostActor.releaseAt = world.time + EATEN_HOUSE_SECONDS;
     ghostActor.centerKey = -1;
   }
 }

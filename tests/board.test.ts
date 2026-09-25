@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GHOST_ATTACK_WINDOW, SPEED_POPUP_SECONDS } from '../src/config';
+import { EATEN_HOUSE_SECONDS, GHOST_ATTACK_WINDOW, SPEED_POPUP_SECONDS } from '../src/config';
 import { Game } from '../src/game';
 import { ghostDrawMode } from '../src/render/draw';
 import type { Dir } from '../src/shared/types';
@@ -320,11 +320,39 @@ describe('main board', () => {
     expect(pinky.reversePending).toBe(false);
   });
 
+  it('holds an eaten ghost in the house for 5 seconds after the eyes arrive', () => {
+    const game = new Game(() => 0);
+    const blinky = game.board.ghosts[0];
+    if (!blinky) throw new Error('missing blinky');
+    for (const ghost of game.board.ghosts) {
+      if (ghost === blinky) continue;
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    blinky.mode = 'entering';
+    blinky.x = 14;
+    blinky.y = 13.95;
+    blinky.dir = { ...DIR_DOWN };
+    game.board.pac.dir = { x: -1, y: 0 };
+    game.update(1 / 60);
+    expect(blinky.mode).toBe('house');
+    expect(blinky.releaseAt - game.board.time).toBeCloseTo(EATEN_HOUSE_SECONDS, 5);
+    expect(EATEN_HOUSE_SECONDS).toBe(5);
+
+    const leaveAt = blinky.releaseAt;
+    while (game.board.time < leaveAt) {
+      expect(blinky.mode).toBe('house');
+      game.update(1 / 60);
+    }
+    expect(blinky.mode).toBe('leaving');
+    expect(game.board.ghosts.map((ghost) => ghost.releaseAt)).toEqual([leaveAt, 1e9, 1e9, 1e9]);
+  });
+
   it('holds Inky and Clyde in the house longer at the opening, and a reset uses that schedule again', () => {
     const game = new Game(() => 0);
     const byId = Object.fromEntries(game.board.ghosts.map((ghost) => [ghost.id, ghost.releaseAt]));
     expect(byId).toEqual({ blinky: 0, pinky: 4, inky: 12, clyde: 18 });
-    game.board.ghosts[2]!.releaseAt = 1.4;
+    game.board.ghosts[2]!.releaseAt = EATEN_HOUSE_SECONDS;
     game.restart();
     const again = Object.fromEntries(game.board.ghosts.map((ghost) => [ghost.id, ghost.releaseAt]));
     expect(again).toEqual({ blinky: 0, pinky: 4, inky: 12, clyde: 18 });

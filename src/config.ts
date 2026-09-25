@@ -42,6 +42,11 @@ export const GHOST_LEAVE_SPEED = 3.24;
 /** Eyes dropping back into the house. Not used for the exit. */
 export const GHOST_DOOR_SPEED = 7.02;
 /**
+ * Seconds an eaten ghost waits in the house after its eyes arrive.
+ * Opening releases stay Pinky 4s, Inky 12s, Clyde 18s. Jammers do not use this.
+ */
+export const EATEN_HOUSE_SECONDS = 5;
+/**
  * Fallback denominator for {@link pelletFill} when a caller does not pass the pellet's own duration.
  * Live pellets use {@link frightSecondsForBoard}, not this constant.
  */
