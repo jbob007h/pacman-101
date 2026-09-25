@@ -1,8 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { BOARD_W, BOARD_X, PAC_START, VIEW_H, VIEW_W } from '../src/config';
+import { BOARD_W, BOARD_X, FRUIT_TILE, PAC_START, VIEW_H, VIEW_W } from '../src/config';
+import { Game } from '../src/game';
 import { Maze, Tile } from '../src/gameplay/maze';
 import { sleeperTiles } from '../src/gameplay/train';
 import { panelRect } from '../src/render/layout';
+
+/** Tiles that were dots and must stay empty on every fill. */
+const OPENED_DOTS = [
+  [6, 9],
+  [21, 9],
+  [13, 5],
+  [14, 5],
+  [12, 9],
+  [12, 10],
+  [15, 9],
+  [15, 10],
+  [6, 19],
+  [21, 19],
+  [12, 18],
+  [12, 19],
+  [15, 18],
+  [15, 19],
+  [13, 29],
+  [14, 29],
+] as const;
+
+function expectOpenedEmpty(maze: Maze): void {
+  for (const [x, y] of OPENED_DOTS) {
+    expect(maze.tile(x, y)).toBe(Tile.Empty);
+    expect(maze.blocks(x, y, 'pac')).toBe(false);
+  }
+}
 
 describe('maze', () => {
   const maze = new Maze();
@@ -32,28 +60,7 @@ describe('maze', () => {
     const counted = new Maze();
     expect(counted.dotCount()).toBe(216);
     expect(counted.pelletCount()).toBe(4);
-    const opened = [
-      [6, 9],
-      [21, 9],
-      [13, 5],
-      [14, 5],
-      [12, 9],
-      [12, 10],
-      [15, 9],
-      [15, 10],
-      [6, 19],
-      [21, 19],
-      [12, 18],
-      [12, 19],
-      [15, 18],
-      [15, 19],
-      [13, 29],
-      [14, 29],
-    ] as const;
-    for (const [x, y] of opened) {
-      expect(counted.tile(x, y)).toBe(Tile.Empty);
-      expect(counted.blocks(x, y, 'pac')).toBe(false);
-    }
+    expectOpenedEmpty(counted);
     for (const tile of sleeperTiles()) {
       expect(counted.tile(tile.x, tile.y)).toBe(Tile.Empty);
     }
@@ -63,10 +70,7 @@ describe('maze', () => {
     expect(counted.remaining()).toBe(218);
     counted.resetDots();
     expect(counted.remaining()).toBe(220);
-    for (const [x, y] of opened) {
-      expect(counted.tile(x, y)).toBe(Tile.Empty);
-      expect(counted.blocks(x, y, 'pac')).toBe(false);
-    }
+    expectOpenedEmpty(counted);
     for (const tile of sleeperTiles()) {
       expect(counted.tile(tile.x, tile.y)).toBe(Tile.Empty);
     }
@@ -76,6 +80,43 @@ describe('maze', () => {
         expect(tile === Tile.Dot || tile === Tile.Pellet).toBe(false);
       }
     }
+  });
+});
+
+describe('opened dot tiles', () => {
+  it('stays empty after a fruit refill and a match restart', () => {
+    const game = new Game(() => 0);
+    for (const ghost of game.board.ghosts) {
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    expectOpenedEmpty(game.board.maze);
+
+    const maze = game.board.maze;
+    const last = { x: 12, y: 23 };
+    for (let y = 0; y < maze.rows; y++) {
+      for (let x = 0; x < maze.cols; x++) {
+        if (x === last.x && y === last.y) continue;
+        maze.consume(x, y);
+      }
+    }
+    game.board.pac.dir = { x: 0, y: -1 };
+    game.board.pac.x = last.x;
+    game.board.pac.y = last.y;
+    game.update(1 / 60);
+    expect(maze.remaining()).toBe(0);
+    while (game.board.clearPause > 0) game.update(0.05);
+    game.board.pac.x = FRUIT_TILE.x;
+    game.board.pac.y = FRUIT_TILE.y;
+    game.update(1 / 60);
+    expect(game.board.boardIndex).toBe(1);
+    expect(maze.remaining()).toBe(220);
+    expectOpenedEmpty(maze);
+
+    game.restart();
+    expect(game.board.boardIndex).toBe(0);
+    expect(game.board.maze.remaining()).toBe(218);
+    expectOpenedEmpty(game.board.maze);
   });
 });
 
