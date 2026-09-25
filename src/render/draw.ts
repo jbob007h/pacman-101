@@ -251,6 +251,9 @@ function drawMazeWorld(ctx: CanvasRenderingContext2D, input: DrawInput, board: {
       alpha: 1,
     });
   }
+  // Jammers sit under the board's own ghosts so Blinky, Pinky, Inky, and Clyde
+  // (frightened and eaten eyes included) stay readable when a jammer overlaps them.
+  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   for (const ghost of input.ghosts) drawGhost(ctx, ghost, input, board.x, board.y);
   const leader = input.ghosts.find((ghost) => ghost.id === input.trainLeaderId);
   const trainFright = leader?.mode === 'frightened';
@@ -269,7 +272,6 @@ function drawMazeWorld(ctx: CanvasRenderingContext2D, input: DrawInput, board: {
   });
   drawPac(ctx, input, board.x, board.y);
   drawPelletClock(ctx, input.frightened, input.pelletDuration);
-  for (const jammer of input.jammers) drawJammer(ctx, jammer, input.maze, board.x, board.y, input.frightened > 0);
   ctx.restore();
 }
 
