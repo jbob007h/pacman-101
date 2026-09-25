@@ -10,10 +10,10 @@ import { boardRect, ghostHouseCenter, panelCenter } from './render/layout';
 import type { Dir } from './shared/types';
 import { DIR_NONE } from './shared/types';
 import { EventBus } from './shared/events';
-import type { JamReason } from './shared/events';
 import type { Rng } from './shared/rng';
 import { Match, type MatchPhase } from './systems/match';
-import { DEFAULT_PLAYER_NAME } from './systems/names';
+import { defaultPlayerName } from './systems/names';
+import { activeTheme } from './theme';
 import { LOCAL_PLAYER, causeFromMemory, KnockoutBook } from './systems/knockouts';
 import { Ranking, type StandingRow, type StandingSnapshot } from './systems/ranking';
 import { SimWorld } from './systems/sims';
@@ -54,7 +54,7 @@ export class Game {
   readonly ranking: Ranking;
   readonly knockouts = new KnockoutBook();
   /** Human name used on the HUD and in the standings. */
-  playerName = DEFAULT_PLAYER_NAME;
+  playerName = defaultPlayerName();
   readonly sfx = new Sfx();
   readonly fx = new BoltField();
   private banner = '';
@@ -139,12 +139,12 @@ export class Game {
         origin,
         event.targets.map((id) => panelCenter(id)),
       );
-      this.setBanner(`${reasonLabel(event.reason)} ${event.strength} → ${formatTargets(event.targets)}`);
+      this.setBanner(`${activeTheme().strings.reason(event.reason)} ${event.strength} → ${formatTargets(event.targets)}`);
     });
     this.bus.on('simEliminated', (event) => {
       const named = this.online ? this.sims.sims.find((sim) => sim.id === event.simId) : undefined;
       const name = named?.name ?? this.ranking.nameForSim(event.simId);
-      this.setBanner(`Eliminated ${name}`);
+      this.setBanner(activeTheme().strings.eliminated(name));
     });
     this.bus.on('incomingJammer', (event) => {
       this.knockouts.noteAttack(LOCAL_PLAYER, event.fromSimId);
@@ -155,7 +155,7 @@ export class Game {
         event.exact === true,
         event.fromSimId,
       );
-      this.setBanner(`Ghost jam from ${this.ranking.nameForSim(event.fromSimId)}`);
+      this.setBanner(activeTheme().strings.jamFrom(this.ranking.nameForSim(event.fromSimId)));
     });
     this.bus.on('dotEaten', () => this.sfx.dot());
     this.bus.on('powerPelletEaten', () => this.sfx.pellet());
@@ -257,7 +257,7 @@ export class Game {
       this.onlinePanels.set(seat.seat, sim.id);
       sim.parked = false;
       sim.showName = true;
-      sim.name = seat.name || 'Opponent';
+      sim.name = seat.name || activeTheme().strings.opponent;
       sim.alive = seat.alive;
       sim.pressure = seat.alive ? seat.pressure : KILL_PRESSURE;
       sim.heat = seat.hit ? 1 : 0;
@@ -341,7 +341,7 @@ export class Game {
     const simId = fromSeat != null ? (this.onlinePanels.get(fromSeat) ?? 1) : 1;
     this.knockouts.noteAttack(LOCAL_PLAYER, fromSeat ?? null);
     this.fx.queueIncoming(panelCenter(simId), ghostHouseCenter(), strength, true, fromSeat ?? null);
-    this.setBanner(`Ghost jam from ${fromName}`);
+    this.setBanner(activeTheme().strings.jamFrom(fromName));
   }
 
   /** Server confirmed this maze is out. Does not echo a death report. */
@@ -423,7 +423,7 @@ export class Game {
       kodBy: row.kodBy ?? null,
     }));
     this.spectatorPlaces = new Map(placements.map((row) => [row.seat, row.place]));
-    this.onlineNote = 'Match over. Joining the next lobby…';
+    this.onlineNote = activeTheme().strings.matchOver;
   }
 
   clearSpectate(): void {
@@ -611,7 +611,7 @@ export class Game {
     this.fx.update(step, (strength, exact, sender) => {
       this.sfx.impact();
       const spawned = this.board.spawnInbound(strength, exact, sender);
-      if (spawned === 0) this.setBanner('Jammers are full');
+      if (spawned === 0) this.setBanner(activeTheme().strings.jammersFull);
     });
   }
 
@@ -621,7 +621,7 @@ export class Game {
 
   private countdownLabel(): string | null {
     if (this.beatIndex < 0 || this.beatIndex >= COUNTDOWN_BEATS.length) return null;
-    return COUNTDOWN_BEATS[this.beatIndex] ?? null;
+    return activeTheme().strings.countdown[this.beatIndex] ?? COUNTDOWN_BEATS[this.beatIndex] ?? null;
   }
 
   /** Ready through Hit it!, one second (60 frames) each. Hit it! is the frame Pac starts left. */
@@ -660,18 +660,19 @@ export class Game {
   }
 
   private statusLine(): string {
-    if (!this.inMatch) return this.onlineNote || 'Start match to play';
+    const copy = activeTheme().strings;
+    if (!this.inMatch) return this.onlineNote || copy.statusMenu;
     const countdown = this.countdownLabel();
     if (countdown) return countdown;
     if (this.bannerT > 0 && this.match.phase !== 'won') return this.banner;
     if (this.match.phase === 'playing' && this.board.pac.dir.x === 0 && this.board.pac.dir.y === 0) {
-      return 'Press an arrow key or WASD to start';
+      return copy.statusMove;
     }
-    if (this.match.phase === 'won') return this.winAcknowledged ? 'Final standings' : 'Congratulations';
-    if (this.match.phase === 'lost') return 'Eliminated';
-    if (this.board.inbound.slow > 0) return 'Slowed by a jammer';
-    if (this.board.frightened > 0) return 'Ghosts are frightened and slow — eat them to jam opponents';
-    return 'Large dots frighten ghosts. Eating them sends jammers sideways.';
+    if (this.match.phase === 'won') return this.winAcknowledged ? copy.statusFinal : copy.statusWin;
+    if (this.match.phase === 'lost') return copy.statusOut;
+    if (this.board.inbound.slow > 0) return copy.statusSlow;
+    if (this.board.frightened > 0) return copy.statusFright;
+    return copy.statusIdle;
   }
 
   /** Leave the congratulations card and open the final standings. */
@@ -682,10 +683,11 @@ export class Game {
 
   private overlay(): HudState['overlay'] {
     if (this.match.phase === 'won' && !this.winAcknowledged) {
+      const copy = activeTheme().strings;
       return {
-        title: 'Congratulations!',
-        body: `Last one standing. Score ${this.board.score}.`,
-        hint: 'Click, tap, Space, or Enter',
+        title: copy.winTitle,
+        body: copy.winBody(this.board.score),
+        hint: copy.winHint,
       };
     }
     return null;
@@ -749,7 +751,7 @@ export class Game {
     }
     const seats = [...this.onlineSeats.values()];
     const label = (seat: OnlineSeat): string =>
-      seat.name || (seat.seat === this.onlineSeat ? this.playerName : 'Pac');
+      seat.name || (seat.seat === this.onlineSeat ? this.playerName : activeTheme().strings.fallbackName);
     const youDiedTo = this.onlineSeats.get(this.onlineSeat)?.kodBy ?? null;
     const toRow = (seat: OnlineSeat, state: 'active' | 'out'): StandingRow => ({
       place: state === 'active' ? null : seat.place,
@@ -795,7 +797,7 @@ export class Game {
 
   private spectateNote(): string {
     const alive = this.spectatorRoster.filter((seat) => seat.alive).length;
-    return `Spectating · ${formatMatchTime(this.spectatorClock)} · ${alive} alive. No maze view — you join the next lobby when this match ends.`;
+    return activeTheme().strings.spectateStatus(formatMatchTime(this.spectatorClock), alive);
   }
 
   private spectatorSnapshot(): StandingSnapshot {
@@ -903,23 +905,8 @@ function oneOpponentRoster(you: number, name: string): RosterSeat[] {
   const blank = { alive: true, pressure: 0, hit: false, busy: false, bot: false, ready: true };
   return [
     { ...blank, seat: you, name: '' },
-    { ...blank, seat: other, name: name || 'Opponent' },
+    { ...blank, seat: other, name: name || activeTheme().strings.opponent },
   ];
-}
-
-function reasonLabel(reason: JamReason): string {
-  switch (reason) {
-    case 'ghost':
-      return 'Ghost jam';
-    case 'dots':
-      return 'Dot pressure';
-    case 'clear':
-      return 'Board clear';
-    case 'sim':
-      return 'Sim jam';
-    default:
-      return 'Jam';
-  }
 }
 
 function formatTargets(ids: readonly number[]): string {

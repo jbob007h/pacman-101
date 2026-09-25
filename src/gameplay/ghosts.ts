@@ -20,7 +20,6 @@ export type GhostMode = 'house' | 'leaving' | 'entering' | 'scatter' | 'chase' |
 
 export interface Ghost extends Mover {
   id: GhostId;
-  color: string;
   mode: GhostMode;
   scatter: Vec;
   releaseAt: number;
@@ -70,16 +69,15 @@ export interface GhostWorld {
  */
 export function createGhosts(): Ghost[] {
   return [
-    ghost('blinky', '#ff3b30', 14, 11, DIR_LEFT, { x: 25, y: -3 }, 0, 'scatter'),
-    ghost('pinky', '#ffb8ff', 13, 14, DIR_UP, { x: 2, y: -3 }, 4, 'house'),
-    ghost('inky', '#46f0ff', 11, 14, DIR_UP, { x: 27, y: 33 }, 12, 'house'),
-    ghost('clyde', '#ffb852', 15, 14, DIR_DOWN, { x: 0, y: 33 }, 18, 'house'),
+    ghost('blinky', 14, 11, DIR_LEFT, { x: 25, y: -3 }, 0, 'scatter'),
+    ghost('pinky', 13, 14, DIR_UP, { x: 2, y: -3 }, 4, 'house'),
+    ghost('inky', 11, 14, DIR_UP, { x: 27, y: 33 }, 12, 'house'),
+    ghost('clyde', 15, 14, DIR_DOWN, { x: 0, y: 33 }, 18, 'house'),
   ];
 }
 
 function ghost(
   id: GhostId,
-  color: string,
   x: number,
   y: number,
   dir: Dir,
@@ -89,7 +87,6 @@ function ghost(
 ): Ghost {
   return {
     id,
-    color,
     x,
     y,
     dir: { ...dir },

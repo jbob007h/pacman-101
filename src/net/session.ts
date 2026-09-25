@@ -1,3 +1,4 @@
+import { activeTheme } from '../theme';
 import type { AttackKind, ClientMessage, DeathCause, RosterSeat, ServerMessage } from './protocol';
 
 export interface SessionHandlers {
@@ -167,7 +168,7 @@ export class NetSession {
       this.seat = 0;
       this.phase = 'spectating';
       this.readied = false;
-      this.handlers.onNote('Spectating this match. No maze view.');
+      this.handlers.onNote(activeTheme().strings.spectateNote);
       this.handlers.onSpectate(message);
       return;
     }
@@ -208,21 +209,20 @@ export function describeLobby(seats: readonly RosterSeat[], roomSize: number, co
   const ready = humans.filter((seat) => seat.ready).length;
   const names = humans.map((seat) => `${seat.name}${seat.ready ? ' (ready)' : ''}`).join(', ');
   const who = names.length > 0 ? names : 'Nobody yet';
-  if (countdownMs == null) {
-    return `${who}. ${ready} of ${humans.length} ready. The first Ready starts a 10s countdown, then empty seats fill to ${roomSize}.`;
-  }
+  const copy = activeTheme().strings;
+  if (countdownMs == null) return copy.lobbyWaiting(who, ready, humans.length, roomSize);
   const secs = Math.max(0, Math.ceil(countdownMs / 1000));
-  return `${who}. Starting in ${secs}s. Empty seats fill to ${roomSize}.`;
+  return copy.lobbyStarting(who, secs, roomSize);
 }
 
 function connectionFailureNote(url: string): string {
   try {
     const host = new URL(url).hostname;
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
-      return 'Could not connect. Start the server with npm run server.';
+      return activeTheme().strings.connectLocal;
     }
   } catch {
     // A bad ?ws= value still needs a visible failure.
   }
-  return 'Could not connect. A free Render server sleeps after idle time and can take a minute to wake. Try Online again.';
+  return activeTheme().strings.connectRemote;
 }

@@ -1,14 +1,12 @@
 import type { InboundJammer } from '../gameplay/inbound';
 import { koVoiceOnEnd, koVoiceOnScore, type KoVoiceState } from '../systems/knockouts';
+import { activeTheme } from '../theme';
+import type { ToneStep } from '../theme/types';
 
 const MUTE_KEY = '101-muted';
 /** Overall level. Individual cues stay under this so overlaps do not clip. */
 const MASTER = 0.7;
 const DOT_GAP = 0.09;
-/** Higher wakawaka tone, in Hz. */
-const DOT_HI = 980;
-/** Lower wakawaka tone, in Hz. */
-const DOT_LO = 620;
 
 export interface SfxWatch {
   jammers: readonly InboundJammer[];
@@ -101,23 +99,14 @@ export class Sfx {
   }
 
   start(): void {
-    this.play('start', () => {
-      this.tone(392, 0.08, 'square', 0.05);
-      this.tone(523, 0.09, 'square', 0.055, 0.08);
-      this.tone(659, 0.14, 'square', 0.06, 0.16);
-    });
+    this.play('start', () => this.playSteps(activeTheme().sounds.start));
   }
 
-  /** One short blip per countdown beat. `go` is the Hit it! cue. */
+  /** One short blip per countdown beat. `go` is the release cue. */
   countdown(beat: number, go: boolean): void {
     this.play(go ? 'countdown-go' : 'countdown', () => {
-      if (go) {
-        this.tone(523, 0.07, 'square', 0.05);
-        this.tone(784, 0.16, 'square', 0.06, 0.07);
-        return;
-      }
-      const freq = [330, 392, 440, 494][beat] ?? 440;
-      this.tone(freq, 0.08, 'square', 0.045);
+      const sounds = activeTheme().sounds;
+      this.playSteps(go ? sounds.countdownGo : sounds.countdown(beat));
     });
   }
 
@@ -134,88 +123,55 @@ export class Sfx {
     this.lastDot = this.now();
     const high = this.nextDotHigh;
     this.nextDotHigh = !this.nextDotHigh;
-    const freq = high ? DOT_HI : DOT_LO;
-    this.play(high ? 'dot-hi' : 'dot-lo', () => this.tone(freq, 0.042, 'square', 0.034));
+    const sounds = activeTheme().sounds;
+    this.play(high ? 'dot-hi' : 'dot-lo', () => this.playSteps(high ? sounds.dotHi : sounds.dotLo));
   }
 
   pellet(): void {
     this.skipDot = true;
-    this.play('pellet', () => {
-      this.tone(160, 0.26, 'sawtooth', 0.06, 0, 480);
-      this.tone(640, 0.12, 'square', 0.04, 0.05);
-    });
+    this.play('pellet', () => this.playSteps(activeTheme().sounds.pellet));
   }
 
   wake(): void {
-    this.play('wake', () => {
-      this.tone(494, 0.05, 'triangle', 0.04);
-      this.tone(740, 0.09, 'triangle', 0.045, 0.05);
-    });
+    this.play('wake', () => this.playSteps(activeTheme().sounds.wake));
   }
 
   /** A train follower, shorter than a main-ghost eat. */
   trainEat(combo: number): void {
-    const base = 360 + Math.min(8, Math.max(1, combo)) * 48;
-    this.play('train-eat', () => {
-      this.tone(base, 0.05, 'square', 0.04);
-      this.tone(base * 1.4, 0.08, 'square', 0.035, 0.045);
-    });
+    this.play('train-eat', () => this.playSteps(activeTheme().sounds.trainEat(combo)));
   }
 
   ghost(combo: number): void {
-    const base = 500 + Math.min(8, Math.max(1, combo)) * 55;
-    this.play('ghost', () => {
-      this.tone(96, 0.07, 'sine', 0.05);
-      this.tone(base, 0.08, 'sine', 0.08);
-      this.tone(base * 1.5, 0.1, 'triangle', 0.05, 0.06);
-    });
+    this.play('ghost', () => this.playSteps(activeTheme().sounds.ghost(combo)));
   }
 
   fruitSpawn(): void {
-    this.play('fruit-spawn', () => {
-      this.tone(740, 0.12, 'sine', 0.04);
-      this.tone(988, 0.14, 'triangle', 0.035, 0.05);
-    });
+    this.play('fruit-spawn', () => this.playSteps(activeTheme().sounds.fruitSpawn));
   }
 
   fruitEat(): void {
-    this.play('fruit', () => {
-      this.tone(440, 0.1, 'triangle', 0.06);
-      this.tone(554, 0.1, 'triangle', 0.06, 0.09);
-      this.tone(659, 0.16, 'triangle', 0.07, 0.18);
-    });
+    this.play('fruit', () => this.playSteps(activeTheme().sounds.fruit));
   }
 
   boardClear(): void {
-    this.play('clear', () => {
-      this.tone(392, 0.07, 'square', 0.045);
-      this.tone(523, 0.08, 'square', 0.05, 0.06);
-      this.tone(659, 0.09, 'square', 0.05, 0.12);
-      this.tone(880, 0.16, 'triangle', 0.045, 0.2);
-    });
+    this.play('clear', () => this.playSteps(activeTheme().sounds.clear));
   }
 
   whiteHit(): void {
-    this.play('white-hit', () => this.tone(420, 0.22, 'sine', 0.07, 0, 140));
+    this.play('white-hit', () => this.playSteps(activeTheme().sounds.whiteHit));
   }
 
   whiteWipe(): void {
-    this.play('white-wipe', () => {
-      this.tone(880, 0.06, 'square', 0.04);
-      this.burst(0.07, 0.04);
-    });
+    this.play('white-wipe', () => this.playSteps(activeTheme().sounds.whiteWipe));
   }
 
   redSpawn(): void {
-    this.play('red-spawn', () => this.tone(98, 0.14, 'square', 0.06, 0, 70));
+    this.play('red-spawn', () => this.playSteps(activeTheme().sounds.redSpawn));
   }
 
   /** Thud when an incoming attack reaches the ghost house. */
   impact(): void {
-    this.play('impact', () => {
-      this.tone(150, 0.1, 'sawtooth', 0.06, 0, 70);
-      this.burst(0.09, 0.045);
-    });
+    this.play('impact', () => this.playSteps(activeTheme().sounds.impact));
   }
 
   /**
@@ -223,11 +179,7 @@ export class Sfx {
    * once at a time, then "Double K.O." if more landed while that line was going.
    */
   ko(): void {
-    this.play('ko', () => {
-      this.tone(180, 0.06, 'square', 0.07, 0, 90);
-      this.tone(720, 0.1, 'square', 0.06, 0.04);
-      this.burst(0.07, 0.05);
-    });
+    this.play('ko', () => this.playSteps(activeTheme().sounds.ko));
     if (this.muted) return;
     const next = koVoiceOnScore(this.voice);
     this.voice = next.state;
@@ -235,17 +187,11 @@ export class Sfx {
   }
 
   death(): void {
-    this.play('death', () => {
-      this.tone(420, 0.38, 'sawtooth', 0.07, 0, 70);
-      this.burst(0.28, 0.05);
-    });
+    this.play('death', () => this.playSteps(activeTheme().sounds.death));
   }
 
   win(): void {
-    this.play('win', () => {
-      const notes = [523, 659, 784, 1046];
-      for (let i = 0; i < notes.length; i++) this.tone(notes[i] ?? 523, 0.16, 'triangle', 0.07, i * 0.09);
-    });
+    this.play('win', () => this.playSteps(activeTheme().sounds.win));
   }
 
   /**
@@ -333,6 +279,13 @@ export class Sfx {
     master.gain.value = this.muted ? 0 : MASTER;
     master.connect(ctx.destination);
     this.master = master;
+  }
+
+  private playSteps(steps: readonly ToneStep[]): void {
+    for (const step of steps) {
+      if (step.type === 'noise') this.burst(step.dur, step.gain);
+      else this.tone(step.freq, step.dur, step.type, step.gain, step.delay ?? 0, step.slideTo);
+    }
   }
 
   private tone(

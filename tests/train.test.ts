@@ -311,7 +311,6 @@ describe('sleeping ghosts and the train', () => {
     game.bus.on('ghostEaten', () => events.push('main'));
     const blinky = game.board.ghosts[0];
     if (!blinky) throw new Error('missing blinky');
-    const color = blinky.color;
     blinky.mode = 'frightened';
     blinky.x = 5;
     blinky.y = 5;
@@ -326,7 +325,6 @@ describe('sleeping ghosts and the train', () => {
     game.update(0);
     expect(events).toEqual(['main']);
     expect(blinky.id).toBe('blinky');
-    expect(blinky.color).toBe(color);
     expect(blinky.mode).toBe('frightened');
     expect(blinky.skipFright).toBe(false);
     expect(blinky.x).toBe(8);
@@ -410,7 +408,6 @@ describe('sleeping ghosts and the train', () => {
     const blinky = game.board.ghosts[0];
     const pinky = game.board.ghosts[1];
     if (!blinky || !pinky) throw new Error('missing ghosts');
-    const pink = pinky.color;
     pinky.mode = 'frightened';
     pinky.x = 5;
     pinky.y = 5;
@@ -425,7 +422,6 @@ describe('sleeping ghosts and the train', () => {
     game.board.train.followers = [follower(7, 11, 5)];
     game.update(0);
     expect(pinky.id).toBe('pinky');
-    expect(pinky.color).toBe(pink);
     expect(pinky.mode).toBe('frightened');
     expect(pinky.x).toBe(11);
     expect(pinky.y).toBe(5);
@@ -573,7 +569,6 @@ describe('sleeping ghosts and the train', () => {
     const leaderId = game.board.train.leaderId;
     const mains = ghosts.map((ghost) => ({
       id: ghost.id,
-      color: ghost.color,
       mode: ghost.mode,
       x: ghost.x,
       y: ghost.y,
@@ -593,7 +588,7 @@ describe('sleeping ghosts and the train', () => {
     expect(game.board.train.sleepers.map((sleeper) => ({ x: sleeper.x, y: sleeper.y, awake: sleeper.awake }))).toEqual(
       sleeperTiles().map((tile) => ({ x: tile.x, y: tile.y, awake: false })),
     );
-    expect(ghosts.map((ghost) => ({ id: ghost.id, color: ghost.color, mode: ghost.mode, x: ghost.x, y: ghost.y }))).toEqual(mains);
+    expect(ghosts.map((ghost) => ({ id: ghost.id, mode: ghost.mode, x: ghost.x, y: ghost.y }))).toEqual(mains);
     expect(blinky.x).toBe(handedAt.x);
     expect(blinky.y).toBe(handedAt.y);
     expect(blinky.mode).toBe('frightened');

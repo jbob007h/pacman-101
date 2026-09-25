@@ -1,8 +1,54 @@
 :root {
   color-scheme: dark;
-  font-family: "Segoe UI", ui-sans-serif, system-ui, sans-serif;
-  background: #07080f;
-  color: #f4f1e6;
+  /* Deep Sea is the default. Classic (and any saved theme) overwrites these from JS. */
+  --bg: #041820;
+  --bg-glow: rgba(32, 140, 150, 0.4);
+  --text: #e7f7f4;
+  --brand: #7ee0c8;
+  --muted: #8eb8c4;
+  --alive: #7ee8ff;
+  --ko: #ff5a62;
+  --speed: #ffe09a;
+  --time: #f3fffb;
+  --status: #d5eee8;
+  --button-bg: #7ee0c8;
+  --button-text: #042028;
+  --button-hover: #c9fff0;
+  --ghost-button: #9aefe0;
+  --ghost-border: #3d7a86;
+  --ghost-hover: rgba(126, 224, 200, 0.14);
+  --note: #7ee8ff;
+  --canvas-bg: #03141c;
+  --countdown: #ffe09a;
+  --scrim: rgba(2, 12, 18, 0.74);
+  --card-bg: #0c2832;
+  --card-border: #2f6e7c;
+  --card-title: #7ee0c8;
+  --hint: #8eb8c4;
+  --card-text: #d7f3ee;
+  --field-text: #e7f7f4;
+  --field-bg: #07161e;
+  --field-border: #3d7a86;
+  --field-focus: #7ee0c8;
+  --rank-border: #1c4e5c;
+  --rank-bg: #07161e;
+  --rank-text: #d7f3ee;
+  --rank-place: #8eb8c4;
+  --rank-dim: #5e8490;
+  --rank-you-bg: rgba(126, 224, 200, 0.2);
+  --rank-you: #d8fff4;
+  --ko-icon-fg: #1a0508;
+  --ko-icon-bg: #ff2a36;
+  --kod-icon-fg: #042028;
+  --kod-icon-bg: #7ee0c8;
+  --help: #8eb8c4;
+  --font: "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-display: "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", monospace;
+  --shadow: rgba(0, 16, 24, 0.45);
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
 }
 
 * {
@@ -13,8 +59,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(1200px 500px at 50% -10%, rgba(48, 72, 160, 0.35), transparent 60%),
-    #07080f;
+    radial-gradient(1200px 500px at 50% -10%, var(--bg-glow), transparent 60%),
+    var(--bg);
 }
 
 #app {
@@ -34,16 +80,16 @@ body {
 
 .brand h1 {
   margin: 0;
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-display);
   font-size: 32px;
   letter-spacing: 0.08em;
-  color: #ffe14a;
+  color: var(--brand);
   line-height: 1;
 }
 
 .brand p {
   margin: 2px 0 0;
-  color: #8ea0c8;
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -56,24 +102,24 @@ body {
 }
 
 .stat span {
-  color: #8ea0c8;
+  color: var(--muted);
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .stat strong {
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-mono);
   font-size: 22px;
   font-weight: 650;
 }
 
 #alive {
-  color: #8cf0ff;
+  color: var(--alive);
 }
 
 #ko {
-  color: #ff5a62;
+  color: var(--ko);
   display: inline-block;
   transform-origin: left center;
 }
@@ -95,23 +141,23 @@ body {
 }
 
 #speed {
-  color: #ffe14a;
+  color: var(--speed);
 }
 
 #time {
-  color: #f4f7ff;
+  color: var(--time);
 }
 
 #status {
   margin: 0;
-  color: #d5def2;
+  color: var(--status);
   font-size: 14px;
 }
 
 button {
   font: inherit;
-  color: #1a1400;
-  background: #ffe14a;
+  color: var(--button-text);
+  background: var(--button-bg);
   border: 0;
   border-radius: 999px;
   padding: 8px 14px;
@@ -120,17 +166,23 @@ button {
 }
 
 button:hover {
-  background: #fff1a0;
+  background: var(--button-hover);
 }
 
 button.ghost {
-  color: #ffe14a;
+  color: var(--ghost-button);
   background: transparent;
-  border: 1px solid #6e84b4;
+  border: 1px solid var(--ghost-border);
 }
 
 button.ghost:hover {
-  background: rgba(255, 225, 74, 0.12);
+  background: var(--ghost-hover);
+}
+
+.theme-picker button[aria-pressed='true'] {
+  color: var(--button-text);
+  background: var(--button-bg);
+  border-color: transparent;
 }
 
 button:disabled {
@@ -154,7 +206,7 @@ button:disabled {
 
 #online-note {
   margin: 10px 0 0;
-  color: #8cf0ff;
+  color: var(--note);
   font-size: 14px;
 }
 
@@ -166,9 +218,9 @@ button:disabled {
   display: block;
   width: 100%;
   height: auto;
-  background: #070b14;
+  background: var(--canvas-bg);
   border-radius: 10px;
-  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 16px 50px var(--shadow);
 }
 
 #countdown {
@@ -180,11 +232,11 @@ button:disabled {
   transform: translateY(-50%);
   pointer-events: none;
   text-align: center;
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-display);
   font-size: 72px;
   font-weight: 800;
   letter-spacing: 0.04em;
-  color: #ffe14a;
+  color: var(--countdown);
   text-shadow:
     0 3px 0 #000,
     0 0 18px rgba(0, 0, 0, 0.85);
@@ -200,7 +252,7 @@ button:disabled {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(4, 6, 12, 0.72);
+  background: var(--scrim);
   border-radius: 10px;
 }
 
@@ -210,7 +262,7 @@ button:disabled {
 }
 
 .title-card h2 {
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-display);
   font-size: 64px;
   letter-spacing: 0.08em;
   line-height: 1;
@@ -218,17 +270,46 @@ button:disabled {
 
 .eyebrow {
   margin: 0 0 8px;
-  color: #8ea0c8;
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.theme-kicker {
+  margin: -2px 0 10px;
+  color: var(--brand);
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.theme-kicker[hidden] {
+  display: none;
+}
+
+.theme-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 0 16px;
+}
+
+.theme-picker span {
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .card {
   width: min(420px, calc(100% - 32px));
   padding: 22px 22px 18px;
-  background: #121826;
-  border: 1px solid #31456f;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
   border-radius: 14px;
   text-align: center;
 }
@@ -236,18 +317,18 @@ button:disabled {
 .card h2 {
   margin: 0 0 8px;
   font-size: 28px;
-  color: #ffe14a;
+  color: var(--card-title);
 }
 
 #overlay-card.win-card h2 {
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  font-family: var(--font-display);
   font-size: 36px;
   letter-spacing: 0.03em;
 }
 
 #overlay-hint {
   margin: 0 0 16px;
-  color: #8ea0c8;
+  color: var(--hint);
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -259,7 +340,7 @@ button:disabled {
 
 .card p {
   margin: 0 0 16px;
-  color: #d5def2;
+  color: var(--card-text);
 }
 
 .name-field {
@@ -267,7 +348,7 @@ button:disabled {
   flex-direction: column;
   gap: 6px;
   margin: 0 0 16px;
-  color: #8ea0c8;
+  color: var(--muted);
   font-size: 12px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -278,17 +359,17 @@ button:disabled {
   font: inherit;
   text-transform: none;
   letter-spacing: 0;
-  color: #f4f1e6;
-  background: #0c101a;
-  border: 1px solid #6e84b4;
+  color: var(--field-text);
+  background: var(--field-bg);
+  border: 1px solid var(--field-border);
   border-radius: 10px;
   padding: 8px 10px;
   user-select: text;
 }
 
 .name-field input:focus {
-  outline: 2px solid #ffe14a;
-  border-color: #ffe14a;
+  outline: 2px solid var(--field-focus);
+  border-color: var(--field-focus);
 }
 
 .ranking-card {
@@ -307,9 +388,9 @@ button:disabled {
   margin: 0 0 14px;
   padding: 4px;
   list-style: none;
-  border: 1px solid #243458;
+  border: 1px solid var(--rank-border);
   border-radius: 10px;
-  background: #0c101a;
+  background: var(--rank-bg);
 }
 
 .rank-row {
@@ -319,28 +400,28 @@ button:disabled {
   align-items: center;
   padding: 5px 8px;
   border-radius: 8px;
-  color: #d5def2;
+  color: var(--rank-text);
   font-size: 14px;
 }
 
 .rank-row .place {
-  font-family: ui-monospace, "Cascadia Code", monospace;
-  color: #8ea0c8;
+  font-family: var(--font-mono);
+  color: var(--rank-place);
 }
 
 .rank-row.active .place,
 .rank-row.active .tag {
-  color: #5c6e94;
+  color: var(--rank-dim);
 }
 
 .rank-row.you {
-  background: rgba(255, 225, 74, 0.18);
-  color: #ffe14a;
+  background: var(--rank-you-bg);
+  color: var(--rank-you);
 }
 
 .rank-row.you .place,
 .rank-row.you .tag {
-  color: #ffe14a;
+  color: var(--rank-you);
 }
 
 .ko-marks {
@@ -363,19 +444,19 @@ button:disabled {
 }
 
 .ko-icon {
-  color: #1a0508;
-  background: #ff2a36;
+  color: var(--ko-icon-fg);
+  background: var(--ko-icon-bg);
 }
 
 .kod-icon {
-  color: #1a1400;
-  background: #ffe14a;
+  color: var(--kod-icon-fg);
+  background: var(--kod-icon-bg);
 }
 
 .ko-total {
   min-width: 4.6ch;
-  color: #8ea0c8;
-  font-family: ui-monospace, "Cascadia Code", monospace;
+  color: var(--rank-place);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   text-align: right;
@@ -385,12 +466,12 @@ button:disabled {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #8ea0c8;
+  color: var(--muted);
 }
 
 #help {
   margin: 10px 0 0;
-  color: #8ea0c8;
+  color: var(--help);
   font-size: 13px;
   line-height: 1.45;
 }

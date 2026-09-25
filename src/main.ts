@@ -7,6 +7,7 @@ import { modeFromKey } from './gameplay/powerMode';
 import { dirFromKey, type Dir } from './shared/types';
 import { standingMarks, type StandingRow } from './systems/ranking';
 import { loadPlayerName, savePlayerName } from './systems/names';
+import { activeTheme, bootTheme, setActiveTheme, type ThemeId } from './theme';
 import './style.css';
 
 const canvas = document.querySelector<HTMLCanvasElement>('#view');
@@ -39,14 +40,32 @@ const hudName = document.querySelector<HTMLElement>('#hud-name');
 const restartButtons = document.querySelectorAll<HTMLButtonElement>('#restart, #overlay-restart, #ranking-restart');
 const menuButtons = document.querySelectorAll<HTMLButtonElement>('#overlay-menu, #ranking-menu');
 const muteButtons = document.querySelectorAll<HTMLButtonElement>('#mute, #mute-menu');
+const helpEl = document.querySelector<HTMLElement>('#help');
+const brandEl = document.querySelector<HTMLElement>('#hud h1');
+const eyebrowEl = document.querySelector<HTMLElement>('#title-eyebrow');
+const cardTitleEl = document.querySelector<HTMLElement>('#title-heading');
+const cardKickerEl = document.querySelector<HTMLElement>('#title-kicker');
+const blurbEl = document.querySelector<HTMLElement>('#title-blurb');
+const nameLabelEl = document.querySelector<HTMLElement>('#name-label');
+const rankingTitleEl = document.querySelector<HTMLElement>('#ranking-title');
+const themeButtons = document.querySelectorAll<HTMLButtonElement>('[data-theme-id]');
+const statLabels = {
+  alive: document.querySelector<HTMLElement>('.alive-stat span'),
+  score: document.querySelector<HTMLElement>('.score-stat span'),
+  ko: document.querySelector<HTMLElement>('.ko-stat span'),
+  board: document.querySelector<HTMLElement>('.board-stat span'),
+  speed: document.querySelector<HTMLElement>('.speed-stat span'),
+  time: document.querySelector<HTMLElement>('.time-stat span'),
+};
 
-if (!canvas || !aliveEl || !scoreEl || !koEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || muteButtons.length < 2 || menuButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !koEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || !helpEl || !brandEl || !eyebrowEl || !cardTitleEl || !cardKickerEl || !blurbEl || !nameLabelEl || !rankingTitleEl || !statLabels.alive || !statLabels.score || !statLabels.ko || !statLabels.board || !statLabels.speed || !statLabels.time || muteButtons.length < 2 || menuButtons.length < 2 || themeButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
 const ctx = canvas.getContext('2d');
 if (!ctx) throw new Error('Canvas 2D is unavailable');
 
+bootTheme();
 const game = new Game();
 game.showTitle();
 let direction: Dir | null = null;
@@ -87,7 +106,8 @@ function syncHud(): void {
   onlineNoteEl!.textContent = game.onlineNote;
   readyButton!.hidden = session.phase !== 'lobby';
   readyButton!.disabled = session.hasReadied;
-  readyButton!.textContent = session.hasReadied ? 'Waiting…' : 'Ready';
+  const copy = activeTheme().strings;
+  readyButton!.textContent = session.hasReadied ? copy.waiting : copy.ready;
   document.body.dataset.phase = game.inMatch ? hud.phase : 'menu';
   document.body.dataset.remaining = String(hud.remaining);
   titleEl!.hidden = game.inMatch || game.spectating;
@@ -139,13 +159,14 @@ function advanceWin(): void {
 
 function renderStandings(rows: readonly StandingRow[], yourPlace: number | null, stillIn: number): void {
   const sig = `${stillIn}|${yourPlace ?? ''}|${rows.map((row) => `${row.place ?? ''}:${row.name}:${row.state}:${row.kos}:${row.koByYou ? 1 : 0}:${row.koYou ? 1 : 0}`).join(';')}`;
+  const copy = activeTheme().strings;
   rankingBlurb!.textContent = game.spectating
-    ? `Spectating. ${stillIn} still in. No remote maze — the next lobby opens when this match ends.`
+    ? copy.spectateBlurb(stillIn)
     : yourPlace
-    ? stillIn > 0
-      ? `You placed ${yourPlace}. ${stillIn} still in — open spots stay blank until they are out.`
-      : `You placed ${yourPlace}.`
-    : `${stillIn} still in.`;
+      ? stillIn > 0
+        ? copy.placedLive(yourPlace, stillIn)
+        : copy.placed(yourPlace)
+      : copy.stillIn(stillIn);
   if (sig === standingsSig) return;
   const top = rankingList!.scrollTop;
   rankingList!.replaceChildren(...rows.map(renderStandingRow));
@@ -180,7 +201,8 @@ function renderStandingRow(row: StandingRow): HTMLLIElement {
   }
   const tag = document.createElement('span');
   tag.className = 'tag';
-  tag.textContent = row.you ? 'you' : row.state === 'active' ? 'in' : '';
+  const copy = activeTheme().strings;
+  tag.textContent = row.you ? copy.rankYou : row.state === 'active' ? copy.rankIn : '';
   item.append(place, name, marks, tag);
   return item;
 }
@@ -188,7 +210,8 @@ function renderStandingRow(row: StandingRow): HTMLLIElement {
 function syncMute(): void {
   const muted = game.sfx.muted;
   for (const button of muteButtons) {
-    button.textContent = muted ? 'Muted' : 'Sound on';
+    const copy = activeTheme().strings;
+    button.textContent = muted ? copy.muted : copy.soundOn;
     button.setAttribute('aria-pressed', muted ? 'true' : 'false');
   }
 }
@@ -375,8 +398,56 @@ const session = new NetSession({
   },
 });
 
+function applyThemeCopy(): void {
+  const theme = activeTheme();
+  const copy = theme.strings;
+  document.title = copy.documentTitle;
+  brandEl!.textContent = copy.brand;
+  eyebrowEl!.textContent = copy.eyebrow;
+  cardTitleEl!.textContent = copy.cardTitle;
+  cardKickerEl!.textContent = copy.cardKicker;
+  cardKickerEl!.hidden = copy.cardKicker.length === 0;
+  blurbEl!.textContent = copy.blurb;
+  nameLabelEl!.textContent = copy.nameLabel;
+  nameInput!.placeholder = copy.namePlaceholder;
+  helpEl!.textContent = copy.help;
+  statusEl!.textContent = copy.statusIdle;
+  startButton!.textContent = copy.start;
+  onlineButton!.textContent = import.meta.env.DEV ? copy.onlineDev : copy.online;
+  rankingTitleEl!.textContent = copy.standingsTitle;
+  overlayContinue!.textContent = copy.seeStandings;
+  rankingEnd!.textContent = copy.endMatch;
+  const [hudRestart, overlayRestartBtn, rankingRestartBtn] = restartButtons;
+  if (hudRestart) hudRestart.textContent = copy.restart;
+  if (overlayRestartBtn) overlayRestartBtn.textContent = copy.restartMatch;
+  if (rankingRestartBtn) rankingRestartBtn.textContent = copy.restartMatch;
+  for (const button of menuButtons) button.textContent = copy.menu;
+  statLabels.alive!.textContent = copy.alive;
+  statLabels.score!.textContent = copy.score;
+  statLabels.ko!.textContent = copy.ko;
+  statLabels.board!.textContent = copy.board;
+  statLabels.speed!.textContent = copy.speed;
+  statLabels.time!.textContent = copy.time;
+  for (const button of themeButtons) {
+    button.setAttribute('aria-pressed', button.dataset.themeId === theme.id ? 'true' : 'false');
+  }
+}
+
+function chooseTheme(id: ThemeId): void {
+  if (game.inMatch || game.spectating) return;
+  const previousDefault = activeTheme().strings.defaultPlayerName;
+  setActiveTheme(id);
+  if (nameInput!.value === previousDefault) {
+    nameInput!.value = activeTheme().strings.defaultPlayerName;
+    commitName();
+  }
+  applyThemeCopy();
+  syncMute();
+  syncHud();
+}
+
 window.addEventListener('keydown', onKeyDown);
-if (!import.meta.env.DEV) onlineButton.textContent = 'Online';
+applyThemeCopy();
 startButton.addEventListener('click', begin);
 onlineButton.addEventListener('click', beginOnline);
 readyButton.addEventListener('click', () => {
@@ -401,6 +472,12 @@ for (const button of muteButtons) {
   button.addEventListener('click', () => {
     game.toggleMute();
     syncMute();
+  });
+}
+for (const button of themeButtons) {
+  button.addEventListener('click', () => {
+    const id = button.dataset.themeId;
+    if (id === 'classic' || id === 'deep-sea') chooseTheme(id);
   });
 }
 window.addEventListener('resize', resize);
