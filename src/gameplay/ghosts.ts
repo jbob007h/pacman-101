@@ -1,5 +1,6 @@
 import {
   ELROY2_MULT,
+  FRIGHT_GHOST_SPEED,
   GHOST_DOOR_SPEED,
   GHOST_EATEN_SPEED,
   GHOST_HOUSE_SPEED,
@@ -60,12 +61,18 @@ export interface GhostWorld {
   pacPace: number;
 }
 
+/**
+ * Opening release only, in seconds of simulation time. Pinky 4, Inky 12, Clyde 18.
+ * Blinky starts outside. A ghost eaten and sent home re-releases after 1.4s
+ * ({@link enterHouse}), not these times. A pellet clear does not rebuild ghosts.
+ * {@link Board.reset} does, so a restarted match uses this schedule again.
+ */
 export function createGhosts(): Ghost[] {
   return [
     ghost('blinky', '#ff3b30', 14, 11, DIR_LEFT, { x: 25, y: -3 }, 0, 'scatter'),
     ghost('pinky', '#ffb8ff', 13, 14, DIR_UP, { x: 2, y: -3 }, 4, 'house'),
-    ghost('inky', '#46f0ff', 11, 14, DIR_UP, { x: 27, y: 33 }, 8, 'house'),
-    ghost('clyde', '#ffb852', 15, 14, DIR_DOWN, { x: 0, y: 33 }, 12, 'house'),
+    ghost('inky', '#46f0ff', 11, 14, DIR_UP, { x: 27, y: 33 }, 12, 'house'),
+    ghost('clyde', '#ffb852', 15, 14, DIR_DOWN, { x: 0, y: 33 }, 18, 'house'),
   ];
 }
 
@@ -104,7 +111,8 @@ export function ghostSpeed(mode: GhostMode, incoming: boolean, speeds: BoardSpee
     case 'eaten':
       return GHOST_EATEN_SPEED;
     case 'frightened':
-      return speeds.fright;
+      // Flat for the match. Incoming, Elroy, clears, and scatter bumps do not apply.
+      return FRIGHT_GHOST_SPEED;
     case 'house':
       return GHOST_HOUSE_SPEED;
     case 'leaving':

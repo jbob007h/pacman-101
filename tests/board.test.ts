@@ -290,6 +290,46 @@ describe('main board', () => {
     expect(game.board.eatPopupX).toBe(8);
   });
 
+  it('returns a frightened ghost to the wave without reversing when the pellet expires', () => {
+    const game = new Game(() => 0);
+    const blinky = game.board.ghosts[0];
+    const pinky = game.board.ghosts[1];
+    if (!blinky || !pinky) throw new Error('missing ghosts');
+    expect(game.board.wave).toBe('scatter');
+    for (const ghost of game.board.ghosts) {
+      if (ghost.id === 'blinky') continue;
+      ghost.mode = 'house';
+      ghost.releaseAt = 1e9;
+    }
+    blinky.mode = 'frightened';
+    blinky.dir = { x: 1, y: 0 };
+    blinky.x = 5.5;
+    blinky.y = 5;
+    blinky.reversePending = false;
+    blinky.centerKey = -1;
+    game.board.frightened = 0.02;
+    game.board.pac.x = 14;
+    game.board.pac.y = 23;
+    game.board.pac.dir = { x: -1, y: 0 };
+    game.update(0.05);
+    expect(game.board.frightened).toBe(0);
+    expect(blinky.mode).toBe('scatter');
+    expect(blinky.reversePending).toBe(false);
+    expect(blinky.dir).toEqual({ x: 1, y: 0 });
+    expect(pinky.mode).toBe('house');
+    expect(pinky.reversePending).toBe(false);
+  });
+
+  it('holds Inky and Clyde in the house longer at the opening, and a reset uses that schedule again', () => {
+    const game = new Game(() => 0);
+    const byId = Object.fromEntries(game.board.ghosts.map((ghost) => [ghost.id, ghost.releaseAt]));
+    expect(byId).toEqual({ blinky: 0, pinky: 4, inky: 12, clyde: 18 });
+    game.board.ghosts[2]!.releaseAt = 1.4;
+    game.restart();
+    const again = Object.fromEntries(game.board.ghosts.map((ghost) => [ghost.id, ghost.releaseAt]));
+    expect(again).toEqual({ blinky: 0, pinky: 4, inky: 12, clyde: 18 });
+  });
+
   it('opens the match in scatter and switches to chase after that wave', () => {
     const game = new Game(() => 0);
     const blinky = game.board.ghosts[0];
