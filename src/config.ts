@@ -143,12 +143,13 @@ export const FRUIT_SCORE = 100;
 
 /**
  * Tiles per second added to Pac for each full pellet clear this match.
- * The Speed readout also goes up by 1 on that same clear. 1.125 is Pac only
- * (was 1.6875, two thirds of that step). Ghost chase, fright, and Elroy do
+ * The Speed readout also goes up by 1 on that same clear. 0.75 is Pac only
+ * (was 1.125, two thirds of that step). Ghost chase, fright, and Elroy do
  * not add this. Elroy uses the board Pac pace below, before this bonus.
  * Even-board fruit still adds a readout point without adding this bonus.
+ * Speed mode adds the same step once per temporary level.
  */
-export const CLEAR_SPEED_BONUS = 1.125;
+export const CLEAR_SPEED_BONUS = 0.75;
 /** How long the "Speed Up!" callout stays on Pac after a full clear. */
 export const SPEED_POPUP_SECONDS = 1.35;
 
@@ -156,24 +157,24 @@ export const SPEED_POPUP_SECONDS = 1.35;
 export const TUNNEL_GHOST_MULT = 0.55;
 
 /**
- * Tiles per second. Board 1 is the slow end and is unchanged. Later rows keep
- * two thirds of the old step off board 1 (Pac, chase, and fright). Eating the
- * fruit advances one row. Past the last row the pace stays capped. Frightened
- * speed stays under half of that board's chase speed. These columns do not
- * include {@link CLEAR_SPEED_BONUS} or {@link GHOST_SCATTER_BUMP}.
+ * Tiles per second. Board 1 is the starting pace and is unchanged. Later rows
+ * keep two thirds of the previous step off board 1 (Pac, chase, and fright).
+ * Eating the fruit advances one row. Past the last row the pace stays capped.
+ * Frightened speed stays under half of that board's chase speed. These columns
+ * do not include {@link CLEAR_SPEED_BONUS} or {@link GHOST_SCATTER_BUMP}.
  * Elroy is a multiple of the `pac` column, not of Pac's accumulated clears.
  *
- * Old rows, for the shrink: Pac 8.64 / 9.6525 / 10.665 / 11.6775 / 12.6225 / 13.5,
- * ghost 6.075 / 7.2225 / 8.4375 / 9.6525 / 10.8675 / 12.015,
- * fright 2.7675 / 3.1725 / 3.645 / 4.1175 / 4.59 / 5.0625.
+ * Previous rows, for this shrink: Pac 8.64 / 9.315 / 9.99 / 10.665 / 11.295 / 11.88,
+ * ghost 6.075 / 6.84 / 7.65 / 8.46 / 9.27 / 10.035,
+ * fright 2.7675 / 3.0375 / 3.3525 / 3.6675 / 3.9825 / 4.2975.
  */
 const BOARD_PACE: readonly { pac: number; ghost: number; fright: number }[] = [
   { pac: 8.64, ghost: 6.075, fright: 2.7675 },
-  { pac: 9.315, ghost: 6.84, fright: 3.0375 },
-  { pac: 9.99, ghost: 7.65, fright: 3.3525 },
-  { pac: 10.665, ghost: 8.46, fright: 3.6675 },
-  { pac: 11.295, ghost: 9.27, fright: 3.9825 },
-  { pac: 11.88, ghost: 10.035, fright: 4.2975 },
+  { pac: 9.09, ghost: 6.585, fright: 2.9475 },
+  { pac: 9.54, ghost: 7.125, fright: 3.1575 },
+  { pac: 9.99, ghost: 7.665, fright: 3.3675 },
+  { pac: 10.41, ghost: 8.205, fright: 3.5775 },
+  { pac: 10.8, ghost: 8.715, fright: 3.7875 },
 ];
 
 export interface BoardSpeeds {
@@ -233,10 +234,10 @@ export const INCOMING_GHOST_MULT = 1.28;
 /**
  * Tiles per second added to chase and scatter, permanently, each time the
  * wave schedule enters scatter after the opening wave. The match-start scatter does not.
- * Two thirds of the old board-1 → board-2 ghost step (1.1475 → 0.765).
+ * Two thirds of the previous bump (0.765 → 0.51).
  * Fright, eyes, and the house do not take this. Elroy still uses Pac's pace.
  */
-export const GHOST_SCATTER_BUMP = 0.765;
+export const GHOST_SCATTER_BUMP = 0.51;
 
 /** Match seconds before inbound jammers may chase. Until then they sit and still touch. */
 export const JAMMER_CHASE_GATE = 60;
