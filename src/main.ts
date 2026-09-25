@@ -1,6 +1,6 @@
-import { SIM_FRAME_SEC, VIEW_H, VIEW_W } from './config';
+import { MAX_SIM_STEPS, SIM_CATCHUP_BUDGET_MS, SIM_FRAME_SEC, SIM_FPS, VIEW_H, VIEW_W } from './config';
 import { Game } from './game';
-import { planSimSteps } from './loop';
+import { WallSimClock } from './loop';
 import { NetSession } from './net/session';
 import { resolveSocketUrl } from './net/socketUrl';
 import { modeFromKey } from './gameplay/powerMode';
@@ -409,17 +409,97 @@ syncHud();
 syncMute();
 if (new URLSearchParams(window.location.search).get('online') === '1') beginOnline();
 
-let last = performance.now();
-let lag = 0;
-function frame(now: number): void {
-  const dt = document.hidden ? 0 : (now - last) / 1000;
-  last = now;
-  const plan = planSimSteps(lag, dt);
-  lag = plan.lag;
-  for (let step = 0; step < plan.frames; step++) {
+const clock = new WallSimClock();
+clock.mark(performance.now());
+let simWorker: Worker | null = null;
+let mainHeartbeat: number | null = null;
+let wakeQueued = false;
+let hiddenCatchUpQueued = false;
+
+function runSteps(frames: number): void {
+  for (let step = 0; step < frames; step++) {
     game.setDirection(direction);
     game.update(SIM_FRAME_SEC);
   }
+}
+
+/**
+ * Advance the maze from wall-clock time. Hidden, minimized, and unfocused
+ * tabs keep the same clock: nothing zeroes the gap. A long wake runs a short
+ * slice and yields. While the tab is showing, later frames finish the backlog.
+ * While it is hidden, the worker schedules the next slice.
+ */
+function pumpSim(now = performance.now()): void {
+  clock.mark(now);
+  const started = performance.now();
+  while (clock.lag >= SIM_FRAME_SEC) {
+    const frames = clock.take(MAX_SIM_STEPS);
+    if (frames === 0) break;
+    runSteps(frames);
+    if (performance.now() - started >= SIM_CATCHUP_BUDGET_MS) break;
+  }
+  if (document.hidden && clock.lag >= SIM_FRAME_SEC) queueHiddenCatchUp();
+}
+
+function queueHiddenCatchUp(): void {
+  if (hiddenCatchUpQueued) return;
+  hiddenCatchUpQueued = true;
+  if (simWorker != null) {
+    simWorker.postMessage({ type: 'pump' });
+    return;
+  }
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => {
+    hiddenCatchUpQueued = false;
+    if (document.hidden && clock.lag >= SIM_FRAME_SEC) pumpSim();
+  };
+  channel.port2.postMessage(null);
+}
+
+function onSimWake(): void {
+  // Ticks already waiting in the queue share one slice. Wall time is read
+  // when that slice runs, so dropping the extra ticks does not drop the gap.
+  if (wakeQueued) return;
+  wakeQueued = true;
+  const channel = new MessageChannel();
+  channel.port1.onmessage = () => {
+    wakeQueued = false;
+    hiddenCatchUpQueued = false;
+    pumpSim();
+  };
+  channel.port2.postMessage(null);
+}
+
+function startMainHeartbeat(): void {
+  if (mainHeartbeat != null) return;
+  mainHeartbeat = window.setInterval(() => onSimWake(), 1000 / SIM_FPS);
+}
+
+try {
+  const worker = new Worker(new URL('./sim.worker.ts', import.meta.url), { type: 'module' });
+  worker.onmessage = () => onSimWake();
+  worker.onerror = () => {
+    worker.terminate();
+    simWorker = null;
+    startMainHeartbeat();
+  };
+  simWorker = worker;
+} catch {
+  startMainHeartbeat();
+}
+
+document.addEventListener('visibilitychange', () => {
+  pumpSim();
+});
+window.addEventListener('focus', () => {
+  pumpSim();
+});
+window.addEventListener('pageshow', () => {
+  pumpSim();
+});
+
+function frame(): void {
+  pumpSim();
   game.draw(ctx!);
   syncHud();
   requestAnimationFrame(frame);

@@ -114,8 +114,14 @@ export function pelletFill(remaining: number, duration = FRIGHT_SECONDS): number
 /** Logic rate. Drawing may follow the display; simulation steps are this long. */
 export const SIM_FPS = 60;
 export const SIM_FRAME_SEC = 1 / SIM_FPS;
-/** Catch-up cap so a stalled tab cannot run the maze in a burst. */
+/**
+ * Most fixed steps one slice will run before yielding.
+ * Leftover time stays queued. A hidden tab catches up in later slices
+ * instead of dropping the gap.
+ */
 export const MAX_SIM_STEPS = 5;
+/** Milliseconds of simulation work per wake, so a long catch-up does not freeze the tab. */
+export const SIM_CATCHUP_BUDGET_MS = 12;
 /** Frames Pac stands still after eating a normal dot. Counted in simulation steps. */
 export const DOT_STOP_FRAMES = 1;
 /** Frames Pac stands still after eating a power pellet. */

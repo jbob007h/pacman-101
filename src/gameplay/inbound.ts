@@ -401,7 +401,12 @@ function chaseDir(maze: Maze, cx: number, cy: number, facing: Dir, pacX: number,
   return best ? { ...best } : null;
 }
 
-function pickSpawnTiles(
+/**
+ * Tiles for one inbound wave. Only starting-layout dots are legal, eaten or not.
+ * Prefer a different quadrant and a few tiles of space. If that pool is empty,
+ * drop the distance, then the quadrant, and still skip the tile Pac is on.
+ */
+export function pickSpawnTiles(
   maze: Maze,
   pacX: number,
   pacY: number,
@@ -411,8 +416,13 @@ function pickSpawnTiles(
 ): { x: number; y: number }[] {
   const pacQ = quadrantOf(pacX, pacY);
   const taken = new Set(existing.map((jammer) => tileKey(Math.round(jammer.x), Math.round(jammer.y))));
-  const strict = collectTiles(maze, pacX, pacY, pacQ, taken, 4);
-  const pool = strict.length > 0 ? strict : collectTiles(maze, pacX, pacY, pacQ, taken, 0);
+  const pools = [
+    collectTiles(maze, pacX, pacY, pacQ, taken, 4, false),
+    collectTiles(maze, pacX, pacY, pacQ, taken, 0, false),
+    collectTiles(maze, pacX, pacY, pacQ, taken, 4, true),
+    collectTiles(maze, pacX, pacY, pacQ, taken, 0, true),
+  ];
+  const pool = pools.find((tiles) => tiles.length > 0) ?? [];
   const picked: { x: number; y: number }[] = [];
   const bag = pool.slice();
   while (picked.length < count && bag.length > 0) {
@@ -432,11 +442,16 @@ function collectTiles(
   pacQ: number,
   taken: Set<number>,
   minDist: number,
+  allowSameQuadrant: boolean,
 ): { x: number; y: number }[] {
+  const pacCol = Math.round(pacX);
+  const pacRow = Math.round(pacY);
   const tiles: { x: number; y: number }[] = [];
   for (let y = 0; y < maze.rows; y++) {
     for (let x = 0; x < maze.cols; x++) {
-      if (quadrantOf(x, y) === pacQ) continue;
+      if (!allowSameQuadrant && quadrantOf(x, y) === pacQ) continue;
+      if (x === pacCol && y === pacRow) continue;
+      if (!maze.startingDot(x, y)) continue;
       if (inGhostHouse(x, y)) continue;
       if (maze.blocks(x, y, 'pac')) continue;
       if (taken.has(tileKey(x, y))) continue;

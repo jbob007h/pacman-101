@@ -35,6 +35,28 @@ function expectOpenedEmpty(maze: Maze): void {
 describe('maze', () => {
   const maze = new Maze();
 
+  it('remembers starting dots after they are eaten and ignores stripped tiles', () => {
+    const board = new Maze();
+    let dots = 0;
+    for (let y = 0; y < board.rows; y++) {
+      for (let x = 0; x < board.cols; x++) {
+        if (board.startingDot(x, y)) dots += 1;
+      }
+    }
+    expect(dots).toBe(board.dotCount());
+    expect(board.startingDot(1, 1)).toBe(true);
+    expect(board.consume(1, 1)).toBe('dot');
+    expect(board.tile(1, 1)).toBe(Tile.Empty);
+    expect(board.startingDot(1, 1)).toBe(true);
+    expect(board.startingDot(1, 3)).toBe(false);
+    for (let x = 0; x < board.cols; x++) expect(board.startingDot(x, board.tunnelRow)).toBe(false);
+    for (const [x, y] of OPENED_DOTS) expect(board.startingDot(x, y)).toBe(false);
+    for (const tile of sleeperTiles()) expect(board.startingDot(tile.x, tile.y)).toBe(false);
+    for (let y = 11; y <= 17; y++) {
+      for (let x = 9; x <= 18; x++) expect(board.startingDot(x, y)).toBe(false);
+    }
+  });
+
   it('is a connected 28×31 board with four power pellets', () => {
     expect(maze.cols).toBe(28);
     expect(maze.rows).toBe(31);

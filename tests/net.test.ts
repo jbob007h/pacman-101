@@ -796,6 +796,29 @@ describe('online game path', () => {
     expect(inbound.every((message) => message.type === 'jammerInbound' && message.strength === 1)).toBe(true);
   });
 
+  it('keeps a silent human in the match and still sends jammers on the server clock', () => {
+    const logs: ServerMessage[] = [];
+    let now = 0;
+    const room = new MatchRoom(() => now, () => 0);
+    const ada = room.join(sink(logs), 'Ada');
+    if (!ada.ok || ada.role !== 'player') throw new Error('expected a seat');
+    room.handle(ada.seat, { type: 'ready' });
+    now += LOBBY_COUNTDOWN_MS;
+    room.tick();
+    logs.length = 0;
+
+    room.tick(149);
+    room.tick(15);
+    const inbound = logs.filter((message) => message.type === 'jammerInbound');
+    expect(inbound.length).toBeGreaterThan(0);
+    expect(logs.some((message) => message.type === 'playerEliminated' && message.seat === ada.seat)).toBe(false);
+    const rosters = logs.filter((message) => message.type === 'rosterDelta');
+    const last = rosters[rosters.length - 1];
+    expect(last?.type).toBe('rosterDelta');
+    if (last?.type !== 'rosterDelta') return;
+    expect(last.seats.find((seat) => seat.seat === ada.seat)?.alive).toBe(true);
+  });
+
   it('keeps CPU timers frozen while local battle is off', () => {
     const game = new Game(() => 0);
     let shots = 0;

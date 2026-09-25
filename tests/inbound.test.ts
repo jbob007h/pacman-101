@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { JAMMER_CAP, JAMMER_HIT_DISTANCE, JAMMER_SPAWN_SECONDS } from '../src/config';
 import { Game } from '../src/game';
-import { InboundField, quadrantOf, redUnfreezeDirection, redWeight, slowProfile, splitJammerColors, type InboundJammer } from '../src/gameplay/inbound';
+import { InboundField, pickSpawnTiles, quadrantOf, redUnfreezeDirection, redWeight, slowProfile, splitJammerColors, type InboundJammer } from '../src/gameplay/inbound';
 import { Maze, Tile } from '../src/gameplay/maze';
 import { DIR_DOWN, DIR_LEFT, DIR_NONE, DIR_RIGHT, DIR_UP, type Dir } from '../src/shared/types';
 
@@ -63,6 +63,76 @@ describe('inbound jammers', () => {
     }
     expect(game.board.spawnInbound(40)).toBe(0);
     expect(game.board.inbound.count).toBe(JAMMER_CAP);
+  });
+
+  it('spawns white and red jammers only on starting dots, even after those dots are eaten', () => {
+    const maze = new Maze();
+    const dots = new Set<string>();
+    for (let y = 0; y < maze.rows; y++) {
+      for (let x = 0; x < maze.cols; x++) {
+        if (maze.startingDot(x, y)) dots.add(`${x},${y}`);
+      }
+    }
+    expect(dots.size).toBe(maze.dotCount());
+    expect(maze.startingDot(1, 3)).toBe(false);
+    for (let x = 0; x < maze.cols; x++) expect(maze.startingDot(x, maze.tunnelRow)).toBe(false);
+    for (let y = 13; y <= 15; y++) {
+      for (let x = 11; x <= 16; x++) expect(maze.startingDot(x, y)).toBe(false);
+    }
+
+    for (const key of dots) {
+      const [x, y] = key.split(',').map(Number);
+      expect(maze.consume(x ?? -1, y ?? -1)).toBe('dot');
+    }
+    expect(maze.dotCount()).toBe(0);
+
+    const tiles = pickSpawnTiles(maze, 14, 23, 400, [], () => 0.37);
+    expect(tiles.length).toBeGreaterThan(20);
+    const pacQ = quadrantOf(14, 23);
+    for (const tile of tiles) {
+      expect(maze.startingDot(tile.x, tile.y)).toBe(true);
+      expect(dots.has(`${tile.x},${tile.y}`)).toBe(true);
+      expect(maze.tile(tile.x, tile.y)).toBe(Tile.Empty);
+      expect(quadrantOf(tile.x, tile.y)).not.toBe(pacQ);
+      expect(Math.hypot(tile.x - 14, tile.y - 23)).toBeGreaterThanOrEqual(4);
+    }
+
+    const game = new Game(() => 0.2);
+    game.board.pac.x = 14;
+    game.board.pac.y = 23;
+    game.board.matchTime = 420;
+    for (let y = 0; y < game.board.maze.rows; y++) {
+      for (let x = 0; x < game.board.maze.cols; x++) {
+        if (game.board.maze.tile(x, y) === Tile.Dot) game.board.maze.consume(x, y);
+      }
+    }
+    expect(game.board.spawnInbound(80)).toBeGreaterThan(0);
+    for (const jammer of game.board.inbound.jammers) {
+      expect(jammer.kind === 'white' || jammer.kind === 'red').toBe(true);
+      expect(game.board.maze.startingDot(jammer.x, jammer.y)).toBe(true);
+    }
+  });
+
+  it('falls back to a farther starting dot in Pac’s quadrant when the other quadrants are taken', () => {
+    const maze = new Maze();
+    const pacX = 14;
+    const pacY = 23;
+    const pacQ = quadrantOf(pacX, pacY);
+    const existing: InboundJammer[] = [];
+    for (let y = 0; y < maze.rows; y++) {
+      for (let x = 0; x < maze.cols; x++) {
+        if (!maze.startingDot(x, y) || quadrantOf(x, y) === pacQ) continue;
+        existing.push({ ...idle('white'), x, y, prevX: x, prevY: y });
+      }
+    }
+    const tiles = pickSpawnTiles(maze, pacX, pacY, 3, existing, () => 0);
+    expect(tiles.length).toBe(3);
+    for (const tile of tiles) {
+      expect(maze.startingDot(tile.x, tile.y)).toBe(true);
+      expect(quadrantOf(tile.x, tile.y)).toBe(pacQ);
+      expect(Math.hypot(tile.x - pacX, tile.y - pacY)).toBeGreaterThanOrEqual(4);
+      expect(tile.x === Math.round(pacX) && tile.y === Math.round(pacY)).toBe(false);
+    }
   });
 
   it('pulses in for the full spawn window and cannot hit until that ends', () => {
