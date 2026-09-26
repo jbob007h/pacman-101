@@ -100,6 +100,9 @@ export interface ThemeStrings {
   modeActive: string;
   modeNext: string;
   modes: Record<PacMode, string>;
+  /** Short face-button name drawn next to each power-mode number key. */
+  modeButtons: Record<PacMode, string>;
+  controllerConnected: string;
   countdown: readonly string[];
   koByYou: string;
   koYou: string;

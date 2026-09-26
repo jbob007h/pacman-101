@@ -69,7 +69,7 @@ describe('names and standings', () => {
     expect(congrats.overlay).toMatchObject({
       title: 'Congratulations!',
       body: 'Last one standing. Score 4200.',
-      hint: 'Click, tap, Space, or Enter',
+      hint: 'Click, tap, Space, Enter, or Start',
     });
     expect(congrats.standings).toBeNull();
     expect(congrats.status).toBe('Congratulations');

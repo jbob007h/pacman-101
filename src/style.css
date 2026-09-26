@@ -30,6 +30,8 @@
   --field-bg: #07161e;
   --field-border: #3d7a86;
   --field-focus: #7ee0c8;
+  --focus-ring: #7ee0c8;
+  --focus-ring-soft: rgba(126, 224, 200, 0.35);
   --rank-border: #1c4e5c;
   --rank-bg: #07161e;
   --rank-text: #d7f3ee;
@@ -188,6 +190,35 @@ button.ghost:hover {
 button:disabled {
   cursor: default;
   opacity: 0.55;
+}
+
+.gamepad-focus {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+  box-shadow: 0 0 0 6px var(--focus-ring-soft);
+}
+
+#pad-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  z-index: 30;
+  margin: 0;
+  padding: 8px 14px;
+  transform: translateX(-50%);
+  border: 1px solid var(--focus-ring);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--card-title);
+  box-shadow: 0 8px 24px var(--shadow);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+#pad-toast[hidden] {
+  display: none;
 }
 
 #ready[hidden],
