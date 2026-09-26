@@ -338,9 +338,10 @@ function drawEyes(
 
 function drawClassicJammer(ctx: CanvasRenderingContext2D, pose: JammerPose): void {
   const { kind, frozen, s } = pose;
-  const color = frozen ? '#8fd0ff' : kind === 'red' ? '#ff2a36' : '#ffffff';
-  const ring = frozen ? '#e8f6ff' : kind === 'red' ? '#ffd2d6' : '#1a2748';
-  const glow = frozen ? 'rgba(140, 210, 255, 0.45)' : kind === 'red' ? 'rgba(255, 40, 54, 0.45)' : 'rgba(255, 255, 255, 0.55)';
+  const red = kind === 'red';
+  const color = red ? '#ff2a36' : '#ffffff';
+  const ring = red ? '#ffd2d6' : '#1a2748';
+  const glow = red ? 'rgba(255, 40, 54, 0.45)' : 'rgba(255, 255, 255, 0.55)';
   ctx.fillStyle = glow;
   ctx.beginPath();
   ctx.arc(0, 0, 11 * s, 0, Math.PI * 2);
@@ -352,10 +353,10 @@ function drawClassicJammer(ctx: CanvasRenderingContext2D, pose: JammerPose): voi
   ctx.strokeStyle = ring;
   ctx.lineWidth = 2 * s;
   ctx.stroke();
-  ctx.strokeStyle = kind === 'red' ? '#fff' : '#ff2a36';
+  ctx.strokeStyle = red ? '#fff' : '#ff2a36';
   ctx.lineWidth = 1.6 * s;
   ctx.beginPath();
-  if (kind === 'red') {
+  if (red) {
     ctx.moveTo(-3.2 * s, -3.2 * s);
     ctx.lineTo(3.2 * s, 3.2 * s);
     ctx.moveTo(3.2 * s, -3.2 * s);
@@ -367,4 +368,23 @@ function drawClassicJammer(ctx: CanvasRenderingContext2D, pose: JammerPose): voi
     ctx.lineTo(0, 3.4 * s);
   }
   ctx.stroke();
+  if (frozen && red) drawFrostCue(ctx, 8.9 * s, s);
+}
+
+/** Thin ice ring and sparkles outside the red body. The body fill stays red. */
+function drawFrostCue(ctx: CanvasRenderingContext2D, radius: number, s: number): void {
+  ctx.save();
+  ctx.strokeStyle = '#8fd0ff';
+  ctx.lineWidth = 0.75 * s;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#e8f6ff';
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * radius, Math.sin(a) * radius, 0.62 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
