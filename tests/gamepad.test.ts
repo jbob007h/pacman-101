@@ -25,10 +25,10 @@ import { deepSeaTheme } from '../src/theme/deepSea';
 
 describe('gamepad mapping', () => {
   it('maps the standard face buttons onto the four power modes', () => {
-    expect(modeFromFaceButton(GAMEPAD_BUTTON.a)).toBe('standard');
-    expect(modeFromFaceButton(GAMEPAD_BUTTON.b)).toBe('stronger');
-    expect(modeFromFaceButton(GAMEPAD_BUTTON.x)).toBe('speed');
-    expect(modeFromFaceButton(GAMEPAD_BUTTON.y)).toBe('train');
+    expect(modeFromFaceButton(GAMEPAD_BUTTON.y)).toBe('standard');
+    expect(modeFromFaceButton(GAMEPAD_BUTTON.x)).toBe('stronger');
+    expect(modeFromFaceButton(GAMEPAD_BUTTON.a)).toBe('speed');
+    expect(modeFromFaceButton(GAMEPAD_BUTTON.b)).toBe('train');
     expect(modeFromFaceButton(GAMEPAD_BUTTON.start)).toBeNull();
   });
 
@@ -204,16 +204,15 @@ describe('controller copy', () => {
     for (const theme of [classicTheme, deepSeaTheme]) {
       expect(theme.strings.controllerConnected).toBe('Controller connected');
       expect(theme.strings.modeButtons).toEqual({
-        standard: 'A',
-        stronger: 'B',
-        speed: 'X',
-        train: 'Y',
+        standard: 'Y',
+        stronger: 'X',
+        speed: 'A',
+        train: 'B',
       });
       expect(theme.strings.help).toContain('D-pad');
-      expect(theme.strings.help).toContain('A/Cross');
-      expect(theme.strings.help).toContain('B/Circle');
-      expect(theme.strings.help).toContain('X/Square');
-      expect(theme.strings.help).toContain('Y/Triangle');
+      expect(theme.strings.help).toContain('Y/Triangle, X/Square, A/Cross, and B/Circle');
+      expect(theme.strings.help).toContain('A/Cross activates');
+      expect(theme.strings.help).toContain('B/Circle goes back');
       expect(theme.strings.statusMove).toContain('D-pad');
       expect(theme.strings.winHint).toContain('Start');
     }

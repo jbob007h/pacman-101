@@ -5,6 +5,9 @@ import { DIR_DOWN, DIR_LEFT, DIR_RIGHT, DIR_UP, type Dir } from '../shared/types
  * Standard Gamepad layout (W3C). Face buttons follow Xbox / PlayStation names:
  * 0 A/Cross, 1 B/Circle, 2 X/Square, 3 Y/Triangle, 9 Start.
  * D-pad is 12 up, 13 down, 14 left, 15 right. Axes 0 and 1 are the left stick.
+ *
+ * In a match those face buttons queue power modes: Y Standard, X Stronger,
+ * A Speed, B Train. Menus keep A as activate and B as back.
  */
 export const GAMEPAD_BUTTON = {
   a: 0,
@@ -30,7 +33,13 @@ export const STICK_DEADZONE = 0.4;
 export const FOCUS_INITIAL_MS = 350;
 export const FOCUS_REPEAT_MS = 120;
 
-const FACE_MODES: readonly PacMode[] = ['standard', 'stronger', 'speed', 'train'];
+/** In-match only. Menu activate/back does not use this table. */
+const FACE_MODES: Partial<Record<number, PacMode>> = {
+  [GAMEPAD_BUTTON.y]: 'standard',
+  [GAMEPAD_BUTTON.x]: 'stronger',
+  [GAMEPAD_BUTTON.a]: 'speed',
+  [GAMEPAD_BUTTON.b]: 'train',
+};
 
 export type NavDir = 'up' | 'down' | 'left' | 'right';
 
