@@ -218,7 +218,7 @@ export function createDeepSeaPaint(strings: ThemeStrings): ThemePaint {
         }
         ctx.fillStyle = active ? '#ffe09a' : queued ? '#c8f4ff' : 'rgba(230, 248, 244, 0.92)';
         ctx.textAlign = 'left';
-        ctx.fillText(`${mode.key}  ${strings.modes[mode.id]}`, x + 8, ry + (row - 2) / 2);
+        ctx.fillText(`${mode.key} ${strings.modeButtons[mode.id]}  ${strings.modes[mode.id]}`, x + 8, ry + (row - 2) / 2);
         const tag = active ? strings.modeActive : queued ? strings.modeNext : '';
         if (tag) {
           ctx.textAlign = 'right';

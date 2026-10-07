@@ -177,7 +177,7 @@ describe('playfield layer order', () => {
     input.powerActive = 'stronger';
     input.powerQueued = 'speed';
     drawFrame(ctx, input);
-    const standard = log.find((entry) => entry.text === '1  Standard');
+    const standard = log.find((entry) => entry.text === '1 Y  Standard');
     const next = log.find((entry) => entry.text === 'NEXT');
     const active = log.find((entry) => entry.text === 'ACTIVE');
     expect(standard?.layer).toBe('overlay');

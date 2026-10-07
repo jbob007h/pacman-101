@@ -4,6 +4,18 @@ import { WallSimClock } from './loop';
 import { NetSession } from './net/session';
 import { resolveSocketUrl } from './net/socketUrl';
 import { modeFromKey } from './gameplay/powerMode';
+import {
+  defaultMenuFocus,
+  GamepadReader,
+  menuControls,
+  modeFromFaceButton,
+  moveFocus,
+  suppressHeldNav,
+  type GamepadSample,
+  type MenuControl,
+  type MenuScreen,
+  type PadLike,
+} from './input/gamepad';
 import { dirFromKey, type Dir } from './shared/types';
 import { standingMarks, type StandingRow } from './systems/ranking';
 import { loadPlayerName, savePlayerName } from './systems/names';
@@ -49,6 +61,13 @@ const blurbEl = document.querySelector<HTMLElement>('#title-blurb');
 const nameLabelEl = document.querySelector<HTMLElement>('#name-label');
 const rankingTitleEl = document.querySelector<HTMLElement>('#ranking-title');
 const themeButtons = document.querySelectorAll<HTMLButtonElement>('[data-theme-id]');
+const themeClassic = document.querySelector<HTMLButtonElement>('#theme-classic');
+const themeDeepSea = document.querySelector<HTMLButtonElement>('#theme-deep-sea');
+const menuMute = document.querySelector<HTMLButtonElement>('#mute-menu');
+const overlayMenu = document.querySelector<HTMLButtonElement>('#overlay-menu');
+const rankingMenuBtn = document.querySelector<HTMLButtonElement>('#ranking-menu');
+const rankingRestart = document.querySelector<HTMLButtonElement>('#ranking-restart');
+const padToast = document.querySelector<HTMLElement>('#pad-toast');
 const statLabels = {
   alive: document.querySelector<HTMLElement>('.alive-stat span'),
   score: document.querySelector<HTMLElement>('.score-stat span'),
@@ -58,7 +77,7 @@ const statLabels = {
   time: document.querySelector<HTMLElement>('.time-stat span'),
 };
 
-if (!canvas || !aliveEl || !scoreEl || !koEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || !helpEl || !brandEl || !eyebrowEl || !cardTitleEl || !cardKickerEl || !blurbEl || !nameLabelEl || !rankingTitleEl || !statLabels.alive || !statLabels.score || !statLabels.ko || !statLabels.board || !statLabels.speed || !statLabels.time || muteButtons.length < 2 || menuButtons.length < 2 || themeButtons.length < 2) {
+if (!canvas || !aliveEl || !scoreEl || !koEl || !boardEl || !speedEl || !timeEl || !statusEl || !overlayEl || !overlayCard || !overlayTitle || !overlayBody || !overlayHint || !overlayContinue || !overlayRestart || !rankingEl || !rankingBlurb || !rankingList || !rankingEnd || !titleEl || !countdownEl || !startButton || !onlineButton || !readyButton || !onlineNoteEl || !nameInput || !hudName || !helpEl || !brandEl || !eyebrowEl || !cardTitleEl || !cardKickerEl || !blurbEl || !nameLabelEl || !rankingTitleEl || !statLabels.alive || !statLabels.score || !statLabels.ko || !statLabels.board || !statLabels.speed || !statLabels.time || !themeClassic || !themeDeepSea || !menuMute || !overlayMenu || !rankingMenuBtn || !rankingRestart || !padToast || muteButtons.length < 2 || menuButtons.length < 2 || themeButtons.length < 2) {
   throw new Error('101 is missing required DOM nodes');
 }
 
@@ -431,6 +450,7 @@ function applyThemeCopy(): void {
   for (const button of themeButtons) {
     button.setAttribute('aria-pressed', button.dataset.themeId === theme.id ? 'true' : 'false');
   }
+  if (!padToast!.hidden) padToast!.textContent = copy.controllerConnected;
 }
 
 function chooseTheme(id: ThemeId): void {
@@ -486,6 +506,187 @@ syncHud();
 syncMute();
 if (new URLSearchParams(window.location.search).get('online') === '1') beginOnline();
 
+const controlElements: Record<string, HTMLElement> = {
+  name: nameInput,
+  'theme-classic': themeClassic,
+  'theme-deep-sea': themeDeepSea,
+  start: startButton,
+  online: onlineButton,
+  ready: readyButton,
+  'mute-menu': menuMute,
+  'overlay-continue': overlayContinue,
+  'overlay-menu': overlayMenu,
+  'ranking-end': rankingEnd,
+  'ranking-restart': rankingRestart,
+  'ranking-menu': rankingMenuBtn,
+};
+
+const gamepad = new GamepadReader();
+const announcedPads = new Set<number>();
+let gamepadActive = false;
+let focusId: string | null = null;
+let screenKey = '';
+let navArmed = true;
+let toastTimer = 0;
+
+function readPads(): PadLike[] {
+  const source = navigator.getGamepads?.();
+  if (!source) return [];
+  const pads: PadLike[] = [];
+  for (let index = 0; index < source.length; index++) {
+    const pad = source[index];
+    if (pad) pads.push(pad);
+  }
+  return pads;
+}
+
+function menuScreen(): MenuScreen | null {
+  if (!titleEl!.hidden) return readyButton!.hidden ? 'title' : 'lobby';
+  if (!overlayEl!.hidden && !rankingEl!.hidden) return 'standings';
+  if (!overlayEl!.hidden && !overlayCard!.hidden) return 'win';
+  return null;
+}
+
+function layoutFor(screen: MenuScreen): MenuControl[] {
+  return menuControls(screen, {
+    readyDisabled: readyButton!.disabled,
+    endMatch: !rankingEnd!.hidden,
+  });
+}
+
+function showControllerToast(): void {
+  padToast!.hidden = false;
+  padToast!.textContent = activeTheme().strings.controllerConnected;
+  window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    padToast!.hidden = true;
+  }, 2600);
+}
+
+function notePads(pads: readonly PadLike[]): void {
+  const live = new Set<number>();
+  for (const pad of pads) {
+    if (pad.connected === false) continue;
+    const index = pad.index ?? 0;
+    live.add(index);
+    if (!announcedPads.has(index)) {
+      announcedPads.add(index);
+      showControllerToast();
+    }
+  }
+  for (const index of announcedPads) {
+    if (!live.has(index)) announcedPads.delete(index);
+  }
+  if (live.size === 0) {
+    if (gamepadActive) {
+      gamepadActive = false;
+      screenKey = '';
+      focusId = null;
+      navArmed = true;
+      clearGamepadFocus();
+    }
+    return;
+  }
+  gamepadActive = true;
+}
+
+function clearGamepadFocus(): void {
+  for (const el of document.querySelectorAll('.gamepad-focus')) el.classList.remove('gamepad-focus');
+}
+
+function paintGamepadFocus(controls: readonly MenuControl[]): void {
+  clearGamepadFocus();
+  if (!gamepadActive || focusId == null) return;
+  const control = controls.find((item) => item.id === focusId && item.focusable !== false);
+  controlElements[control?.id ?? '']?.classList.add('gamepad-focus');
+}
+
+function refreshGamepadFocus(): void {
+  const screen = menuScreen();
+  if (!gamepadActive || !screen) {
+    clearGamepadFocus();
+    if (!screen) focusId = null;
+    screenKey = screen ?? '';
+    return;
+  }
+  const controls = layoutFor(screen);
+  const key = `${screen}|${controls
+    .filter((control) => control.focusable !== false)
+    .map((control) => control.id)
+    .join(',')}`;
+  const known = controls.some((control) => control.id === focusId && control.focusable !== false);
+  if (key !== screenKey || !known) {
+    const changed = key !== screenKey;
+    screenKey = key;
+    focusId = defaultMenuFocus(controls);
+    if (changed) {
+      navArmed = false;
+      gamepad.resetNav();
+    }
+  }
+  paintGamepadFocus(controls);
+}
+
+function activateControl(control: MenuControl, controls: readonly MenuControl[], fromPrimary = false): void {
+  if (control.disabled) return;
+  if (control.proceed && !fromPrimary) {
+    const primary = controls.find((item) => item.primary);
+    if (primary) activateControl(primary, controls, true);
+    return;
+  }
+  if (control.id === 'leave-lobby') {
+    menu();
+    return;
+  }
+  controlElements[control.id]?.click();
+}
+
+function applyMenu(sample: GamepadSample, screen: MenuScreen): void {
+  const controls = layoutFor(screen);
+  const gate = suppressHeldNav(navArmed, sample.move != null, sample.nav != null);
+  navArmed = gate.armed;
+  const pressed = sample.edges.start || sample.edges.a || sample.edges.b;
+  const focused = controls.find((control) => control.id === focusId);
+  if (sample.edges.start || (sample.edges.a && focused?.proceed)) {
+    const primary = controls.find((control) => control.primary);
+    if (primary) activateControl(primary, controls, true);
+  } else if (sample.edges.a) {
+    if (focused) activateControl(focused, controls);
+  } else if (sample.edges.b) {
+    const back = controls.find((control) => control.back);
+    if (back) activateControl(back, controls);
+  }
+  if (!pressed && gate.accept && sample.nav) {
+    focusId = moveFocus(controls, focusId, sample.nav);
+    paintGamepadFocus(controls);
+  }
+}
+
+function applyPlay(sample: GamepadSample): void {
+  if (sample.move && game.acceptsInput) direction = sample.move;
+  if (!game.inMatch) return;
+  for (const [down, index] of [
+    [sample.edges.a, 0],
+    [sample.edges.b, 1],
+    [sample.edges.x, 2],
+    [sample.edges.y, 3],
+  ] as const) {
+    if (!down) continue;
+    const mode = modeFromFaceButton(index);
+    if (mode) game.queuePower(mode);
+  }
+}
+
+function pollGamepad(now: number): void {
+  const pads = readPads();
+  notePads(pads);
+  const sample = gamepad.sample(pads, now);
+  if (!sample.connected) return;
+  const screen = menuScreen();
+  if (screen) applyMenu(sample, screen);
+  else applyPlay(sample);
+}
+
 const clock = new WallSimClock();
 clock.mark(performance.now());
 let simWorker: Worker | null = null;
@@ -507,6 +708,9 @@ function runSteps(frames: number): void {
  * While it is hidden, the worker schedules the next slice.
  */
 function pumpSim(now = performance.now()): void {
+  // The worker heartbeat calls this while the tab is hidden, when animation
+  // frames are paused. Reading the pad here keeps steering in that loop.
+  pollGamepad(now);
   clock.mark(now);
   const started = performance.now();
   while (clock.lag >= SIM_FRAME_SEC) {
@@ -579,7 +783,17 @@ function frame(): void {
   pumpSim();
   game.draw(ctx!);
   syncHud();
+  refreshGamepadFocus();
   requestAnimationFrame(frame);
 }
+
+window.addEventListener('gamepadconnected', () => {
+  pollGamepad(performance.now());
+  refreshGamepadFocus();
+});
+window.addEventListener('gamepaddisconnected', () => {
+  pollGamepad(performance.now());
+  refreshGamepadFocus();
+});
 
 requestAnimationFrame(frame);
