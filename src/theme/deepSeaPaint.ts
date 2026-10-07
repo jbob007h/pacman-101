@@ -4,7 +4,8 @@ import type { Dir } from '../shared/types';
 import { panelRect } from '../render/layout';
 import type { ChaserPose, JammerPose, PlayerPose, ThemePaint, ThemeStrings } from './types';
 
-const FRIGHT = '#8ec8e6';
+/** Dark saturated blue, the same family as classic fright (#2228e6). */
+const FRIGHT = '#2228e6';
 const FRIGHT_FLASH = '#f7fbff';
 
 /** Coral maze, sea creatures, urchins, and mines. Drawn with canvas paths only. */
@@ -498,12 +499,12 @@ function drawLookEyes(ctx: CanvasRenderingContext2D, sx: number, sy: number, dir
 function drawHazard(ctx: CanvasRenderingContext2D, pose: JammerPose): void {
   const { kind, frozen, s } = pose;
   const mine = kind === 'red';
-  const body = frozen ? '#b7e6ff' : mine ? '#e4232e' : '#f4f7f2';
-  const spike = frozen ? '#e8f7ff' : mine ? '#ffd0d4' : '#c5ddd4';
+  const body = mine ? '#e4232e' : '#f4f7f2';
+  const spike = mine ? '#ffd0d4' : '#c5ddd4';
   const count = mine ? 12 : 16;
   const inner = (mine ? 5.4 : 5.8) * s;
   const outer = (mine ? 10.4 : 8.2) * s;
-  ctx.fillStyle = frozen ? 'rgba(170, 220, 255, 0.4)' : mine ? 'rgba(255, 40, 50, 0.35)' : 'rgba(230, 255, 245, 0.4)';
+  ctx.fillStyle = mine ? 'rgba(255, 40, 50, 0.35)' : 'rgba(230, 255, 245, 0.4)';
   ctx.beginPath();
   ctx.arc(0, 0, 11 * s, 0, Math.PI * 2);
   ctx.fill();
@@ -522,15 +523,34 @@ function drawHazard(ctx: CanvasRenderingContext2D, pose: JammerPose): void {
   ctx.beginPath();
   ctx.arc(0, 0, inner, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = frozen ? '#f4fbff' : mine ? '#ffd8dc' : '#9ec8bc';
+  ctx.strokeStyle = mine ? '#ffd8dc' : '#9ec8bc';
   ctx.lineWidth = 1.4 * s;
   ctx.stroke();
-  if (mine && !frozen) {
+  if (mine) {
     ctx.fillStyle = '#fff';
     ctx.beginPath();
     ctx.arc(0, 0, 1.5 * s, 0, Math.PI * 2);
     ctx.fill();
   }
+  if (frozen && mine) drawFrostCue(ctx, outer + 1.5 * s, s);
+}
+
+/** Thin ice ring and sparkles outside the red spikes. The mine body stays red. */
+function drawFrostCue(ctx: CanvasRenderingContext2D, radius: number, s: number): void {
+  ctx.save();
+  ctx.strokeStyle = '#8fd0ff';
+  ctx.lineWidth = 0.75 * s;
+  ctx.beginPath();
+  ctx.arc(0, 0, radius, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#e8f6ff';
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2 + 0.4;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * radius, Math.sin(a) * radius, 0.62 * s, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawStarfish(ctx: CanvasRenderingContext2D, cx: number, cy: number, time: number): void {
